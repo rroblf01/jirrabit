@@ -108,6 +108,9 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["is_watching"] = await self.object.watchers.filter(
             pk=self.request.user.pk
         ).aexists()
+        ctx["custom_fields"] = [
+            f async for f in self.object.project.custom_fields.all()
+        ]
         return ctx
 
 
