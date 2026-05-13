@@ -26,7 +26,7 @@
   <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;">
     <span style="color:var(--ink-500); font-size:12px;">Tuyos / compartidos:</span>
     {% for f in saved_filters %}
-      <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }}">{{ f.name }} {% if f.scope == "shared" %}🔓{% endif %}</a>
+      <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }} — {{ f.get_scope_display }}">{% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}</a>
     {% endfor %}
   </div>
   {% endif %}
