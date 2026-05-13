@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>{{ title }}</h1>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="form-row">
+      <label>{{ field.label }}</label>{{ field }}
+      {% if field.help_text %}<div style="font-size:12px;color:var(--ink-500)">{{ field.help_text|safe }}</div>{% endif %}
+      {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit">Guardar</button>
+    <a class="btn ghost" href="{% url 'projects:list' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

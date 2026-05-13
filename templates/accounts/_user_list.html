@@ -1,0 +1,15 @@
+<table>
+  <thead><tr><th>Usuario</th><th>Email</th><th>Cargo</th><th></th></tr></thead>
+  <tbody>
+  {% for u in users %}
+    <tr>
+      <td>{% include "_avatar.html" with u=u %} &nbsp; {{ u }}</td>
+      <td>{{ u.email|default:"—" }}</td>
+      <td>{{ u.job_title|default:"—" }}</td>
+      <td>{% if u.is_superuser %}<span class="badge">admin</span>{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="4" class="empty">Sin resultados</td></tr>
+  {% endfor %}
+  </tbody>
+</table>

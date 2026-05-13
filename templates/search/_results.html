@@ -1,0 +1,19 @@
+{% if query %}
+<table>
+  <thead><tr><th>Clave</th><th>Tipo</th><th>Resumen</th><th>Estado</th><th>Prioridad</th><th>Asignado</th></tr></thead>
+  <tbody>
+  {% for i in issues %}
+    <tr>
+      <td><a href="{{ i.get_absolute_url }}">{{ i.key }}</a></td>
+      <td><span class="badge {{ i.issue_type.category }}">{{ i.issue_type.name }}</span></td>
+      <td>{{ i.summary }}</td>
+      <td><span class="badge {{ i.status.category }}">{{ i.status.name }}</span></td>
+      <td><span class="priority-dot" style="background:{{ i.priority.color }}"></span>{{ i.priority.name }}</td>
+      <td>{{ i.assignee|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6" class="empty">Sin resultados.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}

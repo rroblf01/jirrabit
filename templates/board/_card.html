@@ -1,0 +1,7 @@
+<div class="card-issue" data-key="{{ issue.key }}" style="border-left-color:{{ issue.priority.color }};">
+  <div><a href="{{ issue.get_absolute_url }}">{{ issue.key }}</a> — {{ issue.summary }}</div>
+  <div class="meta">
+    <span><span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span></span>
+    <span>{% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %}{% else %}<span style="color:var(--ink-300);">—</span>{% endif %}</span>
+  </div>
+</div>

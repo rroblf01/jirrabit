@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0">Proyectos</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'projects:create' %}">+ Nuevo proyecto</a>
+  </div>
+  <table style="margin-top:14px;">
+    <thead><tr><th>Clave</th><th>Nombre</th><th>Lead</th><th>Miembros</th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+      <tr>
+        <td><a href="{{ p.get_absolute_url }}">{{ p.key }}</a></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.lead }}</td>
+        <td>{{ p.members.count }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="empty">Sin proyectos todavía.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

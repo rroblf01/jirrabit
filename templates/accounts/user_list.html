@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Usuarios</h1>
+  <input type="search" name="q" placeholder="Buscar..." value="{{ q }}"
+         hx-get="{% url 'accounts:user_list' %}" hx-trigger="keyup changed delay:300ms"
+         hx-target="#user-list" hx-include="this">
+  <div id="user-list" style="margin-top:14px;">
+    {% include "accounts/_user_list.html" %}
+  </div>
+</div>
+{% endblock %}

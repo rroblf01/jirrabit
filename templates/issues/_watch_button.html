@@ -1,0 +1,8 @@
+<form hx-post="{% url 'issues:watch_toggle' issue.key %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  {% if is_watching %}
+    <button class="btn ghost small">👁 Dejar de seguir</button>
+  {% else %}
+    <button class="btn ghost small">👁 Seguir</button>
+  {% endif %}
+</form>

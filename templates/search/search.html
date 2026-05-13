@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Búsqueda</h1>
+  <p style="color:var(--ink-500); font-size:13px;">
+    JQL-lite: <code>project=WEB AND status="In Progress" AND assignee=alice ORDER BY priority DESC</code>.
+    Operadores: <code>=</code>, <code>!=</code>, <code>~</code>, <code>in (a,b)</code>. Texto libre también funciona.
+  </p>
+  <form method="get">
+    <input type="search" name="q" value="{{ query }}" autofocus
+           hx-get="{% url 'search:search' %}" hx-trigger="keyup changed delay:400ms"
+           hx-target="#results" hx-include="this">
+  </form>
+  {% if error %}<div class="errors">{{ error }}</div>{% endif %}
+  <div id="results" style="margin-top:14px;">
+    {% include "search/_results.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,14 @@
+<tr id="sprint-{{ sprint.pk }}">
+  <td>{{ sprint.name }}</td>
+  <td>{{ sprint.goal|default:"—" }}</td>
+  <td><span class="badge">{{ sprint.get_status_display }}</span></td>
+  <td>{{ sprint.start_date|default:"—" }}</td>
+  <td>{{ sprint.end_date|default:"—" }}</td>
+  <td>
+    {% if sprint.status == "future" %}
+      <button class="btn small" hx-post="{% url 'projects:start_sprint' sprint.pk %}" hx-target="#sprint-{{ sprint.pk }}" hx-swap="outerHTML">Iniciar</button>
+    {% elif sprint.status == "active" %}
+      <button class="btn small danger" hx-post="{% url 'projects:close_sprint' sprint.pk %}" hx-target="#sprint-{{ sprint.pk }}" hx-swap="outerHTML">Cerrar</button>
+    {% endif %}
+  </td>
+</tr>

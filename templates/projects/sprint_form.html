@@ -1,0 +1,9 @@
+<form hx-post="{% url 'projects:create_sprint' project.key %}" hx-target="#sprint-table tbody" hx-swap="beforeend" style="margin-top:10px; padding:12px; background:var(--ink-50); border-radius:8px;">
+  {% csrf_token %}
+  {% for field in form %}
+    <div class="form-row">
+      <label>{{ field.label }}</label>{{ field }}
+    </div>
+  {% endfor %}
+  <button class="btn small" type="submit">Crear</button>
+</form>

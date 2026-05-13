@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <a href="{{ issue.project.get_absolute_url }}" style="color:var(--ink-500);">{{ issue.project.key }}</a>
+    <span style="color:var(--ink-500);">/</span>
+    <strong>{{ issue.key }}</strong>
+    <span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span>
+    <div class="spacer"></div>
+    {% include "issues/_watch_button.html" %}
+    <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">Editar</a>
+  </div>
+  <h1 style="margin:10px 0 4px 0;">{{ issue.summary }}</h1>
+
+  <div class="issue-detail" style="margin-top:14px;">
+    <div>
+      <h3>Descripción</h3>
+      <div style="white-space:pre-wrap; background:var(--ink-50); padding:14px; border-radius:8px;">{{ issue.description|default:"_(sin descripción)_" }}</div>
+
+      <h3 style="margin-top:18px;">Adjuntos</h3>
+      <div id="attachments">
+        {% for a in issue.attachments.all %}{% include "issues/_attachment.html" with a=a %}{% empty %}
+          <div style="color:var(--ink-500); font-size:13px;">Sin adjuntos.</div>
+        {% endfor %}
+      </div>
+      <form hx-post="{% url 'issues:upload' issue.key %}" hx-target="#attachments" hx-swap="beforeend" enctype="multipart/form-data" style="margin-top:8px;">
+        {% csrf_token %}
+        <input type="file" name="file" required>
+        <button class="btn small" type="submit">Subir</button>
+      </form>
+
+      <h3 style="margin-top:18px;">Comentarios</h3>
+      <div class="comments" id="comments">
+        {% for c in issue.comments.all %}{% include "issues/_comment.html" with c=c %}{% endfor %}
+      </div>
+      <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend" style="margin-top:10px;">
+        {% csrf_token %}
+        {{ comment_form.body }}
+        <button class="btn small" type="submit" style="margin-top:6px;">Comentar</button>
+      </form>
+
+      <h3 style="margin-top:18px;">Historial</h3>
+      <ul style="font-size:13px; color:var(--ink-700);">
+        {% for h in issue.history.all|slice:":50" %}
+          <li>{{ h.created_at|date:"d M H:i" }} — <strong>{{ h.actor|default:"sistema" }}</strong> cambió <em>{{ h.field }}</em>: <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code></li>
+        {% empty %}
+          <li style="color:var(--ink-500);">Sin cambios registrados.</li>
+        {% endfor %}
+      </ul>
+    </div>
+
+    <aside class="sidebar-info">
+      <div id="status-badge">{% include "issues/_status_badge.html" %}</div>
+      <dt>Asignado</dt>
+      <dd>{% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %} {{ issue.assignee }}{% else %}Sin asignar{% endif %}</dd>
+      <dt>Reporter</dt>
+      <dd>{% include "_avatar.html" with u=issue.reporter %} {{ issue.reporter }}</dd>
+      <dt>Prioridad</dt>
+      <dd><span class="priority-dot" style="background:{{ issue.priority.color }}"></span>{{ issue.priority.name }}</dd>
+      <dt>Epic</dt>
+      <dd>{{ issue.epic|default:"—" }}</dd>
+      <dt>Sprint</dt>
+      <dd>{{ issue.sprint|default:"—" }}</dd>
+      <dt>Story points</dt>
+      <dd>{{ issue.story_points|default:"—" }}</dd>
+      <dt>Vencimiento</dt>
+      <dd>{{ issue.due_date|default:"—" }}</dd>
+      <dt>Etiquetas</dt>
+      <dd>{% for l in issue.labels.all %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
+      <dt>Creado</dt>
+      <dd>{{ issue.created_at|date:"d M Y H:i" }}</dd>
+      <dt>Actualizado</dt>
+      <dd>{{ issue.updated_at|date:"d M Y H:i" }}</dd>
+    </aside>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">Tablero · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <form method="get" style="display:inline;">
+      <select name="sprint" onchange="this.form.submit()">
+        <option value="">Todos / sprint activo</option>
+        {% for s in sprints %}<option value="{{ s.pk }}" {% if active_sprint.pk == s.pk %}selected{% endif %}>{{ s.name }} ({{ s.get_status_display }})</option>{% endfor %}
+      </select>
+    </form>
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
+  </div>
+  {% if active_sprint %}<p style="color:var(--ink-500); margin:8px 0 0;">Sprint: <strong>{{ active_sprint.name }}</strong> — {{ active_sprint.goal }}</p>{% endif %}
+</div>
+
+<div class="kanban">
+  {% for col in columns %}
+  <div class="column" data-status-id="{{ col.status.pk }}">
+    <h3>{{ col.status.name }} <span class="count">{{ col.issues|length }}</span></h3>
+    {% for i in col.issues %}{% include "board/_card.html" with issue=i %}{% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

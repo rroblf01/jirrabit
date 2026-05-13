@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Hooks registrados</h1>
+  <p style="color:var(--ink-500);font-size:14px;">
+    Los hooks se ejecutan cuando se dispara cada evento. Soportan patrones
+    (<code>issue.created</code>, <code>issue.*</code>, <code>*</code>).
+    Se registran con <code>@register_hook('event')</code>.
+  </p>
+  <table>
+    <thead><tr><th>Patrón</th><th>Handlers</th></tr></thead>
+    <tbody>
+    {% for pattern, fns in hooks.items %}
+      <tr>
+        <td><code>{{ pattern }}</code></td>
+        <td>
+          {% for fn in fns %}<div><code>{{ fn }}</code></div>{% endfor %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="2" class="empty">Sin hooks registrados.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

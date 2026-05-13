@@ -1,0 +1,7 @@
+<div class="comment">
+  {% include "_avatar.html" with u=c.author %}
+  <div class="body">
+    <div class="meta"><strong>{{ c.author }}</strong> · {{ c.created_at|date:"d M H:i" }}</div>
+    <div>{{ c.body|linebreaksbr }}</div>
+  </div>
+</div>

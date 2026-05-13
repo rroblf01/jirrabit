@@ -1,0 +1,8 @@
+<form hx-post="{% url 'issues:change_status' issue.key %}" hx-target="#status-badge" hx-swap="outerHTML" style="display:flex; gap:6px; align-items:center;">
+  {% csrf_token %}
+  <span class="badge {{ issue.status.category }}">{{ issue.status.name }}</span>
+  <select name="status" onchange="this.form.requestSubmit()">
+    <option value="">Cambiar...</option>
+    {% for s in statuses %}<option value="{{ s.pk }}" {% if s.pk == issue.status_id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+  </select>
+</form>

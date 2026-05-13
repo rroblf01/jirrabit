@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Hola, {{ user.display_name|default:user.username }}</h1>
+  <p style="color:var(--ink-500);">Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en los que participas.</p>
+</div>
+
+<div class="card">
+  <h2>Mis tareas abiertas</h2>
+  {% if my_issues %}
+  <table>
+    <thead><tr><th>Clave</th><th>Tipo</th><th>Resumen</th><th>Estado</th><th>Prioridad</th><th>Proyecto</th></tr></thead>
+    <tbody>
+    {% for i in my_issues %}
+      <tr>
+        <td><a href="{{ i.get_absolute_url }}">{{ i.key }}</a></td>
+        <td><span class="badge {{ i.issue_type.category }}">{{ i.issue_type.name }}</span></td>
+        <td>{{ i.summary }}</td>
+        <td><span class="badge {{ i.status.category }}">{{ i.status.name }}</span></td>
+        <td><span class="priority-dot" style="background:{{ i.priority.color }}"></span>{{ i.priority.name }}</td>
+        <td><a href="{{ i.project.get_absolute_url }}">{{ i.project.key }}</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">Sin tareas asignadas.</div>{% endif %}
+</div>
+
+<div class="card">
+  <h2>Mis proyectos</h2>
+  {% if projects %}
+  <table>
+    <thead><tr><th>Clave</th><th>Nombre</th><th>Lead</th><th>Abiertas</th></tr></thead>
+    <tbody>
+    {% for p in projects %}
+      <tr>
+        <td><a href="{{ p.get_absolute_url }}">{{ p.key }}</a></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.lead }}</td>
+        <td>{{ p.open_count }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<div class="empty">No participas en ningún proyecto. <a href="{% url 'projects:create' %}">Crea uno</a>.</div>{% endif %}
+</div>
+{% endblock %}

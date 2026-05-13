@@ -1,0 +1,52 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Jirrabit{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/jirrabit.css' %}">
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+</head>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+{% if user.is_authenticated %}
+<header class="topbar">
+  <div class="brand">jirra<span>bit</span></div>
+  <nav>
+    <a href="{% url 'core:home' %}">Home</a>
+    <a href="{% url 'projects:list' %}">Proyectos</a>
+    <a href="{% url 'accounts:user_list' %}">Usuarios</a>
+    <a href="{% url 'core:hooks' %}">Hooks</a>
+  </nav>
+  <div class="spacer"></div>
+  <form class="search" method="get" action="{% url 'search:search' %}">
+    <input type="search" name="q" placeholder="JQL-lite o texto..." value="{{ request.GET.q|default:'' }}">
+  </form>
+  <span class="user-chip">{{ user }}</span>
+  <a href="{% url 'accounts:profile' %}" title="Perfil">⚙</a>
+  <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">Salir</button></form>
+</header>
+<div class="layout">
+  <aside class="sidebar">
+    <h3>Proyectos</h3>
+    <ul>
+      {% for p in nav_projects %}
+        <li><a href="{{ p.get_absolute_url }}">{{ p.key }} · {{ p.name }}</a></li>
+      {% empty %}
+        <li class="empty" style="padding:6px">Sin proyectos</li>
+      {% endfor %}
+    </ul>
+    <a class="btn ghost small" href="{% url 'projects:create' %}">+ Nuevo proyecto</a>
+  </aside>
+  <main class="main">
+    {% if messages %}{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}{% endif %}
+    {% block content %}{% endblock %}
+  </main>
+</div>
+{% else %}
+  {% block anon %}{% endblock %}
+{% endif %}
+<form style="display:none">{% csrf_token %}</form>
+<script src="{% static 'js/board.js' %}" defer></script>
+</body>
+</html>

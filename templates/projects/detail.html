@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0">{{ project.key }} · {{ project.name }}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ Crear tarea</a>
+    <a class="btn ghost" href="{% url 'board:board' project.key %}">Tablero</a>
+    <a class="btn ghost" href="{% url 'issues:list' project.key %}">Lista</a>
+    <a class="btn ghost" href="{% url 'projects:edit' project.key %}">Editar</a>
+  </div>
+  <p style="color:var(--ink-500); margin-top:10px;">{{ project.description|linebreaksbr }}</p>
+  <div class="row" style="margin-top:8px;">
+    <span><strong>Lead:</strong> {{ project.lead }}</span>
+    <span><strong>Miembros:</strong>
+      {% for m in project.members.all %}<span class="badge">{{ m }}</span>{% endfor %}
+    </span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <h2 style="margin:0;">Epics</h2>
+    <div class="spacer"></div>
+    <button class="btn small" hx-get="{% url 'projects:create_epic' project.key %}" hx-target="#epic-form">+ Epic</button>
+  </div>
+  <div id="epic-form"></div>
+  <table id="epic-table" style="margin-top:10px;">
+    <thead><tr><th>Nombre</th><th>Resumen</th><th>Color</th></tr></thead>
+    <tbody>
+    {% for e in epics %}{% include "projects/_epic_row.html" with epic=e %}{% empty %}
+      <tr><td colspan="3" class="empty">Sin epics.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="row">
+    <h2 style="margin:0;">Sprints</h2>
+    <div class="spacer"></div>
+    <button class="btn small" hx-get="{% url 'projects:create_sprint' project.key %}" hx-target="#sprint-form">+ Sprint</button>
+  </div>
+  <div id="sprint-form"></div>
+  <table id="sprint-table" style="margin-top:10px;">
+    <thead><tr><th>Nombre</th><th>Meta</th><th>Estado</th><th>Inicio</th><th>Fin</th><th></th></tr></thead>
+    <tbody>
+    {% for s in sprints %}{% include "projects/_sprint_row.html" with sprint=s %}{% empty %}
+      <tr><td colspan="6" class="empty">Sin sprints.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
