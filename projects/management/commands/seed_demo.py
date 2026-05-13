@@ -22,7 +22,6 @@ console backend doesn't flood stdout while the demo is loading.
 import random
 from datetime import timedelta
 
-from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models.signals import post_save
@@ -369,16 +368,20 @@ class Command(BaseCommand):
             )
 
     def _attachment(self, issue: Issue, user: User):
+        import base64
         content = (
             f"Notas para {issue.key}\n"
             f"-----------------------\n"
             f"Resumen: {issue.summary}\n"
             f"Generado por seed_demo.\n"
-        )
+        ).encode("utf-8")
         Attachment.objects.create(
             issue=issue,
             uploaded_by=user,
-            file=ContentFile(content.encode("utf-8"), name=f"{issue.key.lower()}-notas.txt"),
+            filename=f"{issue.key.lower()}-notas.txt",
+            content_type="text/plain",
+            size=len(content),
+            data=base64.b64encode(content).decode("ascii"),
         )
 
     def _subtasks(self, parent: Issue, users, type_map, prio_map, status_map, sprints, project):

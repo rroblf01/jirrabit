@@ -139,13 +139,35 @@ class Comment(models.Model):
 
 
 class Attachment(models.Model):
+    """File attached to an issue, stored fully in the database as base64.
+
+    No filesystem footprint: the binary content lives in ``data`` and the
+    template builds a ``data:`` URL at render time for download.
+    """
+
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="attachments")
-    file = models.FileField(upload_to="attachments/%Y/%m/")
+    filename = models.CharField(max_length=255, default="")
+    content_type = models.CharField(max_length=120, default="application/octet-stream")
+    size = models.PositiveIntegerField(default=0, help_text="Raw bytes before base64.")
+    data = models.TextField(default="", help_text="Base64-encoded file contents.")
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.file.name
+        return self.filename
+
+    @property
+    def data_url(self) -> str:
+        return f"data:{self.content_type};base64,{self.data}"
+
+    @property
+    def size_human(self) -> str:
+        n = self.size
+        for unit in ("B", "KB", "MB", "GB"):
+            if n < 1024:
+                return f"{n:.0f} {unit}" if unit == "B" else f"{n:.1f} {unit}"
+            n /= 1024
+        return f"{n:.1f} TB"
 
 
 class HistoryEntry(models.Model):

@@ -190,13 +190,25 @@ class AddCommentView(AsyncLoginRequiredMixin, View):
 
 
 class UploadAttachmentView(AsyncLoginRequiredMixin, View):
+    MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024  # 5 MB raw
+
     async def post(self, request, key):
+        import base64
+
         issue = await _aget_issue(key)
         f = request.FILES.get("file")
         if not f:
             return redirect(issue.get_absolute_url())
+        if f.size and f.size > self.MAX_ATTACHMENT_BYTES:
+            return redirect(issue.get_absolute_url())
+        payload = f.read()
         att = await Attachment.objects.acreate(
-            issue=issue, file=f, uploaded_by=request.user
+            issue=issue,
+            uploaded_by=request.user,
+            filename=f.name,
+            content_type=getattr(f, "content_type", "") or "application/octet-stream",
+            size=len(payload),
+            data=base64.b64encode(payload).decode("ascii"),
         )
         if request.htmx:
             return await arender(request, "issues/_attachment.html", {"a": att})

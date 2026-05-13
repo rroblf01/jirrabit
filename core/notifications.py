@@ -83,7 +83,7 @@ def _on_attachment(sender, instance, created, **kwargs):
     issue = instance.issue
     _send(
         f"[{issue.key}] adjunto {_action(created)}",
-        f"{instance.uploaded_by} {_action(created)} un adjunto en {issue.key}: {instance.file.name}\n",
+        f"{instance.uploaded_by} {_action(created)} un adjunto en {issue.key}: {instance.filename}\n",
         _issue_recipients(issue),
     )
 
