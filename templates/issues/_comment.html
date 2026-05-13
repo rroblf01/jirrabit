@@ -1,7 +1,15 @@
-<div class="comment">
+<div class="comment" id="comment-{{ c.pk }}">
   {% include "_avatar.html" with u=c.author %}
   <div class="body">
-    <div class="meta"><strong>{{ c.author }}</strong> · {{ c.created_at|date:"d M H:i" }}</div>
-    <div>{{ c.body|linebreaksbr }}</div>
+    <div class="meta">
+      <strong>{{ c.author }}</strong> · {{ c.created_at|date:"d M H:i" }}{% if c.edited %} · <em>editado</em>{% endif %}
+      {% if c.author_id == request.user.pk or request.user.is_superuser %}
+        <span style="float:right;">
+          <button class="btn ghost small" hx-get="{% url 'issues:comment_edit' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML">editar</button>
+          <button class="btn ghost small" hx-post="{% url 'issues:comment_delete' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML" hx-confirm="¿Borrar comentario?">borrar</button>
+        </span>
+      {% endif %}
+    </div>
+    <div>{{ c.body_html|safe }}</div>
   </div>
 </div>

@@ -1,0 +1,4 @@
+<span class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'due_date' %}"
+      hx-target="this" hx-swap="outerHTML" title="Click para cambiar" style="cursor:pointer;">
+  {{ issue.due_date|default:"—" }}
+</span>

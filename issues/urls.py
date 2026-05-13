@@ -13,4 +13,11 @@ urlpatterns = [
     path("<str:key>/comment/", views.AddCommentView.as_view(), name="add_comment"),
     path("<str:key>/upload/", views.UploadAttachmentView.as_view(), name="upload"),
     path("<str:key>/watch/", views.WatchToggleView.as_view(), name="watch_toggle"),
+    path("<str:key>/inline/<str:field>/edit/", views.InlineEditFormView.as_view(), name="inline_edit_form"),
+    path("<str:key>/inline/<str:field>/", views.InlineEditApplyView.as_view(), name="inline_edit"),
+    path("<str:key>/log-work/", views.LogWorkView.as_view(), name="log_work"),
+    path("<str:key>/link/", views.IssueLinkCreateView.as_view(), name="link_create"),
+    path("<str:key>/link/<int:link_id>/delete/", views.IssueLinkDeleteView.as_view(), name="link_delete"),
+    path("comment/<int:pk>/edit/", views.CommentEditView.as_view(), name="comment_edit"),
+    path("comment/<int:pk>/delete/", views.CommentDeleteView.as_view(), name="comment_delete"),
 ]

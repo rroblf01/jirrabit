@@ -1,0 +1,16 @@
+<div id="links">
+  {% for l in issue.links_out.all %}
+    <div style="font-size:13px; padding:3px 0; display:flex; gap:6px; align-items:center;">
+      <span style="color:var(--ink-500);">{{ l.get_type_display }}</span>
+      <a href="{{ l.target.get_absolute_url }}">{{ l.target.key }}</a>
+      <span class="badge {{ l.target.status.category }}">{{ l.target.status.name }}</span>
+      <span>{{ l.target.summary|truncatechars:40 }}</span>
+      <form hx-post="{% url 'issues:link_delete' issue.key l.pk %}" hx-target="#links" hx-swap="outerHTML" style="margin:0;">
+        {% csrf_token %}
+        <button class="btn ghost small" type="submit" title="Quitar vínculo">×</button>
+      </form>
+    </div>
+  {% empty %}
+    <div style="color:var(--ink-500); font-size:13px;">Sin vínculos.</div>
+  {% endfor %}
+</div>

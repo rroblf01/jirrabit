@@ -1,4 +1,5 @@
-from django.http import Http404, HttpResponse
+from django.core.exceptions import PermissionDenied
+from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views import View
@@ -11,10 +12,12 @@ from core.async_views import (
     AsyncUpdateView,
 )
 from core.mixins import AsyncLoginRequiredMixin
+from core.permissions import aassert_can_edit, aassert_can_view
 from projects.models import Project
 
 from .forms import CommentForm, IssueForm
-from .models import Attachment, Issue, IssueType, Priority, Status
+from .inline import INLINE_FIELDS
+from .models import Attachment, Comment, Issue, IssueLink, IssueType, Priority, Status, WorkLog
 
 
 async def _aget_project(key):
@@ -157,13 +160,28 @@ class IssueListView(AsyncLoginRequiredMixin, AsyncListView):
 class ChangeStatusView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
         issue = await _aget_issue(key)
-        status = await _aget_status(request.POST.get("status"))
-        issue.status = status
-        if status.category == "done" and not issue.resolved_at:
+        await aassert_can_edit(request.user, issue.project)
+        new_status = await _aget_status(request.POST.get("status"))
+        current = issue.status
+        # Workflow rule: ``Status.allowed_next`` restricts transitions.
+        allowed = [s async for s in current.allowed_next.all()]
+        if allowed and new_status.pk != current.pk:
+            if not any(s.pk == new_status.pk for s in allowed):
+                return HttpResponseBadRequest(
+                    f"Transición no permitida: {current} → {new_status}"
+                )
+        issue.status = new_status
+        if new_status.category == "done" and not issue.resolved_at:
             issue.resolved_at = timezone.now()
-        elif status.category != "done":
+        elif new_status.category != "done":
             issue.resolved_at = None
         await issue.asave()
+        from issues.models import HistoryEntry
+        if current.pk != new_status.pk:
+            await HistoryEntry.objects.acreate(
+                issue=issue, actor=request.user, field="status",
+                old_value=str(current), new_value=str(new_status),
+            )
         if request.htmx:
             statuses = [s async for s in Status.objects.all()]
             return await arender(
@@ -231,3 +249,143 @@ class WatchToggleView(AsyncLoginRequiredMixin, View):
                 {"issue": issue, "is_watching": watching},
             )
         return redirect(issue.get_absolute_url())
+
+
+# --- inline edit, comments, links, worklogs ---
+
+async def _aget_comment(pk):
+    try:
+        return await Comment.objects.select_related("issue", "author").aget(pk=pk)
+    except Comment.DoesNotExist as exc:
+        raise Http404(f"Comment {pk} not found") from exc
+
+
+class InlineEditFormView(AsyncLoginRequiredMixin, View):
+    """Return the inline form fragment for ``field`` on issue ``key``."""
+
+    async def get(self, request, key, field):
+        if field not in INLINE_FIELDS:
+            raise Http404("Unknown field")
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        if request.GET.get("cancel"):
+            handler = INLINE_FIELDS[field]
+            return await arender(
+                request, handler.display_template, {"issue": issue}
+            )
+        handler = INLINE_FIELDS[field]
+        ctx = {"issue": issue, "field": field}
+        ctx.update(await handler.context(issue))
+        return await arender(request, handler.form_template, ctx)
+
+
+class InlineEditApplyView(AsyncLoginRequiredMixin, View):
+    """Apply the inline edit and return the display fragment."""
+
+    async def post(self, request, key, field):
+        if field not in INLINE_FIELDS:
+            raise Http404("Unknown field")
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        handler = INLINE_FIELDS[field]
+        old, new = await handler.apply(issue, request)
+        await issue.asave()
+        from issues.models import HistoryEntry
+        if old != new:
+            await HistoryEntry.objects.acreate(
+                issue=issue, actor=request.user, field=field,
+                old_value=str(old)[:255], new_value=str(new)[:255],
+            )
+        return await arender(request, handler.display_template, {"issue": issue})
+
+
+class CommentEditView(AsyncLoginRequiredMixin, View):
+    async def get(self, request, pk):
+        comment = await _aget_comment(pk)
+        if comment.author_id != request.user.pk and not request.user.is_superuser:
+            raise PermissionDenied
+        return await arender(request, "issues/_comment_form.html", {"c": comment})
+
+    async def post(self, request, pk):
+        comment = await _aget_comment(pk)
+        if comment.author_id != request.user.pk and not request.user.is_superuser:
+            raise PermissionDenied
+        new_body = request.POST.get("body", "").strip()
+        if new_body and new_body != comment.body:
+            comment.body = new_body
+            comment.edited = True
+            await comment.asave()
+        return await arender(request, "issues/_comment.html", {"c": comment})
+
+
+class CommentDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, pk):
+        comment = await _aget_comment(pk)
+        if comment.author_id != request.user.pk and not request.user.is_superuser:
+            raise PermissionDenied
+        await comment.adelete()
+        return HttpResponse("")
+
+
+class LogWorkView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        raw = request.POST.get("minutes", "").strip()
+        comment = request.POST.get("comment", "").strip()[:255]
+        try:
+            minutes = int(raw)
+        except ValueError:
+            return HttpResponseBadRequest("minutos inválidos")
+        if minutes <= 0:
+            return HttpResponseBadRequest("minutos debe ser > 0")
+        log = await WorkLog.objects.acreate(
+            issue=issue, author=request.user, minutes=minutes, comment=comment
+        )
+        issue.time_spent_minutes = (issue.time_spent_minutes or 0) + minutes
+        if issue.time_remaining_minutes:
+            issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - minutes)
+        await issue.asave()
+        worklogs = [w async for w in issue.worklogs.select_related("author")[:10]]
+        return await arender(
+            request, "issues/_time_panel.html",
+            {"issue": issue, "worklogs": worklogs},
+        )
+
+
+class IssueLinkCreateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        target_key = request.POST.get("target", "").strip().upper()
+        link_type = request.POST.get("type", "relates_to")
+        if link_type not in dict(IssueLink.TYPE_CHOICES):
+            return HttpResponseBadRequest("tipo inválido")
+        target = await Issue.objects.filter(key=target_key).afirst()
+        if not target or target.pk == issue.pk:
+            return HttpResponseBadRequest("issue destino inválido")
+        await IssueLink.objects.aget_or_create(
+            source=issue, target=target, type=link_type,
+            defaults={"created_by": request.user},
+        )
+        await IssueLink.objects.aget_or_create(
+            source=target, target=issue, type=IssueLink.INVERSE[link_type],
+            defaults={"created_by": request.user},
+        )
+        links = [l async for l in issue.links_out.select_related("target", "target__status")]
+        return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
+
+
+class IssueLinkDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, link_id):
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        link = await IssueLink.objects.filter(pk=link_id, source=issue).afirst()
+        if link:
+            # remove inverse too
+            await IssueLink.objects.filter(
+                source=link.target, target=issue, type=IssueLink.INVERSE[link.type]
+            ).adelete()
+            await link.adelete()
+        links = [l async for l in issue.links_out.select_related("target", "target__status")]
+        return await arender(request, "issues/_links.html", {"issue": issue, "links": links})

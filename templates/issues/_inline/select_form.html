@@ -1,0 +1,9 @@
+<form hx-post="{% url 'issues:inline_edit' issue.key field %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  <select name="value" autofocus onchange="this.form.requestSubmit()" onblur="this.form.requestSubmit()">
+    {% if allow_empty %}<option value="">{{ empty_label|default:"—" }}</option>{% endif %}
+    {% for opt in options %}
+      <option value="{{ opt.pk }}" {% if opt.pk == current_id %}selected{% endif %}>{{ opt }}</option>
+    {% endfor %}
+  </select>
+</form>

@@ -8,7 +8,9 @@ class ProjectQuerySet(models.QuerySet):
     def filter_visible(self, user):
         if user.is_superuser:
             return self.all()
-        return self.filter(models.Q(lead=user) | models.Q(members=user)).distinct()
+        return self.filter(
+            models.Q(lead=user) | models.Q(memberships__user=user)
+        ).distinct()
 
 
 class Project(models.Model):
@@ -18,7 +20,13 @@ class Project(models.Model):
     lead = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="led_projects"
     )
-    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="projects", blank=True)
+    members = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        related_name="projects",
+        through="ProjectMembership",
+        blank=True,
+    )
+    archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     issue_counter = models.PositiveIntegerField(default=0)
@@ -46,6 +54,103 @@ class Project(models.Model):
         )
         await self.arefresh_from_db(fields=["issue_counter"])
         return self.issue_counter
+
+
+class ProjectMembership(models.Model):
+    ROLE_CHOICES = (
+        ("admin", "Admin"),
+        ("member", "Member"),
+        ("viewer", "Viewer"),
+    )
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
+    role = models.CharField(max_length=16, choices=ROLE_CHOICES, default="member")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("project", "user")
+        ordering = ("user__username",)
+
+    def __str__(self):
+        return f"{self.user} @ {self.project.key} ({self.role})"
+
+
+class SavedFilter(models.Model):
+    SCOPE_CHOICES = (("private", "Privado"), ("shared", "Compartido"))
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters")
+    name = models.CharField(max_length=120)
+    query = models.TextField(help_text="JQL-lite query expression.")
+    scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default="private")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return f"{self.name} ({self.owner})"
+
+
+class Webhook(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="webhooks", null=True, blank=True)
+    name = models.CharField(max_length=80)
+    url = models.URLField()
+    secret = models.CharField(max_length=128, blank=True, help_text="Optional HMAC secret.")
+    events = models.CharField(
+        max_length=255,
+        default="issue.created,issue.updated",
+        help_text="Comma-separated event names.",
+    )
+    active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_status = models.IntegerField(null=True, blank=True)
+    last_error = models.TextField(blank=True)
+    last_delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("project", "name")
+
+    def __str__(self):
+        scope = self.project.key if self.project_id else "global"
+        return f"{scope}:{self.name}"
+
+    def listens_to(self, event: str) -> bool:
+        if not self.active:
+            return False
+        wanted = [e.strip() for e in self.events.split(",") if e.strip()]
+        return any(w == event or w == "*" for w in wanted)
+
+
+class CustomFieldDef(models.Model):
+    TYPE_CHOICES = (
+        ("text", "Texto corto"),
+        ("textarea", "Texto largo"),
+        ("number", "Número"),
+        ("select", "Lista"),
+        ("date", "Fecha"),
+        ("user", "Usuario"),
+        ("checkbox", "Checkbox"),
+    )
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="custom_fields")
+    name = models.CharField(max_length=80)
+    slug = models.SlugField(max_length=80)
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES, default="text")
+    required = models.BooleanField(default=False)
+    options = models.TextField(
+        blank=True,
+        help_text="For 'select' type: comma-separated options.",
+    )
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("project", "slug")
+        ordering = ("order", "id")
+
+    def __str__(self):
+        return f"{self.project.key}::{self.name}"
+
+    @property
+    def option_list(self) -> list[str]:
+        return [o.strip() for o in self.options.split(",") if o.strip()]
 
 
 class Epic(models.Model):

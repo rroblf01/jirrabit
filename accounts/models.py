@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -24,3 +25,32 @@ class User(AbstractUser):
         if len(parts) == 1:
             return parts[0][:2].upper()
         return (parts[0][0] + parts[-1][0]).upper()
+
+
+class Notification(models.Model):
+    KIND_CHOICES = (
+        ("mention", "Mención"),
+        ("assigned", "Asignación"),
+        ("comment", "Comentario"),
+        ("status", "Cambio de estado"),
+        ("watch", "Cambio en seguidos"),
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="actions_emitted",
+    )
+    kind = models.CharField(max_length=16, choices=KIND_CHOICES)
+    text = models.CharField(max_length=255)
+    url = models.CharField(max_length=255, blank=True)
+    read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [models.Index(fields=["recipient", "read", "-created_at"])]

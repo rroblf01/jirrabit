@@ -237,6 +237,7 @@ class Command(BaseCommand):
         return created
 
     def _project(self, users: list[User]) -> Project:
+        from projects.models import ProjectMembership
         project, _ = Project.objects.get_or_create(
             key=PROJECT_KEY,
             defaults={
@@ -248,7 +249,10 @@ class Command(BaseCommand):
                 "lead": users[0],
             },
         )
-        project.members.set(users)
+        ProjectMembership.objects.filter(project=project).delete()
+        roles = ["admin", "member", "member", "member", "member"]
+        for user, role in zip(users, roles):
+            ProjectMembership.objects.create(project=project, user=user, role=role)
         return project
 
     def _labels(self) -> list[Label]:

@@ -1,0 +1,12 @@
+<form hx-post="{% url 'issues:inline_edit' issue.key 'description' %}" hx-target="this" hx-swap="outerHTML">
+  {% csrf_token %}
+  <textarea name="description" rows="6" autofocus
+            style="background:white; padding:14px; border-radius:8px;">{{ issue.description }}</textarea>
+  <div style="display:flex; gap:8px; margin-top:6px;">
+    <button class="btn small" type="submit">Guardar</button>
+    <button class="btn ghost small" type="button"
+            hx-get="{% url 'issues:inline_edit_form' issue.key 'description' %}?cancel=1"
+            hx-target="closest form" hx-swap="outerHTML">Cancelar</button>
+    <span style="color:var(--ink-500); font-size:12px;">Markdown soportado</span>
+  </div>
+</form>

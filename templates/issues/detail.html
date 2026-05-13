@@ -5,17 +5,33 @@
     <a href="{{ issue.project.get_absolute_url }}" style="color:var(--ink-500);">{{ issue.project.key }}</a>
     <span style="color:var(--ink-500);">/</span>
     <strong>{{ issue.key }}</strong>
-    <span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span>
+    {% include "issues/_inline/issue_type_display.html" %}
     <div class="spacer"></div>
     {% include "issues/_watch_button.html" %}
-    <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">Editar</a>
+    <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">Editar todo</a>
   </div>
-  <h1 style="margin:10px 0 4px 0;">{{ issue.summary }}</h1>
+
+  {% include "issues/_inline/summary_display.html" %}
 
   <div class="issue-detail" style="margin-top:14px;">
     <div>
       <h3>Descripción</h3>
-      <div style="white-space:pre-wrap; background:var(--ink-50); padding:14px; border-radius:8px;">{{ issue.description|default:"_(sin descripción)_" }}</div>
+      {% include "issues/_inline/description_display.html" %}
+
+      <h3 style="margin-top:18px;">Issue links</h3>
+      <div id="links">{% include "issues/_links.html" %}</div>
+      <form hx-post="{% url 'issues:link_create' issue.key %}" hx-target="#links" hx-swap="outerHTML" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+        {% csrf_token %}
+        <select name="type" style="width:160px;">
+          <option value="blocks">bloquea</option>
+          <option value="blocked_by">bloqueado por</option>
+          <option value="relates_to" selected>relacionado con</option>
+          <option value="duplicates">duplica</option>
+          <option value="duplicated_by">duplicado por</option>
+        </select>
+        <input type="text" name="target" placeholder="Ej. WEB-12" style="width:140px;">
+        <button class="btn small" type="submit">Vincular</button>
+      </form>
 
       <h3 style="margin-top:18px;">Adjuntos</h3>
       <div id="attachments">
@@ -36,7 +52,10 @@
       <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend" style="margin-top:10px;">
         {% csrf_token %}
         {{ comment_form.body }}
-        <button class="btn small" type="submit" style="margin-top:6px;">Comentar</button>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+          <button class="btn small" type="submit">Comentar</button>
+          <span style="color:var(--ink-500); font-size:12px;">Markdown + @menciones</span>
+        </div>
       </form>
 
       <h3 style="margin-top:18px;">Historial</h3>
@@ -51,22 +70,41 @@
 
     <aside class="sidebar-info">
       <div id="status-badge">{% include "issues/_status_badge.html" %}</div>
+      <dt>Tipo</dt>
+      <dd>{% include "issues/_inline/issue_type_display.html" %}</dd>
       <dt>Asignado</dt>
-      <dd>{% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %} {{ issue.assignee }}{% else %}Sin asignar{% endif %}</dd>
+      <dd>{% include "issues/_inline/assignee_display.html" %}</dd>
       <dt>Reporter</dt>
       <dd>{% include "_avatar.html" with u=issue.reporter %} {{ issue.reporter }}</dd>
       <dt>Prioridad</dt>
-      <dd><span class="priority-dot" style="background:{{ issue.priority.color }}"></span>{{ issue.priority.name }}</dd>
+      <dd>{% include "issues/_inline/priority_display.html" %}</dd>
       <dt>Epic</dt>
-      <dd>{{ issue.epic|default:"—" }}</dd>
+      <dd>{% include "issues/_inline/epic_display.html" %}</dd>
       <dt>Sprint</dt>
-      <dd>{{ issue.sprint|default:"—" }}</dd>
+      <dd>{% include "issues/_inline/sprint_display.html" %}</dd>
       <dt>Story points</dt>
-      <dd>{{ issue.story_points|default:"—" }}</dd>
+      <dd>{% include "issues/_inline/story_points_display.html" %}</dd>
       <dt>Vencimiento</dt>
-      <dd>{{ issue.due_date|default:"—" }}</dd>
+      <dd>{% include "issues/_inline/due_date_display.html" %}</dd>
+      <dt>Estimación</dt>
+      <dd>{% include "issues/_inline/estimate_display.html" %}</dd>
+      <dt>Tiempo registrado</dt>
+      <dd>{{ issue.time_spent_minutes }} min</dd>
       <dt>Etiquetas</dt>
       <dd>{% for l in issue.labels.all %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
+
+      <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">
+      <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">Log work</h4>
+      <form hx-post="{% url 'issues:log_work' issue.key %}" hx-target="#time-panel" hx-swap="outerHTML">
+        {% csrf_token %}
+        <input type="number" name="minutes" placeholder="minutos" style="margin-bottom:6px;">
+        <input type="text" name="comment" placeholder="opcional" style="margin-bottom:6px;">
+        <button class="btn small" type="submit" style="width:100%;">Registrar tiempo</button>
+      </form>
+      <div id="time-panel" style="margin-top:8px;">
+        {% include "issues/_time_panel.html" %}
+      </div>
+
       <dt>Creado</dt>
       <dd>{{ issue.created_at|date:"d M Y H:i" }}</dd>
       <dt>Actualizado</dt>

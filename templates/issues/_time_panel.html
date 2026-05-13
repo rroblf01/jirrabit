@@ -1,0 +1,12 @@
+<div id="time-panel" style="font-size:13px;">
+  <div><strong>{{ issue.time_spent_minutes }}</strong> min registrados
+    {% if issue.estimate_minutes %} / {{ issue.estimate_minutes }} estimados{% endif %}
+  </div>
+  {% if worklogs %}
+  <ul style="margin:6px 0 0; padding-left:18px; color:var(--ink-700);">
+    {% for w in worklogs %}
+      <li>{{ w.author.display_name|default:w.author.username }} +{{ w.minutes }}min{% if w.comment %} — {{ w.comment }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
