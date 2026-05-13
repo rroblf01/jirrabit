@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">Notificaciones</h1>
+    <div class="spacer"></div>
+    <form hx-post="{% url 'accounts:notifications_mark_read' %}"
+          hx-target="#notif-list" hx-swap="outerHTML">
+      {% csrf_token %}
+      <button class="btn ghost small" type="submit">Marcar todas como leídas</button>
+    </form>
+  </div>
+  <div id="notif-list" style="margin-top:14px;">
+    {% include "notifications/_list.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+<tr id="user-row-{{ u.pk }}">
+  <td>{% include "_avatar.html" with u=u %}</td>
+  <td><strong>{{ u.username }}</strong><br><span style="color:var(--ink-500); font-size:12px;">{{ u.display_name|default:"—" }}</span></td>
+  <td>{{ u.email|default:"—" }}</td>
+  <td>{% if u.is_active %}<span class="badge done">sí</span>{% else %}<span class="badge">no</span>{% endif %}</td>
+  <td>{% if u.is_staff %}<span class="badge in_progress">staff</span>{% endif %}</td>
+  <td>{% if u.is_superuser %}<span class="badge bug">admin</span>{% endif %}</td>
+  <td>
+    <a class="btn ghost small" href="{% url 'accounts:admin_user_edit' u.pk %}">editar</a>
+    <button class="btn ghost small"
+            hx-post="{% url 'accounts:admin_user_toggle' u.pk %}"
+            hx-target="#user-row-{{ u.pk }}" hx-swap="outerHTML"
+            hx-confirm="¿{% if u.is_active %}Desactivar{% else %}Activar{% endif %} a {{ u.username }}?">
+      {% if u.is_active %}desactivar{% else %}activar{% endif %}
+    </button>
+  </td>
+</tr>

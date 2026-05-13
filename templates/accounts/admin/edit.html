@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <h1>{% if create %}Nuevo usuario{% else %}Editar {{ u.username }}{% endif %}</h1>
+  <form method="post">
+    {% csrf_token %}
+    {% if create %}
+      {% for field in form %}
+      <div class="form-row">
+        <label>{{ field.label }}</label>{{ field }}
+        {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="form-row"><label>Usuario</label><input value="{{ u.username }}" disabled></div>
+      <div class="form-row"><label>Email</label><input name="email" type="email" value="{{ u.email }}"></div>
+      <div class="form-row"><label>Display name</label><input name="display_name" value="{{ u.display_name }}"></div>
+      <div class="form-row"><label>Cargo</label><input name="job_title" value="{{ u.job_title }}"></div>
+      <div class="form-row"><label>Nueva contraseña (dejar vacío para no cambiar)</label><input name="new_password" type="password" autocomplete="new-password"></div>
+      <div class="form-row">
+        <label><input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %}> Activo</label>
+        <label style="margin-left:14px;"><input type="checkbox" name="is_staff" {% if u.is_staff %}checked{% endif %}> Staff</label>
+        <label style="margin-left:14px;"><input type="checkbox" name="is_superuser" {% if u.is_superuser %}checked{% endif %}> Superuser</label>
+      </div>
+    {% endif %}
+    <button class="btn" type="submit">Guardar</button>
+    <a class="btn ghost" href="{% url 'accounts:admin_user_list' %}">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

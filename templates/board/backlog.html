@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">Backlog · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <a class="btn ghost" href="{% url 'board:board' project.key %}">Tablero</a>
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
+  </div>
+</div>
+
+{% for g in groups %}
+<div class="card">
+  <h3>{% if g.sprint %}{{ g.sprint.name }} <span class="badge">{{ g.sprint.get_status_display }}</span>{% else %}Backlog (sin sprint){% endif %}</h3>
+  {% if g.sprint and g.sprint.goal %}<p style="color:var(--ink-500); margin:0 0 8px;">{{ g.sprint.goal }}</p>{% endif %}
+  <table>
+    <thead><tr><th>Clave</th><th>Tipo</th><th>Resumen</th><th>Estado</th><th>Prio</th><th>Asignado</th><th>Sprint</th></tr></thead>
+    <tbody>
+    {% for i in g.issues %}{% include "board/_backlog_row.html" %}{% empty %}
+      <tr><td colspan="7" class="empty">Sin issues.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endfor %}
+{% endblock %}

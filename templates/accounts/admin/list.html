@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">Administrar usuarios</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'accounts:admin_user_create' %}">+ Nuevo usuario</a>
+  </div>
+  <input type="search" name="q" placeholder="Buscar..." value="{{ q }}"
+         hx-get="{% url 'accounts:admin_user_list' %}" hx-trigger="keyup changed delay:300ms"
+         hx-target="#admin-user-rows" hx-include="this" style="margin-top:14px;">
+  <table style="margin-top:14px;">
+    <thead><tr><th></th><th>Usuario</th><th>Email</th><th>Activo</th><th>Staff</th><th>Super</th><th></th></tr></thead>
+    <tbody id="admin-user-rows">
+    {% for u in users %}{% include "accounts/admin/_row.html" %}{% empty %}
+      <tr><td colspan="7" class="empty">Sin resultados</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

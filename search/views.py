@@ -1,6 +1,12 @@
+from django.http import HttpResponse
+from django.shortcuts import redirect
+from django.views import View
+
+from core.aio import arender
 from core.async_views import AsyncTemplateView
 from core.mixins import AsyncLoginRequiredMixin
 from issues.models import Issue
+from projects.models import SavedFilter
 
 from .jql import parse_jql
 
@@ -31,4 +37,32 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["query"] = query
         ctx["issues"] = issues
         ctx["error"] = error
+        from django.db.models import Q
+        ctx["saved_filters"] = [
+            f async for f in SavedFilter.objects.filter(
+                Q(owner=self.request.user) | Q(scope="shared")
+            ).order_by("name")
+        ]
         return ctx
+
+
+class SavedFilterCreateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request):
+        name = request.POST.get("name", "").strip()
+        query = request.POST.get("query", "").strip()
+        scope = request.POST.get("scope", "private")
+        if not name or not query:
+            return HttpResponse(status=400)
+        await SavedFilter.objects.acreate(
+            owner=request.user, name=name, query=query,
+            scope="shared" if scope == "shared" else "private",
+        )
+        return redirect(f"/search/?q={query}")
+
+
+class SavedFilterDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, pk):
+        f = await SavedFilter.objects.filter(pk=pk, owner=request.user).afirst()
+        if f:
+            await f.adelete()
+        return redirect("/search/")

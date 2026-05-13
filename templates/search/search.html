@@ -6,12 +6,32 @@
     JQL-lite: <code>project=WEB AND status="In Progress" AND assignee=alice ORDER BY priority DESC</code>.
     Operadores: <code>=</code>, <code>!=</code>, <code>~</code>, <code>in (a,b)</code>. Texto libre también funciona.
   </p>
-  <form method="get">
-    <input type="search" name="q" value="{{ query }}" autofocus
+  <form method="get" style="display:flex; gap:8px;">
+    <input type="search" name="q" value="{{ query }}" autofocus style="flex:1;"
            hx-get="{% url 'search:search' %}" hx-trigger="keyup changed delay:400ms"
            hx-target="#results" hx-include="this">
   </form>
-  {% if error %}<div class="errors">{{ error }}</div>{% endif %}
+
+  {% if query %}
+  <form method="post" action="{% url 'search:filter_create' %}" style="display:inline-flex; gap:6px; margin-top:10px; align-items:center;">
+    {% csrf_token %}
+    <input type="hidden" name="query" value="{{ query }}">
+    <input type="text" name="name" placeholder="nombre del filtro" style="width:200px;">
+    <select name="scope"><option value="private">Privado</option><option value="shared">Compartido</option></select>
+    <button class="btn small" type="submit">Guardar filtro</button>
+  </form>
+  {% endif %}
+
+  {% if saved_filters %}
+  <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;">
+    <span style="color:var(--ink-500); font-size:12px;">Tuyos / compartidos:</span>
+    {% for f in saved_filters %}
+      <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }}">{{ f.name }} {% if f.scope == "shared" %}🔓{% endif %}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if error %}<div class="errors" style="margin-top:10px;">{{ error }}</div>{% endif %}
   <div id="results" style="margin-top:14px;">
     {% include "search/_results.html" %}
   </div>

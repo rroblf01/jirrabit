@@ -1,22 +1,15 @@
 """Inline field handlers used by ``InlineEditView``.
 
-Each handler defines:
-- ``label`` (es)
-- ``form_template`` (HTMX form fragment)
-- ``display_template`` (HTMX-swapped display fragment after save)
-- ``async def context(issue)``: data for the form
-- ``async def apply(issue, request)``: mutate ``issue`` in-place; return
-  ``(old_value, new_value)`` for the audit log.
-
-The actual save happens inside the view so we can also dispatch signals,
-build a notification, etc.
+Each handler exposes the templates and an ``apply`` coroutine that mutates
+``issue`` in-place. The view does the actual ``await issue.asave()``.
 """
 from datetime import date as date_cls
 from typing import Tuple
 
 from accounts.models import User
+from projects.models import Epic, Sprint
 
-from .models import IssueType, Priority, Status
+from .models import IssueType, Priority
 
 INLINE_FIELDS = {}
 
@@ -26,6 +19,10 @@ def register(name):
         INLINE_FIELDS[name] = cls()
         return cls
     return deco
+
+
+def _empty(v):
+    return v in (None, "", "None")
 
 
 class _Base:
@@ -66,14 +63,6 @@ class _DescriptionField(_Base):
         return old[:80], issue.description[:80]
 
 
-def _empty(v):
-    return v in (None, "", "None")
-
-
-def _parse_int_or_none(value):
-    return None if _empty(value) else int(value)
-
-
 @register("priority")
 class _PriorityField(_Base):
     label = "Prioridad"
@@ -89,8 +78,7 @@ class _PriorityField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.priority)
-        issue.priority_id = int(request.POST.get("value"))
-        await issue.arefresh_from_db(fields=["priority"])
+        issue.priority = await Priority.objects.aget(pk=int(request.POST.get("value")))
         return old, str(issue.priority)
 
 
@@ -109,8 +97,7 @@ class _TypeField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.issue_type)
-        issue.issue_type_id = int(request.POST.get("value"))
-        await issue.arefresh_from_db(fields=["issue_type"])
+        issue.issue_type = await IssueType.objects.aget(pk=int(request.POST.get("value")))
         return old, str(issue.issue_type)
 
 
@@ -131,11 +118,11 @@ class _AssigneeField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.assignee or "sin asignar")
-        issue.assignee_id = _parse_int_or_none(request.POST.get("value"))
-        if issue.assignee_id:
-            await issue.arefresh_from_db(fields=["assignee"])
-        else:
+        raw = request.POST.get("value")
+        if _empty(raw):
             issue.assignee = None
+        else:
+            issue.assignee = await User.objects.aget(pk=int(raw))
         return old, str(issue.assignee or "sin asignar")
 
 
@@ -157,11 +144,11 @@ class _SprintField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.sprint or "backlog")
-        issue.sprint_id = _parse_int_or_none(request.POST.get("value"))
-        if issue.sprint_id:
-            await issue.arefresh_from_db(fields=["sprint"])
-        else:
+        raw = request.POST.get("value")
+        if _empty(raw):
             issue.sprint = None
+        else:
+            issue.sprint = await Sprint.objects.aget(pk=int(raw))
         return old, str(issue.sprint or "backlog")
 
 
@@ -183,11 +170,11 @@ class _EpicField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.epic or "sin epic")
-        issue.epic_id = _parse_int_or_none(request.POST.get("value"))
-        if issue.epic_id:
-            await issue.arefresh_from_db(fields=["epic"])
-        else:
+        raw = request.POST.get("value")
+        if _empty(raw):
             issue.epic = None
+        else:
+            issue.epic = await Epic.objects.aget(pk=int(raw))
         return old, str(issue.epic or "sin epic")
 
 

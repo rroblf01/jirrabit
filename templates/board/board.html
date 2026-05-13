@@ -4,15 +4,56 @@
   <div class="row">
     <h1 style="margin:0;">Tablero · {{ project.key }}</h1>
     <div class="spacer"></div>
-    <form method="get" style="display:inline;">
-      <select name="sprint" onchange="this.form.submit()">
-        <option value="">Todos / sprint activo</option>
-        {% for s in sprints %}<option value="{{ s.pk }}" {% if active_sprint.pk == s.pk %}selected{% endif %}>{{ s.name }} ({{ s.get_status_display }})</option>{% endfor %}
-      </select>
-    </form>
+    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">Backlog</a>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
   </div>
+
+  <form method="get" id="board-filters" style="margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:8px;">
+    <select name="sprint" onchange="this.form.submit()">
+      <option value="">Sprint activo</option>
+      <option value="all" {% if request.GET.sprint == "all" %}selected{% endif %}>Todos</option>
+      {% for s in sprints %}<option value="{{ s.pk }}" {% if active_sprint.pk == s.pk and request.GET.sprint %}selected{% endif %}>{{ s.name }} ({{ s.get_status_display }})</option>{% endfor %}
+    </select>
+    <select name="assignee" onchange="this.form.submit()">
+      <option value="">Cualquier asignado</option>
+      <option value="me" {% if filter_assignee == "me" %}selected{% endif %}>Asignadas a mí</option>
+      <option value="none" {% if filter_assignee == "none" %}selected{% endif %}>Sin asignar</option>
+      {% for m in members %}<option value="{{ m.pk }}" {% if filter_assignee == m.pk|stringformat:"s" %}selected{% endif %}>{{ m }}</option>{% endfor %}
+    </select>
+    <select name="type" onchange="this.form.submit()">
+      <option value="">Cualquier tipo</option>
+      {% for t in types %}<option value="{{ t.pk }}" {% if filter_type == t.pk|stringformat:"s" %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </select>
+    <select name="priority" onchange="this.form.submit()">
+      <option value="">Cualquier prioridad</option>
+      {% for p in priorities %}<option value="{{ p.pk }}" {% if filter_priority == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+    <select name="epic" onchange="this.form.submit()">
+      <option value="">Cualquier epic</option>
+      {% for e in epics %}<option value="{{ e.pk }}" {% if filter_epic == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
+    </select>
+    <input type="search" name="text" value="{{ filter_text }}" placeholder="Texto..."
+           hx-trigger="keyup changed delay:400ms" hx-get="" hx-target="body" hx-push-url="true">
+  </form>
+
   {% if active_sprint %}<p style="color:var(--ink-500); margin:8px 0 0;">Sprint: <strong>{{ active_sprint.name }}</strong> — {{ active_sprint.goal }}</p>{% endif %}
+</div>
+
+<div class="card" id="bulk-bar" style="display:none; padding:10px 14px;">
+  <form hx-post="{% url 'board:bulk_update' project.key %}" hx-include="#bulk-bar input[name='keys']" id="bulk-form">
+    {% csrf_token %}
+    <span><strong id="bulk-count">0</strong> seleccionadas</span>
+    <select name="action">
+      <option value="status">Cambiar estado</option>
+      <option value="assignee">Cambiar asignado</option>
+      <option value="sprint">Cambiar sprint</option>
+      <option value="priority">Cambiar prioridad</option>
+      <option value="delete">Borrar</option>
+    </select>
+    <input type="text" name="value" placeholder="id objetivo" style="width:120px;">
+    <button class="btn small" type="submit">Aplicar</button>
+    <button class="btn ghost small" type="button" onclick="document.querySelectorAll('.card-select').forEach(c=>{c.checked=false;updateBulk();})">Limpiar</button>
+  </form>
 </div>
 
 <div class="kanban">
@@ -23,4 +64,24 @@
   </div>
   {% endfor %}
 </div>
+
+<script>
+function updateBulk() {
+  const checked = document.querySelectorAll('.card-select:checked');
+  const bar = document.getElementById('bulk-bar');
+  bar.style.display = checked.length ? 'block' : 'none';
+  document.getElementById('bulk-count').textContent = checked.length;
+  // sync hidden inputs
+  const form = document.getElementById('bulk-form');
+  form.querySelectorAll('input[name="keys"]').forEach(n => n.remove());
+  checked.forEach(c => {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'keys'; inp.value = c.value;
+    form.appendChild(inp);
+  });
+}
+document.addEventListener('change', e => {
+  if (e.target.classList.contains('card-select')) updateBulk();
+});
+</script>
 {% endblock %}

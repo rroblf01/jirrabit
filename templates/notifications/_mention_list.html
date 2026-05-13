@@ -1,0 +1,9 @@
+<ul class="mention-suggestions" style="background:white; border:1px solid var(--ink-300); border-radius:6px; box-shadow:var(--shadow); list-style:none; margin:0; padding:4px 0; position:absolute; z-index:100;">
+{% for u in users %}
+  <li style="padding:4px 10px; cursor:pointer;" data-username="{{ u.username }}">
+    @{{ u.username }} <span style="color:var(--ink-500); font-size:12px;">— {{ u.display_name }}</span>
+  </li>
+{% empty %}
+  <li style="padding:4px 10px; color:var(--ink-500);">Sin resultados</li>
+{% endfor %}
+</ul>

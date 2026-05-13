@@ -6,11 +6,12 @@ from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views import View
 
+from core.aio import arender
 from core.async_views import AsyncFormView, AsyncListView, AsyncUpdateView
 from core.mixins import AsyncLoginRequiredMixin
 
 from .forms import ProfileForm, RegisterForm
-from .models import User
+from .models import Notification, User
 
 
 class JirrabitLoginView(AsyncFormView):
@@ -114,3 +115,40 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
         ctx = await super().aget_context_data(**kwargs)
         ctx["q"] = self.request.GET.get("q", "")
         return ctx
+
+
+class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
+    template_name = "notifications/inbox.html"
+    context_object_name = "notifications"
+
+    def get_template_names(self):
+        if self.request.htmx:
+            return ["notifications/_list.html"]
+        return [self.template_name]
+
+    async def aget_queryset(self):
+        return Notification.objects.filter(recipient=self.request.user).select_related("actor")[:100]
+
+
+class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
+    async def post(self, request):
+        ids = request.POST.getlist("id")
+        qs = Notification.objects.filter(recipient=request.user)
+        if ids:
+            qs = qs.filter(pk__in=ids)
+        await qs.aupdate(read=True)
+        notifs = [n async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[:100]]
+        return await arender(request, "notifications/_list.html", {"notifications": notifs})
+
+
+class UserMentionSearchView(AsyncLoginRequiredMixin, View):
+    async def get(self, request):
+        q = request.GET.get("q", "").strip()
+        if not q:
+            return await arender(request, "notifications/_mention_list.html", {"users": []})
+        from django.db.models import Q
+        qs = User.objects.filter(is_active=True).filter(
+            Q(username__icontains=q) | Q(display_name__icontains=q)
+        )[:8]
+        users = [u async for u in qs]
+        return await arender(request, "notifications/_mention_list.html", {"users": users})

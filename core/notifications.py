@@ -68,6 +68,15 @@ def _on_issue(sender, instance, created, **kwargs):
         f"Asignado a: {instance.assignee or 'sin asignar'}\n",
         _issue_recipients(instance),
     )
+    if instance.assignee_id:
+        from accounts.models import Notification
+        Notification.objects.create(
+            recipient_id=instance.assignee_id,
+            actor=instance.reporter if created else None,
+            kind="assigned" if created else "status",
+            text=f"{instance.key} {_action(created)}: {instance.summary}",
+            url=f"/issues/{instance.key}/",
+        )
 
 
 def _on_comment(sender, instance, created, **kwargs):
@@ -77,6 +86,50 @@ def _on_comment(sender, instance, created, **kwargs):
         f"{instance.author} {_action(created)} un comentario en {issue.key}:\n\n{instance.body}\n",
         _issue_recipients(issue),
     )
+    if created:
+        _create_in_app_notifications_for_comment(instance)
+
+
+def _create_in_app_notifications_for_comment(comment):
+    """Create ``accounts.Notification`` rows for watchers and @mentions."""
+    from accounts.models import Notification, User
+    from core.markdown import extract_mentions
+
+    issue = comment.issue
+    recipients = set()
+    for w in issue.watchers.all():
+        recipients.add(w.pk)
+    if issue.assignee_id:
+        recipients.add(issue.assignee_id)
+    if issue.reporter_id:
+        recipients.add(issue.reporter_id)
+    recipients.discard(comment.author_id)
+
+    mentioned_usernames = set(extract_mentions(comment.body))
+    mentioned_ids = set(
+        User.objects.filter(username__in=mentioned_usernames).values_list("pk", flat=True)
+    )
+
+    url = f"/issues/{issue.key}/"
+    body = comment.body[:140]
+    for user_id in recipients:
+        kind = "mention" if user_id in mentioned_ids else "comment"
+        Notification.objects.create(
+            recipient_id=user_id,
+            actor=comment.author,
+            kind=kind,
+            text=f"{comment.author} comentó en {issue.key}: {body}",
+            url=url,
+        )
+    # Mentions for users that are NOT watchers/assignee/reporter
+    for user_id in mentioned_ids - recipients - {comment.author_id}:
+        Notification.objects.create(
+            recipient_id=user_id,
+            actor=comment.author,
+            kind="mention",
+            text=f"{comment.author} te mencionó en {issue.key}",
+            url=url,
+        )
 
 
 def _on_attachment(sender, instance, created, **kwargs):

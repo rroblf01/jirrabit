@@ -1,0 +1,17 @@
+<tr id="backlog-row-{{ i.key }}">
+  <td><a href="{{ i.get_absolute_url }}">{{ i.key }}</a></td>
+  <td><span class="badge {{ i.issue_type.category }}">{{ i.issue_type.name }}</span></td>
+  <td>{{ i.summary }}</td>
+  <td><span class="badge {{ i.status.category }}">{{ i.status.name }}</span></td>
+  <td><span class="priority-dot" style="background:{{ i.priority.color }}"></span></td>
+  <td>{% if i.assignee %}{% include "_avatar.html" with u=i.assignee %}{% else %}—{% endif %}</td>
+  <td>
+    <form hx-post="{% url 'board:move_sprint' i.key %}" hx-target="#backlog-row-{{ i.key }}" hx-swap="outerHTML" style="display:inline; margin:0;">
+      {% csrf_token %}
+      <select name="sprint" onchange="this.form.requestSubmit()">
+        <option value="">Backlog</option>
+        {% for s in i.project.sprints.all %}{% if s.status != "closed" %}<option value="{{ s.pk }}" {% if i.sprint_id == s.pk %}selected{% endif %}>{{ s.name }}</option>{% endif %}{% endfor %}
+      </select>
+    </form>
+  </td>
+</tr>
