@@ -114,8 +114,3 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "jirrabit@localhost"
-
-JIRRABIT_HOOK_MODULES = [
-    "core.hooks_builtin",
-    "issues.hooks",
-]

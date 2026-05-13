@@ -4,7 +4,6 @@ from issues.models import Issue
 from projects.models import Project
 
 from .async_views import AsyncTemplateView
-from .hooks import list_hooks
 from .mixins import AsyncLoginRequiredMixin
 
 
@@ -28,13 +27,4 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
             .annotate(open_count=Count("issues", filter=~Q(issues__status__category="done")))
         )
         ctx["projects"] = [p async for p in projects_qs]
-        return ctx
-
-
-class HooksAdminView(AsyncLoginRequiredMixin, AsyncTemplateView):
-    template_name = "core/hooks.html"
-
-    async def aget_context_data(self, **kwargs):
-        ctx = await super().aget_context_data(**kwargs)
-        ctx["hooks"] = list_hooks()
         return ctx

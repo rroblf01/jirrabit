@@ -9,7 +9,6 @@ from core.async_views import (
     AsyncListView,
     AsyncUpdateView,
 )
-from core.hooks import dispatch
 from core.mixins import AsyncLoginRequiredMixin
 
 from .forms import EpicForm, ProjectForm, SprintForm
@@ -55,7 +54,6 @@ class ProjectCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
         await project.asave()
         await project.members.aset(form.cleaned_data.get("members", []))
         self.object = project
-        dispatch("project.created", project=project, actor=self.request.user)
         return redirect(project.get_absolute_url())
 
 
@@ -106,7 +104,6 @@ class ProjectUpdateView(AsyncLoginRequiredMixin, AsyncUpdateView):
         await project.asave()
         await project.members.aset(form.cleaned_data.get("members", []))
         self.object = project
-        dispatch("project.updated", project=project, actor=self.request.user)
         return redirect(project.get_absolute_url())
 
 
@@ -140,7 +137,6 @@ class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreate
         epic.created_by = self.request.user
         await epic.asave()
         self.object = epic
-        dispatch("epic.created", epic=epic, project=self.project, actor=self.request.user)
         if self.request.htmx:
             return await arender(self.request, "projects/_epic_row.html", {"epic": epic})
         return redirect(self.project.get_absolute_url())
@@ -168,7 +164,6 @@ class SprintCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCrea
         sprint.project = self.project
         await sprint.asave()
         self.object = sprint
-        dispatch("sprint.created", sprint=sprint, project=self.project, actor=self.request.user)
         if self.request.htmx:
             return await arender(self.request, "projects/_sprint_row.html", {"sprint": sprint})
         return redirect(self.project.get_absolute_url())
@@ -178,7 +173,6 @@ class SprintStartView(AsyncLoginRequiredMixin, View):
     async def post(self, request, sprint_id):
         sprint = await _aget_sprint(sprint_id)
         await sprint.astart()
-        dispatch("sprint.started", sprint=sprint, actor=request.user)
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
 
 
@@ -186,5 +180,4 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
     async def post(self, request, sprint_id):
         sprint = await _aget_sprint(sprint_id)
         await sprint.aclose()
-        dispatch("sprint.closed", sprint=sprint, actor=request.user)
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})

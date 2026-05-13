@@ -10,7 +10,6 @@ from core.async_views import (
     AsyncListView,
     AsyncUpdateView,
 )
-from core.hooks import dispatch
 from core.mixins import AsyncLoginRequiredMixin
 from projects.models import Project
 
@@ -199,7 +198,6 @@ class UploadAttachmentView(AsyncLoginRequiredMixin, View):
         att = await Attachment.objects.acreate(
             issue=issue, file=f, uploaded_by=request.user
         )
-        dispatch("issue.attachment_added", issue=issue, attachment=att, actor=request.user)
         if request.htmx:
             return await arender(request, "issues/_attachment.html", {"a": att})
         return redirect(issue.get_absolute_url())
@@ -214,7 +212,6 @@ class WatchToggleView(AsyncLoginRequiredMixin, View):
         else:
             await issue.watchers.aadd(request.user)
             watching = True
-        dispatch("issue.watch_toggled", issue=issue, actor=request.user, watching=watching)
         if request.htmx:
             return await arender(
                 request,

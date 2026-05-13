@@ -7,7 +7,6 @@ from django.urls import reverse_lazy
 from django.views import View
 
 from core.async_views import AsyncFormView, AsyncListView, AsyncUpdateView
-from core.hooks import dispatch
 from core.mixins import AsyncLoginRequiredMixin
 
 from .forms import ProfileForm, RegisterForm
@@ -62,7 +61,6 @@ class RegisterView(AsyncFormView):
         # ``UserCreationForm.save(commit=False)`` already sets the password.
         user = form.save(commit=False)
         await user.asave()
-        dispatch("user.created", user=user)
         await alogin(self.request, user)
         return redirect(await self.aget_success_url())
 
@@ -92,7 +90,6 @@ class ProfileView(AsyncLoginRequiredMixin, AsyncUpdateView):
         if encoded is not None:
             user.avatar = encoded
         await user.asave()
-        dispatch("user.updated", user=user)
         return redirect(await self.aget_success_url())
 
 
