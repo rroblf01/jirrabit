@@ -62,7 +62,15 @@ class SavedFilterCreateView(AsyncLoginRequiredMixin, View):
 
 class SavedFilterDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, pk):
-        f = await SavedFilter.objects.filter(pk=pk, owner=request.user).afirst()
-        if f:
-            await f.adelete()
+        qs = SavedFilter.objects.filter(pk=pk)
+        if not request.user.is_superuser:
+            qs = qs.filter(owner=request.user)
+        f = await qs.afirst()
+        if f is None:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("No puedes borrar este filtro.")
+        await f.adelete()
+        if request.htmx:
+            from django.http import HttpResponse
+            return HttpResponse("")
         return redirect("/search/")

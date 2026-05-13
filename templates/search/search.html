@@ -23,10 +23,18 @@
   {% endif %}
 
   {% if saved_filters %}
-  <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px;">
+  <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
     <span style="color:var(--ink-500); font-size:12px;">Tuyos / compartidos:</span>
     {% for f in saved_filters %}
-      <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }} — {{ f.get_scope_display }}">{% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}</a>
+      <span class="saved-filter" id="filter-{{ f.pk }}" style="display:inline-flex; align-items:center; gap:2px;">
+        <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }} — {{ f.get_scope_display }}">{% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}</a>
+        {% if f.owner_id == request.user.pk or request.user.is_superuser %}
+          <form hx-post="{% url 'search:filter_delete' f.pk %}" hx-target="#filter-{{ f.pk }}" hx-swap="outerHTML" hx-confirm="¿Borrar filtro «{{ f.name }}»?" style="display:inline; margin:0;">
+            {% csrf_token %}
+            <button class="btn ghost small" type="submit" style="padding:0 6px; line-height:1;" title="Borrar filtro">×</button>
+          </form>
+        {% endif %}
+      </span>
     {% endfor %}
   </div>
   {% endif %}
