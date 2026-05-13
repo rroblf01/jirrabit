@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Miembros — {{ project.key }}</h1>
+  <table>
+    <thead><tr><th>Usuario</th><th>Rol</th><th></th></tr></thead>
+    <tbody>
+    {% for m in memberships %}
+      <tr>
+        <td>{% include "_avatar.html" with u=m.user %} {{ m.user }}</td>
+        <td>
+          <form method="post" action="{% url 'projects:member_update' project.key m.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <select name="role" onchange="this.form.submit()">
+              <option value="admin" {% if m.role == "admin" %}selected{% endif %}>admin</option>
+              <option value="member" {% if m.role == "member" %}selected{% endif %}>member</option>
+              <option value="viewer" {% if m.role == "viewer" %}selected{% endif %}>viewer</option>
+            </select>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="{% url 'projects:member_update' project.key m.pk %}" style="display:inline;">
+            {% csrf_token %}<input type="hidden" name="action" value="delete">
+            <button class="btn ghost small" type="submit">quitar</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="3" class="empty">Sin miembros.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:18px;">Añadir miembro</h3>
+  <form method="post" action="{% url 'projects:member_add' project.key %}" class="row">
+    {% csrf_token %}
+    <select name="user_id" style="width:300px;">
+      {% for u in available_users %}<option value="{{ u.pk }}">{{ u.username }} — {{ u.display_name }}</option>{% endfor %}
+    </select>
+    <select name="role" style="width:120px;">
+      <option value="member">member</option>
+      <option value="admin">admin</option>
+      <option value="viewer">viewer</option>
+    </select>
+    <button class="btn" type="submit">Añadir</button>
+  </form>
+</div>
+{% endblock %}

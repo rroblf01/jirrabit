@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Campos personalizados — {{ project.key }}</h1>
+  <table>
+    <thead><tr><th>Nombre</th><th>Slug</th><th>Tipo</th><th>Requerido</th><th>Opciones</th><th></th></tr></thead>
+    <tbody>
+    {% for f in fields %}
+      <tr>
+        <td>{{ f.name }}</td>
+        <td><code>{{ f.slug }}</code></td>
+        <td>{{ f.get_type_display }}</td>
+        <td>{% if f.required %}sí{% else %}no{% endif %}</td>
+        <td>{{ f.options|default:"—" }}</td>
+        <td>
+          <form method="post" action="{% url 'projects:custom_field_delete' project.key f.pk %}" style="display:inline;">
+            {% csrf_token %}<button class="btn ghost small" type="submit">borrar</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="empty">Sin campos personalizados.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:18px;">Nuevo campo</h3>
+  <form method="post" action="{% url 'projects:custom_field_create' project.key %}" class="row">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Nombre" required style="width:200px;">
+    <select name="type" style="width:140px;">
+      <option value="text">Texto corto</option>
+      <option value="textarea">Texto largo</option>
+      <option value="number">Número</option>
+      <option value="select">Lista</option>
+      <option value="date">Fecha</option>
+      <option value="user">Usuario</option>
+      <option value="checkbox">Checkbox</option>
+    </select>
+    <input type="text" name="options" placeholder="opciones,separadas,por,coma" style="width:240px;">
+    <label><input type="checkbox" name="required"> requerido</label>
+    <button class="btn" type="submit">Crear</button>
+  </form>
+</div>
+{% endblock %}

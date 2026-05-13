@@ -15,6 +15,7 @@ ALLOWED_HOSTS = os.environ.get("JIRRABIT_ALLOWED_HOSTS", "*").split(",")
 
 INSTALLED_APPS = [
     "daphne",
+    "channels",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -28,6 +29,7 @@ INSTALLED_APPS = [
     "issues.apps.IssuesConfig",
     "board.apps.BoardConfig",
     "search.apps.SearchConfig",
+    "realtime.apps.RealtimeConfig",
 ]
 
 MIDDLEWARE = [
@@ -111,3 +113,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = "jirrabit@localhost"
+
+CHANNEL_LAYERS = {
+    "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+}

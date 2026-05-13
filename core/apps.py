@@ -6,6 +6,8 @@ class CoreConfig(AppConfig):
     name = "core"
 
     def ready(self):
-        from . import notifications
+        from . import audit, notifications, webhooks
 
         notifications.connect()
+        audit.connect()
+        webhooks.connect()

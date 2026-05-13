@@ -7,9 +7,11 @@ from core.async_views import (
     AsyncCreateView,
     AsyncDetailView,
     AsyncListView,
+    AsyncTemplateView,
     AsyncUpdateView,
 )
 from core.mixins import AsyncLoginRequiredMixin
+from core.permissions import aassert_can_admin
 
 from .forms import EpicForm, ProjectForm, SprintForm
 from .models import Project, Sprint
@@ -181,3 +183,191 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
         sprint = await _aget_sprint(sprint_id)
         await sprint.aclose()
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
+
+
+# --- activity feed, burndown, custom fields, webhooks UI, members admin ---
+
+class ProjectActivityView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/activity.html"
+
+    async def aget_context_data(self, **kwargs):
+        from issues.models import AuditEntry, HistoryEntry
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        ctx["project"] = project
+        ctx["audits"] = [a async for a in AuditEntry.objects.filter(project=project).select_related("actor")[:100]]
+        ctx["history"] = [h async for h in HistoryEntry.objects.filter(issue__project=project).select_related("actor", "issue")[:100]]
+        return ctx
+
+
+class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/burndown.html"
+
+    async def aget_context_data(self, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        sprint_id = self.request.GET.get("sprint")
+        sprint = None
+        if sprint_id:
+            sprint = await project.sprints.filter(pk=sprint_id).afirst()
+        if sprint is None:
+            sprint = await project.sprints.filter(status="active").afirst() or await project.sprints.order_by("-start_date").afirst()
+        ctx["project"] = project
+        ctx["sprint"] = sprint
+        ctx["sprints"] = [s async for s in project.sprints.all()]
+
+        if sprint and sprint.start_date and sprint.end_date:
+            from issues.models import Issue
+            issues = [i async for i in Issue.objects.filter(sprint=sprint)]
+            total_sp = sum(i.story_points or 0 for i in issues)
+            days = (sprint.end_date - sprint.start_date).days or 1
+            today = timezone.localdate()
+            points = []
+            for i in range(days + 1):
+                d = sprint.start_date + timedelta(days=i)
+                remaining = sum(
+                    (i.story_points or 0) for i in issues
+                    if not (i.resolved_at and i.resolved_at.date() <= d)
+                )
+                actual = remaining if d <= today else None
+                ideal = total_sp - (total_sp / days) * i
+                points.append({"date": d.isoformat(), "ideal": round(ideal, 1), "actual": actual})
+            ctx["total_sp"] = total_sp
+            ctx["points"] = points
+            done_sp = sum(i.story_points or 0 for i in issues if i.resolved_at)
+            ctx["done_sp"] = done_sp
+            ctx["percent_done"] = round(done_sp * 100.0 / total_sp, 1) if total_sp else 0
+        return ctx
+
+
+# --- members admin (project role management) ---
+
+class ProjectMembersView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/members.html"
+
+    async def aget_context_data(self, **kwargs):
+        from projects.models import ProjectMembership
+        from accounts.models import User
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_admin(self.request.user, project)
+        ctx["project"] = project
+        ctx["memberships"] = [m async for m in project.memberships.select_related("user").all()]
+        member_ids = {m.user_id for m in ctx["memberships"]}
+        ctx["available_users"] = [
+            u async for u in User.objects.filter(is_active=True).exclude(pk__in=member_ids).order_by("username")
+        ]
+        return ctx
+
+
+class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        from projects.models import ProjectMembership
+        from accounts.models import User
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        user_id = request.POST.get("user_id")
+        role = request.POST.get("role", "member")
+        user = await User.objects.aget(pk=user_id)
+        await ProjectMembership.objects.acreate(project=project, user=user, role=role)
+        return redirect("projects:members", key=project.key)
+
+
+class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from projects.models import ProjectMembership
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        m = await ProjectMembership.objects.aget(pk=pk, project=project)
+        action = request.POST.get("action")
+        if action == "delete":
+            await m.adelete()
+        else:
+            m.role = request.POST.get("role", m.role)
+            await m.asave()
+        return redirect("projects:members", key=project.key)
+
+
+# --- custom fields admin ---
+
+class ProjectCustomFieldsView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/custom_fields.html"
+
+    async def aget_context_data(self, **kwargs):
+        from projects.models import CustomFieldDef
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_admin(self.request.user, project)
+        ctx["project"] = project
+        ctx["fields"] = [f async for f in project.custom_fields.all()]
+        return ctx
+
+
+class ProjectCustomFieldCreateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        from django.utils.text import slugify
+        from projects.models import CustomFieldDef
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        name = request.POST.get("name", "").strip()
+        if not name:
+            return redirect("projects:custom_fields", key=project.key)
+        await CustomFieldDef.objects.acreate(
+            project=project,
+            name=name,
+            slug=slugify(name)[:80],
+            type=request.POST.get("type", "text"),
+            required=bool(request.POST.get("required")),
+            options=request.POST.get("options", ""),
+        )
+        return redirect("projects:custom_fields", key=project.key)
+
+
+class ProjectCustomFieldDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from projects.models import CustomFieldDef
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        await CustomFieldDef.objects.filter(pk=pk, project=project).adelete()
+        return redirect("projects:custom_fields", key=project.key)
+
+
+# --- webhooks ---
+
+class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/webhooks.html"
+
+    async def aget_context_data(self, **kwargs):
+        from projects.models import Webhook
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_admin(self.request.user, project)
+        ctx["project"] = project
+        ctx["webhooks"] = [w async for w in project.webhooks.all()]
+        return ctx
+
+
+class ProjectWebhookCreateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        from projects.models import Webhook
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        await Webhook.objects.acreate(
+            project=project,
+            name=request.POST.get("name", "").strip() or "webhook",
+            url=request.POST.get("url", "").strip(),
+            secret=request.POST.get("secret", "").strip(),
+            events=request.POST.get("events", "issue.created,issue.updated"),
+        )
+        return redirect("projects:webhooks", key=project.key)
+
+
+class ProjectWebhookDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from projects.models import Webhook
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        await Webhook.objects.filter(pk=pk, project=project).adelete()
+        return redirect("projects:webhooks", key=project.key)

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">Burndown — {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <form method="get">
+      <select name="sprint" onchange="this.form.submit()">
+        {% for s in sprints %}<option value="{{ s.pk }}" {% if sprint.pk == s.pk %}selected{% endif %}>{{ s.name }} ({{ s.get_status_display }})</option>{% endfor %}
+      </select>
+    </form>
+  </div>
+  {% if sprint and points %}
+    <p>Sprint <strong>{{ sprint.name }}</strong> — {{ sprint.start_date }} a {{ sprint.end_date }}.
+    Total: <strong>{{ total_sp }}</strong> SP. Hecho: <strong>{{ done_sp }}</strong> SP ({{ percent_done }}%).</p>
+    <svg viewBox="0 0 800 300" style="width:100%; max-width:900px; background:white; border:1px solid var(--ink-100); border-radius:8px;">
+      {% with width=760 height=240 origin_x=30 origin_y=20 %}
+      {# axes #}
+      <line x1="{{ origin_x }}" y1="{{ origin_y }}" x2="{{ origin_x }}" y2="260" stroke="#94a3b8"/>
+      <line x1="{{ origin_x }}" y1="260" x2="790" y2="260" stroke="#94a3b8"/>
+      {# ideal #}
+      <polyline fill="none" stroke="#1e6fff" stroke-width="2" stroke-dasharray="4 4" points="{% for p in points %}{% widthratio forloop.counter0 points|length|add:'-1' width %}{% widthratio p.ideal total_sp height %}{% if not forloop.last %}{% endif %} {% endfor %}"
+       transform="translate({{ origin_x }},{{ origin_y }})"/>
+      {# actual #}
+      {% for p in points %}{% if p.actual is not None %}
+        <circle cx="{% widthratio forloop.counter0 points|length|add:'-1' width %}" cy="{% widthratio p.actual total_sp height %}" r="4" fill="#dc2626" transform="translate({{ origin_x }},{{ origin_y }})"/>
+      {% endif %}{% endfor %}
+      {% endwith %}
+    </svg>
+    <table style="margin-top:14px;">
+      <thead><tr><th>Día</th><th>Ideal SP restante</th><th>Real SP restante</th></tr></thead>
+      <tbody>
+      {% for p in points %}
+        <tr><td>{{ p.date }}</td><td>{{ p.ideal }}</td><td>{% if p.actual is not None %}{{ p.actual }}{% else %}—{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="empty">Sin sprint válido o sin fechas configuradas.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -84,4 +84,24 @@ document.addEventListener('change', e => {
   if (e.target.classList.contains('card-select')) updateBulk();
 });
 </script>
+<script>
+(function () {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const ws = new WebSocket(`${proto}//${location.host}/ws/projects/{{ project.key }}/`);
+  let badge;
+  ws.onopen = () => console.debug('WS live: {{ project.key }}');
+  ws.onmessage = ev => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type !== 'issue') return;
+    // Soft-refresh: show a banner with reload link.
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.className = 'flash';
+      badge.style.position = 'fixed'; badge.style.bottom = '20px'; badge.style.right = '20px';
+      badge.innerHTML = '🔄 Cambios en vivo. <a href="javascript:location.reload()">refrescar</a>';
+      document.body.appendChild(badge);
+    }
+  };
+})();
+</script>
 {% endblock %}

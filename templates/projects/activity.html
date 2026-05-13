@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Actividad — {{ project.key }}</h1>
+  <p style="color:var(--ink-500); font-size:13px;">Últimos cambios y eventos del proyecto.</p>
+</div>
+<div class="card">
+  <h3>Cambios en issues</h3>
+  <ul style="list-style:none; padding:0; margin:0;">
+    {% for h in history %}
+      <li style="padding:8px 0; border-bottom:1px solid var(--ink-100); font-size:13px;">
+        <strong>{{ h.actor|default:"sistema" }}</strong>
+        cambió <em>{{ h.field }}</em> en
+        <a href="{{ h.issue.get_absolute_url }}">{{ h.issue.key }}</a>:
+        <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code>
+        <span style="float:right; color:var(--ink-500);">{{ h.created_at|date:"d M H:i" }}</span>
+      </li>
+    {% empty %}
+      <li class="empty">Sin actividad reciente.</li>
+    {% endfor %}
+  </ul>
+</div>
+{% if audits %}
+<div class="card">
+  <h3>Auditoría</h3>
+  <ul style="list-style:none; padding:0; margin:0;">
+    {% for a in audits %}
+      <li style="padding:6px 0; font-size:13px;">
+        <strong>{{ a.actor|default:"sistema" }}</strong> {{ a.verb }} <em>{{ a.target_type }}</em> {{ a.target_label }}
+        <span style="float:right; color:var(--ink-500);">{{ a.created_at|date:"d M H:i" }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+{% endblock %}

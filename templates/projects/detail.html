@@ -6,7 +6,13 @@
     <div class="spacer"></div>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ Crear tarea</a>
     <a class="btn ghost" href="{% url 'board:board' project.key %}">Tablero</a>
+    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">Backlog</a>
     <a class="btn ghost" href="{% url 'issues:list' project.key %}">Lista</a>
+    <a class="btn ghost" href="{% url 'projects:activity' project.key %}">Actividad</a>
+    <a class="btn ghost" href="{% url 'projects:burndown' project.key %}">Burndown</a>
+    <a class="btn ghost" href="{% url 'projects:members' project.key %}">Miembros</a>
+    <a class="btn ghost" href="{% url 'projects:custom_fields' project.key %}">Campos</a>
+    <a class="btn ghost" href="{% url 'projects:webhooks' project.key %}">Webhooks</a>
     <a class="btn ghost" href="{% url 'projects:edit' project.key %}">Editar</a>
   </div>
   <p style="color:var(--ink-500); margin-top:10px;">{{ project.description|linebreaksbr }}</p>
