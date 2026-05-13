@@ -32,33 +32,42 @@ def _audit_save(sender, instance, created, **kwargs):
     if sender.__name__ not in _TRACKED:
         return
     project = _project_for(instance)
-    if project is None:
+    if project is None or project.pk is None:
         return
     from issues.models import AuditEntry
-    verb = "created" if created else "updated"
-    AuditEntry.objects.create(
-        project=project,
-        verb=verb,
-        target_type=sender.__name__.lower(),
-        target_id=instance.pk,
-        target_label=str(instance)[:255],
-    )
+    try:
+        AuditEntry.objects.create(
+            project=project,
+            verb="created" if created else "updated",
+            target_type=sender.__name__.lower(),
+            target_id=instance.pk,
+            target_label=str(instance)[:255],
+        )
+    except Exception:
+        pass
 
 
 def _audit_delete(sender, instance, **kwargs):
     if sender.__name__ not in _TRACKED:
         return
+    # The Project itself is going away — its audit table cascades too.
+    if sender.__name__ == "Project":
+        return
     project = _project_for(instance)
-    if project is None:
+    if project is None or project.pk is None:
         return
     from issues.models import AuditEntry
-    AuditEntry.objects.create(
-        project=project,
-        verb="deleted",
-        target_type=sender.__name__.lower(),
-        target_id=instance.pk,
-        target_label=str(instance)[:255],
-    )
+    try:
+        AuditEntry.objects.create(
+            project=project,
+            verb="deleted",
+            target_type=sender.__name__.lower(),
+            target_id=instance.pk,
+            target_label=str(instance)[:255],
+        )
+    except Exception:
+        # CASCADE delete may have already removed the project.
+        pass
 
 
 def connect() -> None:
