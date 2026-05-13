@@ -93,6 +93,34 @@
       <dt>Etiquetas</dt>
       <dd>{% for l in issue.labels.all %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
 
+      {% if custom_fields %}
+        <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">
+        <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">Campos personalizados</h4>
+        {% for cf in custom_fields %}
+          <dt>{{ cf.name }}</dt>
+          <dd>
+            <form hx-post="{% url 'issues:cf_set' issue.key cf.slug %}" hx-target="#cf-{{ cf.slug }}" hx-swap="outerHTML" style="display:inline;">
+              {% csrf_token %}
+              {% if cf.type == "select" %}
+                <select name="value" onchange="this.form.requestSubmit()">
+                  <option value="">—</option>
+                  {% for opt in cf.option_list %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+                </select>
+              {% elif cf.type == "date" %}
+                <input type="date" name="value" onchange="this.form.requestSubmit()">
+              {% elif cf.type == "number" %}
+                <input type="number" name="value" onblur="this.form.requestSubmit()">
+              {% elif cf.type == "checkbox" %}
+                <input type="checkbox" name="value" value="true" onchange="this.form.requestSubmit()">
+              {% else %}
+                <input type="text" name="value" onblur="this.form.requestSubmit()">
+              {% endif %}
+            </form>
+            <div id="cf-{{ cf.slug }}" style="font-size:13px;">—</div>
+          </dd>
+        {% endfor %}
+      {% endif %}
+
       <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">
       <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">Log work</h4>
       <form hx-post="{% url 'issues:log_work' issue.key %}" hx-target="#time-panel" hx-swap="outerHTML">

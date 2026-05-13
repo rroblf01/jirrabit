@@ -15,7 +15,7 @@ from accounts.models import User
 from issues.models import Comment, Issue, IssueType, Priority, Status
 from projects.models import Project, Sprint
 
-api = NinjaAPI(title="Jirrabit API", version="1.0", auth=django_auth, csrf=True)
+api = NinjaAPI(title="Jirrabit API", version="1.0", auth=django_auth)
 
 
 # --- schemas ---

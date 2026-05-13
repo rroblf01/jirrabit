@@ -1,0 +1,41 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jirrabit
+      POSTGRES_USER: jirrabit
+      POSTGRES_PASSWORD: jirrabit
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "jirrabit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      JIRRABIT_DEBUG: "0"
+      JIRRABIT_ALLOWED_HOSTS: "*"
+      JIRRABIT_DB_ENGINE: postgres
+      JIRRABIT_DB_NAME: jirrabit
+      JIRRABIT_DB_USER: jirrabit
+      JIRRABIT_DB_PASSWORD: jirrabit
+      JIRRABIT_DB_HOST: db
+      JIRRABIT_DB_PORT: "5432"
+      JIRRABIT_SECRET_KEY: change-me-in-prod
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py seed_jirrabit &&
+             daphne -b 0.0.0.0 -p 8000 jirrabit.asgi:application"
+
+volumes:
+  pgdata:

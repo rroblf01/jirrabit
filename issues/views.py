@@ -392,3 +392,20 @@ class IssueLinkDeleteView(AsyncLoginRequiredMixin, View):
             await link.adelete()
         links = [l async for l in issue.links_out.select_related("target", "target__status")]
         return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
+
+
+class CustomFieldSetView(AsyncLoginRequiredMixin, View):
+    """Persist a value into ``Issue.custom_fields[slug]`` (JSON)."""
+
+    async def post(self, request, key, slug):
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        value = request.POST.get("value", "")
+        cf = issue.custom_fields or {}
+        cf[slug] = value
+        issue.custom_fields = cf
+        await issue.asave(update_fields=["custom_fields", "updated_at"])
+        return await arender(
+            request, "issues/_custom_field.html",
+            {"issue": issue, "slug": slug, "value": value},
+        )
