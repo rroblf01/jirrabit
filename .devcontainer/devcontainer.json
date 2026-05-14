@@ -1,0 +1,58 @@
+{
+  "name": "jirrabit",
+  "dockerComposeFile": [
+    "../docker-compose.yml"
+  ],
+  "service": "web",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose",
+  "remoteUser": "root",
+
+  // Bind-mount the host's Claude Code config so auth persists across
+  // devcontainer rebuilds. ``~/.claude`` is the data dir (sessions,
+  // memory, plugins), ``~/.claude.json`` is the auth + project config.
+  // Same trick for ``.gitconfig`` so ``git commit`` knows your identity.
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"
+  ],
+
+  "forwardPorts": [8000, 5432, 6379],
+  "portsAttributes": {
+    "8000": { "label": "jirrabit (daphne)", "onAutoForward": "openBrowser" },
+    "5432": { "label": "postgres" },
+    "6379": { "label": "redis" }
+  },
+
+  "postCreateCommand": "apk add git",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "batisteo.vscode-django",
+        "charliermarsh.ruff",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml",
+        "ms-azuretools.vscode-docker",
+        "Anthropic.claude-code"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
+        "python.terminal.activateEnvironment": false,
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/.pytest_cache": true,
+          "**/staticfiles": true
+        }
+      }
+    }
+  }
+}
