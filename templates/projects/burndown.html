@@ -98,21 +98,19 @@
     <line x1="{{ origin_x }}" y1="{{ origin_y }}" x2="{{ origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
     <line x1="{{ origin_x }}" y1="{{ origin_y|add:height }}" x2="{{ width|add:origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
 
-    <!-- bars: committed (light) and completed (solid) per sprint -->
+    <!-- bars: committed (light) and completed (solid) per sprint.
+         Coordinates pre-computed in the view (CHART_HEIGHT == height). -->
     {% for v in velocity %}
       <g transform="translate({{ origin_x }},{{ origin_y }})">
-        {% widthratio forloop.counter0 velocity|length width as x %}
-        {% widthratio v.committed velocity_max height as bar_c %}
-        {% widthratio v.completed velocity_max height as bar_d %}
-        <rect x="{{ x|add:4 }}" y="{{ height|add:bar_c|add:'-1'|stringformat:'s'|slice:'1:' }}"
-              width="20" height="{{ bar_c }}" fill="var(--blue-200)">
+        <rect x="{{ v.x }}" y="{{ v.y_committed }}"
+              width="{{ v.bar_width }}" height="{{ v.h_committed }}" fill="var(--blue-200)">
           <title>{{ v.name }} — committed: {{ v.committed }} SP</title>
         </rect>
-        <rect x="{{ x|add:26 }}" y="{{ height|add:bar_d|add:'-1'|stringformat:'s'|slice:'1:' }}"
-              width="20" height="{{ bar_d }}" fill="var(--blue-600)">
+        <rect x="{{ v.label_x }}" y="{{ v.y_completed }}"
+              width="{{ v.bar_width }}" height="{{ v.h_completed }}" fill="var(--blue-600)">
           <title>{{ v.name }} — completed: {{ v.completed }} SP</title>
         </rect>
-        <text x="{{ x|add:24 }}" y="{{ height|add:14 }}" font-size="10" fill="#64748b" text-anchor="middle">{{ v.name|truncatechars:14 }}</text>
+        <text x="{{ v.x|add:v.bar_width }}" y="{{ height|add:14 }}" font-size="10" fill="#64748b" text-anchor="middle">{{ v.name|truncatechars:14 }}</text>
       </g>
     {% endfor %}
 

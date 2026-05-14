@@ -192,6 +192,9 @@ def csp_middleware(get_response):
         "script-src 'self' 'unsafe-inline' https://unpkg.com; "
         "connect-src 'self' ws: wss:; "
         "font-src 'self' data:; "
+        # ``frame-src data:`` is required to let the PDF attachment
+        # preview iframe load from a ``data:application/pdf`` URL.
+        "frame-src 'self' data:; "
         "frame-ancestors 'none'; "
         "form-action 'self'; "
         "base-uri 'self'; "
@@ -263,11 +266,14 @@ def api_rate_limit_middleware(get_response):
     """
 
     def _too_many() -> HttpResponse:
+        from django.utils.translation import gettext as _
+        retry = settings.JIRRABIT_API_RATE_WINDOW
+        body = _("Rate limit exceeded. Retry in %(s)s seconds.") % {"s": retry}
         return HttpResponse(
-            "Rate limit exceeded.",
+            body,
             status=429,
-            content_type="text/plain",
-            headers={"Retry-After": str(settings.JIRRABIT_API_RATE_WINDOW)},
+            content_type="text/plain; charset=utf-8",
+            headers={"Retry-After": str(retry)},
         )
 
     if iscoroutinefunction(get_response):

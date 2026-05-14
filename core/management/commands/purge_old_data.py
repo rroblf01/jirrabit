@@ -51,8 +51,28 @@ class Command(BaseCommand):
             self.stdout.write(f"  Would delete {notif_count} read Notification rows")
             return
 
-        deleted_audit = audit_qs.delete()[0]
-        deleted_notif = notif_qs.delete()[0]
+        # Chunked deletes so we don't materialise millions of PKs in
+        # memory and so each transaction stays short.
+        deleted_audit = self._chunked_delete(audit_qs)
+        deleted_notif = self._chunked_delete(notif_qs)
         self.stdout.write(self.style.SUCCESS(
             f"Deleted {deleted_audit} AuditEntry + {deleted_notif} Notification rows."
         ))
+
+    def _chunked_delete(self, qs, chunk: int = 5_000) -> int:
+        """Delete ``qs`` in ``chunk``-sized batches by primary key.
+
+        Avoids loading the full PK list in memory and bypasses the
+        ``Collector`` machinery's expensive cascade pre-fetch on huge
+        tables.
+        """
+        deleted_total = 0
+        while True:
+            batch = list(qs.values_list("pk", flat=True)[:chunk])
+            if not batch:
+                break
+            deleted, _ = qs.model.objects.filter(pk__in=batch).delete()
+            deleted_total += deleted
+            if len(batch) < chunk:
+                break
+        return deleted_total

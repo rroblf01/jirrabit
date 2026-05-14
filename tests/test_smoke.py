@@ -193,15 +193,16 @@ class APITests(TestCase):
         self.c.login(username="alice", password="pw")
 
     def test_api_list_issues(self):
-        r = self.c.get(f"/api/projects/{self.project.key}/issues/")
+        r = self.c.get(f"/api/v1/projects/{self.project.key}/issues/")
         self.assertEqual(r.status_code, 200)
-        data = r.json()
-        self.assertEqual(len(data), 1)
-        self.assertEqual(data[0]["key"], self.issue.key)
+        payload = r.json()
+        # The API now returns a ``Page`` envelope.
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["items"][0]["key"], self.issue.key)
 
     def test_api_patch_issue(self):
         r = self.c.patch(
-            f"/api/issues/{self.issue.key}/",
+            f"/api/v1/issues/{self.issue.key}/",
             data='{"summary": "via API"}',
             content_type="application/json",
         )

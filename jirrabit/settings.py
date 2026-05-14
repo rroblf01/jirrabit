@@ -133,7 +133,7 @@ LOGIN_URL = "accounts:login"
 LOGIN_REDIRECT_URL = "core:home"
 LOGOUT_REDIRECT_URL = "accounts:login"
 
-LANGUAGE_CODE = os.environ.get("JIRRABIT_LANGUAGE", "es")
+LANGUAGE_CODE = os.environ.get("JIRRABIT_LANGUAGE", "es-es")
 TIME_ZONE = os.environ.get("JIRRABIT_TIMEZONE", "Europe/Madrid")
 USE_I18N = True
 USE_TZ = True

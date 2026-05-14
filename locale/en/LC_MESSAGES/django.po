@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-14 10:54+0200\n"
+"POT-Creation-Date: 2026-05-14 12:56+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -78,6 +78,11 @@ msgstr "Watch change"
 #: accounts/views.py:131
 msgid "Necesitas una invitación válida para registrarte."
 msgstr "You need a valid invitation to register."
+
+#: core/middleware.py:271
+#, python-format
+msgid "Rate limit exceeded. Retry in %(s)s seconds."
+msgstr ""
 
 #: core/palettes.py:13
 msgid "Azul (predeterminada)"
@@ -289,7 +294,7 @@ msgstr "Already have an account?"
 msgid "Home"
 msgstr "Home"
 
-#: templates/base.html:19 templates/base.html:36 templates/projects/list.html:6
+#: templates/base.html:19 templates/base.html:38 templates/projects/list.html:6
 msgid "Proyectos"
 msgstr "Projects"
 
@@ -310,10 +315,16 @@ msgid "API keys"
 msgstr "API keys"
 
 #: templates/base.html:31
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Atajos de teclado (?)"
+msgstr "Status change"
+
+#: templates/base.html:33
 msgid "Perfil"
 msgstr "Profile"
 
-#: templates/base.html:32
+#: templates/base.html:34
 msgid "Salir"
 msgstr "Sign out"
 
@@ -487,7 +498,7 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:58 templates/projects/burndown.html:130
+#: templates/core/help.html:58 templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Sin sprints."
 msgid "Sprint"
@@ -964,6 +975,20 @@ msgstr "Create one"
 msgid "Vista previa"
 msgstr ""
 
+#: templates/issues/_status_badge.html:3
+msgid "Estado actualizado"
+msgstr ""
+
+#: templates/issues/_watch_button.html:3
+msgid "Dejas de seguir el issue"
+msgstr ""
+
+#: templates/issues/_watch_button.html:3
+#, fuzzy
+#| msgid "quien creó el issue."
+msgid "Sigues el issue"
+msgstr "who created the issue."
+
 #: templates/issues/detail.html:12
 #, fuzzy
 #| msgid "Editar"
@@ -1176,23 +1201,23 @@ msgstr ""
 msgid "últimos sprints cerrados"
 msgstr ""
 
-#: templates/projects/burndown.html:122
+#: templates/projects/burndown.html:120
 #, fuzzy
 #| msgid "Compartido"
 msgid "comprometido"
 msgstr "Shared"
 
-#: templates/projects/burndown.html:124
+#: templates/projects/burndown.html:122
 msgid "completado"
 msgstr ""
 
-#: templates/projects/burndown.html:130
+#: templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Compartido"
 msgid "Comprometido"
 msgstr "Shared"
 
-#: templates/projects/burndown.html:130
+#: templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Compartido"
 msgid "Completado"

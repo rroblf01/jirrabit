@@ -1,4 +1,7 @@
-<form hx-post="{% url 'issues:change_status' issue.key %}" hx-target="#status-badge" hx-swap="outerHTML" style="display:flex; gap:6px; align-items:center;">
+{% load i18n %}
+<form hx-post="{% url 'issues:change_status' issue.key %}" hx-target="#status-badge" hx-swap="outerHTML"
+      data-toast="{% trans 'Estado actualizado' %}"
+      style="display:flex; gap:6px; align-items:center;">
   {% csrf_token %}
   <span class="badge {{ issue.status.category }}">{{ issue.status.name }}</span>
   <select name="status" onchange="this.form.requestSubmit()">

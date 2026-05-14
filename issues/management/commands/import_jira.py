@@ -76,7 +76,9 @@ class Command(BaseCommand):
         sprint_cache = {s.name.lower(): s for s in project.sprints.all()}
         label_cache = {l.name.lower(): l for l in Label.objects.all()}
 
-        with path.open(newline="", encoding="utf-8") as f:
+        # ``utf-8-sig`` peels the BOM Jira's exporter adds, otherwise the
+        # first header is read as ``﻿Issue key`` and never matches.
+        with path.open(newline="", encoding="utf-8-sig") as f:
             reader = csv.reader(f)
             headers = [_norm(h) for h in next(reader)]
             created, skipped = 0, 0

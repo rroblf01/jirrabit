@@ -190,7 +190,15 @@ class _StoryPointsField(_Base):
     async def apply(self, issue, request):
         old = str(issue.story_points or "—")
         raw = request.POST.get("value", "").strip()
-        issue.story_points = int(raw) if raw else None
+        if raw:
+            try:
+                issue.story_points = max(0, int(round(float(raw))))
+            except ValueError:
+                # Leave the previous value untouched on bad input rather
+                # than 500'ing the inline edit.
+                pass
+        else:
+            issue.story_points = None
         return old, str(issue.story_points or "—")
 
 

@@ -23,3 +23,35 @@ dev = [
     "ruff>=0.15.12",
     "ty>=0.0.35",
 ]
+
+[tool.ruff]
+line-length = 110
+target-version = "py314"
+extend-exclude = [
+    ".venv",
+    "migrations",
+    "staticfiles",
+    "locale",
+    "node_modules",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "DJ"]
+ignore = [
+    "E501",  # long lines handled by formatter
+    "B008",  # default args in Django settings
+]
+
+[tool.ruff.lint.per-file-ignores]
+"jirrabit/settings.py" = ["F401"]
+"**/migrations/*.py" = ["E", "F", "W", "I", "UP", "B"]
+"tests/*.py" = ["B"]
+
+[tool.ty.src]
+include = ["accounts", "board", "core", "issues", "jirrabit", "projects", "realtime", "search"]
+exclude = ["**/migrations/**", "**/.venv/**", "staticfiles"]
+
+[tool.ty.rules]
+# Django adds many dynamic attributes; ty would complain noisily.
+unresolved-attribute = "ignore"
+unresolved-reference = "ignore"

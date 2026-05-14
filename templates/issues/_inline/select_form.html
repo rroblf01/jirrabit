@@ -1,9 +1,13 @@
 <form hx-post="{% url 'issues:inline_edit' issue.key field %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
   {% csrf_token %}
-  <select name="value" autofocus onchange="this.form.requestSubmit()" onblur="this.form.requestSubmit()">
+  <select name="value" autofocus onchange="this.form.requestSubmit()"
+          onblur="setTimeout(()=>{ if(!this.form.dataset.submitted) this.dispatchEvent(new Event('cancel')); }, 150)">
     {% if allow_empty %}<option value="">{{ empty_label|default:"—" }}</option>{% endif %}
     {% for opt in options %}
       <option value="{{ opt.pk }}" {% if opt.pk == current_id %}selected{% endif %}>{{ opt }}</option>
     {% endfor %}
   </select>
+  <a href="#" style="margin-left:6px; font-size:12px; color:var(--ink-500);"
+     hx-get="{% url 'issues:inline_edit_form' issue.key field %}?cancel=1"
+     hx-target="closest form" hx-swap="outerHTML">cancelar</a>
 </form>

@@ -28,6 +28,8 @@
   </form>
   <span class="user-chip">{{ user }}</span>
   <a href="{% url 'accounts:api_keys' %}" title="{% trans 'API keys' %}">🔑</a>
+  <a href="#" title="{% trans 'Atajos de teclado (?)' %}"
+     onclick="event.preventDefault(); document.dispatchEvent(new KeyboardEvent('keydown', {key: '?'}));">⌨</a>
   <a href="{% url 'accounts:profile' %}" title="{% trans 'Perfil' %}">⚙</a>
   <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">{% trans "Salir" %}</button></form>
 </header>

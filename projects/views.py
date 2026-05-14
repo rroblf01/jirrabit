@@ -67,7 +67,10 @@ class ProjectDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
     context_object_name = "project"
 
     async def aget_object(self):
-        return await _aget_project(self.kwargs["key"])
+        from core.permissions import aassert_can_view
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        return project
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
@@ -126,11 +129,15 @@ class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreate
         return ctx
 
     async def get(self, request, *args, **kwargs):
+        from core.permissions import aassert_can_edit
         self.project = await self.aget_project()
+        await aassert_can_edit(request.user, self.project)
         return await super().get(request, *args, **kwargs)
 
     async def post(self, request, *args, **kwargs):
+        from core.permissions import aassert_can_edit
         self.project = await self.aget_project()
+        await aassert_can_edit(request.user, self.project)
         return await super().post(request, *args, **kwargs)
 
     async def aform_valid(self, form):
@@ -154,11 +161,15 @@ class SprintCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCrea
         return ctx
 
     async def get(self, request, *args, **kwargs):
+        from core.permissions import aassert_can_edit
         self.project = await self.aget_project()
+        await aassert_can_edit(request.user, self.project)
         return await super().get(request, *args, **kwargs)
 
     async def post(self, request, *args, **kwargs):
+        from core.permissions import aassert_can_edit
         self.project = await self.aget_project()
+        await aassert_can_edit(request.user, self.project)
         return await super().post(request, *args, **kwargs)
 
     async def aform_valid(self, form):
@@ -231,10 +242,25 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
                 and s.start_date <= i.resolved_at.date() <= s.end_date
             )
             velocity.append({"name": s.name, "committed": committed, "completed": completed})
+
+        # Pre-compute SVG coordinates so the template stays free of
+        # arithmetic. ``CHART_HEIGHT`` and ``BAR_WIDTH`` match the values
+        # in ``burndown.html``; ``GROUP_WIDTH`` spaces the sprint groups.
+        CHART_HEIGHT = 200
+        BAR_WIDTH = 20
+        GROUP_WIDTH = 60
+        v_max = max((max(v["committed"], v["completed"]) for v in velocity), default=0) or 1
+        for idx, v in enumerate(velocity):
+            v["x"] = idx * GROUP_WIDTH + 4
+            v["h_committed"] = round(v["committed"] * CHART_HEIGHT / v_max)
+            v["h_completed"] = round(v["completed"] * CHART_HEIGHT / v_max)
+            v["y_committed"] = CHART_HEIGHT - v["h_committed"]
+            v["y_completed"] = CHART_HEIGHT - v["h_completed"]
+            v["bar_width"] = BAR_WIDTH
+            v["label_x"] = v["x"] + BAR_WIDTH
         ctx["velocity"] = velocity
-        ctx["velocity_max"] = max(
-            (max(v["committed"], v["completed"]) for v in velocity), default=0
-        ) or 1
+        ctx["velocity_max"] = v_max
+        ctx["velocity_chart_height"] = CHART_HEIGHT
 
         if sprint and sprint.start_date and sprint.end_date:
             from issues.models import Issue

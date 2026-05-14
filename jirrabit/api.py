@@ -14,6 +14,7 @@ List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 from datetime import date as _date
 from typing import Generic, List, Optional, TypeVar
 
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import ModelSchema, NinjaAPI, Schema
@@ -22,6 +23,31 @@ from ninja.security import HttpBearer, django_auth
 from accounts.models import APIKey, User
 from issues.models import Comment, Issue, IssueType, Priority, Status
 from projects.models import Project, Sprint
+
+
+def _visible_project(request, key: str) -> Project:
+    """Return ``Project`` by key only if the requesting user can see it.
+
+    Wraps ``filter_visible`` so non-members get 404 (rather than 403,
+    avoiding the leak of which project keys exist).
+    """
+    qs = Project.objects.filter_visible(request.user)
+    try:
+        return qs.get(key=key)
+    except Project.DoesNotExist as exc:
+        raise Http404 from exc
+
+
+def _visible_issue(request, key: str) -> Issue:
+    """Same as ``_visible_project`` at the issue level."""
+    visible = Project.objects.filter_visible(request.user)
+    qs = Issue.objects.filter(project__in=visible).select_related(
+        "project", "status", "priority", "issue_type", "assignee", "reporter"
+    )
+    try:
+        return qs.get(key=key)
+    except Issue.DoesNotExist as exc:
+        raise Http404 from exc
 
 
 class APIKeyAuth(HttpBearer):
@@ -194,12 +220,12 @@ def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
 
 @api.get("/projects/{key}/", response=ProjectOut)
 def get_project(request, key: str):
-    return get_object_or_404(Project, key=key)
+    return _visible_project(request, key)
 
 
 @api.get("/projects/{key}/sprints/", response=Page[SprintOut])
 def list_sprints(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
-    project = get_object_or_404(Project, key=key)
+    project = _visible_project(request, key)
     return paginate(project.sprints.all(), lambda s: SprintOut.from_orm(s), page, size)
 
 
@@ -212,7 +238,7 @@ def list_issues(
     status: Optional[str] = None,
     assignee: Optional[str] = None,
 ):
-    project = get_object_or_404(Project, key=key)
+    project = _visible_project(request, key)
     qs = project.issues.select_related(
         "status", "priority", "issue_type", "assignee", "reporter", "project"
     ).order_by("-updated_at")
@@ -225,7 +251,7 @@ def list_issues(
 
 @api.post("/projects/{key}/issues/", response=IssueOut)
 def create_issue(request, key: str, payload: IssueIn):
-    project = get_object_or_404(Project, key=key)
+    project = _visible_project(request, key)
     status = Status.objects.get(pk=payload.status_id) if payload.status_id else Status.objects.order_by("order").first()
     priority = Priority.objects.get(pk=payload.priority_id) if payload.priority_id else Priority.objects.first()
     itype = IssueType.objects.get(pk=payload.issue_type_id) if payload.issue_type_id else IssueType.objects.first()
@@ -240,16 +266,12 @@ def create_issue(request, key: str, payload: IssueIn):
 
 @api.get("/issues/{key}/", response=IssueOut)
 def get_issue(request, key: str):
-    issue = get_object_or_404(
-        Issue.objects.select_related("status", "priority", "issue_type", "assignee", "reporter", "project"),
-        key=key,
-    )
-    return IssueOut.from_issue(issue)
+    return IssueOut.from_issue(_visible_issue(request, key))
 
 
 @api.patch("/issues/{key}/", response=IssueOut)
 def patch_issue(request, key: str, payload: IssuePatch):
-    issue = get_object_or_404(Issue, key=key)
+    issue = _visible_issue(request, key)
     data = payload.dict(exclude_unset=True)
     for field, value in data.items():
         setattr(issue, field, value)
@@ -260,21 +282,21 @@ def patch_issue(request, key: str, payload: IssuePatch):
 
 @api.delete("/issues/{key}/")
 def delete_issue(request, key: str):
-    issue = get_object_or_404(Issue, key=key)
+    issue = _visible_issue(request, key)
     issue.delete()
     return {"deleted": key}
 
 
 @api.get("/issues/{key}/comments/", response=Page[CommentOut])
 def list_comments(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
-    issue = get_object_or_404(Issue, key=key)
+    issue = _visible_issue(request, key)
     qs = issue.comments.select_related("author").order_by("created_at")
     return paginate(qs, CommentOut.from_comment, page, size)
 
 
 @api.post("/issues/{key}/comments/", response=CommentOut)
 def add_comment(request, key: str, payload: CommentIn):
-    issue = get_object_or_404(Issue, key=key)
+    issue = _visible_issue(request, key)
     c = Comment.objects.create(issue=issue, author=request.user, body=payload.body)
     return CommentOut.from_comment(c)
 

@@ -50,10 +50,12 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
 
     async def get(self, request, *args, **kwargs):
         self.project = await _aget_project(kwargs["key"])
+        await aassert_can_edit(request.user, self.project)
         return await super().get(request, *args, **kwargs)
 
     async def post(self, request, *args, **kwargs):
         self.project = await _aget_project(kwargs["key"])
+        await aassert_can_edit(request.user, self.project)
         return await super().post(request, *args, **kwargs)
 
     async def aget_form(self, form_class=None):
@@ -246,6 +248,7 @@ class UploadAttachmentView(AsyncLoginRequiredMixin, View):
         import base64
 
         issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
         f = request.FILES.get("file")
         if not f:
             return redirect(issue.get_absolute_url())

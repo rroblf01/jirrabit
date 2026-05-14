@@ -66,11 +66,11 @@ def _user_match(prefix: str, value: str, op: str) -> Q:
         lookup = "icontains"
     else:
         lookup = "iexact"
-    full = f"{prefix}__first_name"
     q = (
         Q(**{f"{prefix}__username__{lookup}": value})
         | Q(**{f"{prefix}__display_name__{lookup}": value})
-        | Q(**{full: value})  # iexact by default for FK chained CharField
+        | Q(**{f"{prefix}__first_name__{lookup}": value})
+        | Q(**{f"{prefix}__last_name__{lookup}": value})
     )
     # Also try first_name + " " + last_name combined for "Erin Soto" style values.
     if " " in value and op != "~":
