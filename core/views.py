@@ -7,6 +7,12 @@ from .async_views import AsyncTemplateView
 from .mixins import AsyncLoginRequiredMixin
 
 
+class HelpView(AsyncTemplateView):
+    """Public help page explaining Jira-style concepts and jirrabit usage."""
+
+    template_name = "core/help.html"
+
+
 class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "core/home.html"
 

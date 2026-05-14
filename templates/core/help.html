@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block content %}
+<div class="card" style="max-width:880px;">
+  <h1>{% trans "Ayuda" %} — jirrabit</h1>
+  <p style="color:var(--ink-500);">{% trans "Guía rápida para entender los conceptos y empezar a trabajar." %}</p>
+</div>
+
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "¿Qué es Jira (y qué es jirrabit)?" %}</h2>
+  <p>{% blocktrans %}
+    Jira es una herramienta para coordinar el trabajo de un equipo: anotar tareas, asignarlas, priorizarlas,
+    seguir su avance y saber qué falta para terminar. <strong>jirrabit</strong> es un clon ligero con los conceptos
+    esenciales: proyectos, sprints, epics, issues, comentarios, adjuntos y un tablero kanban.
+  {% endblocktrans %}</p>
+</div>
+
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "Glosario" %}</h2>
+
+  <h3>{% trans "Proyecto" %}</h3>
+  <p>{% blocktrans %}
+    Contenedor de todo el trabajo de un producto o equipo. Cada proyecto tiene una <em>clave</em> corta
+    (por ejemplo <code>WEB</code>) que sirve de prefijo para todas sus tareas (<code>WEB-1</code>, <code>WEB-2</code>…).
+    Tiene un <strong>lead</strong> y una lista de <strong>miembros</strong> con su rol
+    (<code>admin</code>, <code>member</code> o <code>viewer</code>).
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Issue (tarea)" %}</h3>
+  <p>{% blocktrans %}
+    Unidad básica de trabajo: una cosa que alguien tiene que hacer. Cada issue tiene una clave única,
+    un resumen, una descripción (Markdown soportado), un estado, una prioridad, un tipo,
+    quien la reporta y quien la tiene asignada.
+  {% endblocktrans %}</p>
+  <ul>
+    <li><strong>{% trans "Story" %}</strong> — {% trans "Funcionalidad nueva contada desde el punto de vista del usuario." %}</li>
+    <li><strong>{% trans "Task" %}</strong> — {% trans "Tarea técnica o trabajo concreto sin valor directo de negocio." %}</li>
+    <li><strong>{% trans "Bug" %}</strong> — {% trans "Algo que no funciona como debería." %}</li>
+    <li><strong>{% trans "Subtask" %}</strong> — {% trans "Pieza más pequeña que cuelga de otro issue (su parent)." %}</li>
+  </ul>
+
+  <h3>{% trans "Epic" %}</h3>
+  <p>{% blocktrans %}
+    Pieza grande de trabajo que agrupa varios issues relacionados. Una epic puede ser por ejemplo
+    «Checkout v2» y contener múltiples stories y tasks que en conjunto la completan.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Sprint" %}</h3>
+  <p>{% blocktrans %}
+    Ventana de tiempo (típicamente 1 a 4 semanas) en la que el equipo se compromete a terminar cierto
+    conjunto de issues. Tiene estado <code>future</code> (planificado), <code>active</code> (en curso)
+    o <code>closed</code> (terminado).
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Estado y workflow" %}</h3>
+  <p>{% blocktrans %}
+    El estado describe en qué punto está un issue: por ejemplo <em>To Do</em>, <em>In Progress</em>,
+    <em>In Review</em>, <em>Blocked</em>, <em>Done</em>. Cada estado pertenece a una categoría
+    (<code>todo</code>, <code>in_progress</code>, <code>done</code>) que el tablero usa para agrupar las columnas.
+    Los administradores pueden restringir las transiciones permitidas (por ejemplo, exigir pasar por
+    <em>In Review</em> antes de <em>Done</em>).
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Prioridad" %}</h3>
+  <p>{% blocktrans %}
+    Indica la urgencia: <em>Highest</em>, <em>High</em>, <em>Medium</em>, <em>Low</em>, <em>Lowest</em>.
+    Se usa para ordenar la cola de trabajo y filtrar listados.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Story points" %}</h3>
+  <p>{% blocktrans %}
+    Estimación abstracta del esfuerzo de un issue (no de horas). Sirven para calcular velocidad por sprint
+    y dibujar el burndown chart.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Etiquetas (labels)" %}</h3>
+  <p>{% blocktrans %}
+    Tags libres que se pueden añadir a un issue para clasificarlo (<code>frontend</code>,
+    <code>backend</code>, <code>qa</code>…). Un issue puede tener varias.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Asignado, reporter y watchers" %}</h3>
+  <ul>
+    <li><strong>{% trans "Reporter" %}</strong> — {% trans "quien creó el issue." %}</li>
+    <li><strong>{% trans "Asignado (assignee)" %}</strong> — {% trans "persona responsable de avanzarlo." %}</li>
+    <li><strong>{% trans "Watchers" %}</strong> — {% trans "gente suscrita a los cambios; reciben emails y notificaciones." %}</li>
+  </ul>
+
+  <h3>{% trans "Comentarios y menciones" %}</h3>
+  <p>{% blocktrans %}
+    Cualquier miembro del proyecto puede comentar en un issue. Soporta Markdown y permite mencionar a otros
+    usuarios con <code>@usuario</code>; la persona mencionada recibe una notificación.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Adjuntos" %}</h3>
+  <p>{% blocktrans %}
+    Archivos pequeños asociados al issue (capturas, logs, notas…). Se guardan en base64 dentro de la base de
+    datos; tamaño máximo 5 MB.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Time tracking" %}</h3>
+  <p>{% blocktrans %}
+    Cada issue tiene una estimación (en minutos) y se le pueden ir registrando work logs según se avanza.
+    El panel lateral muestra <em>tiempo registrado / estimado</em> y la lista de logs recientes.
+  {% endblocktrans %}</p>
+
+  <h3>{% trans "Issue links" %}</h3>
+  <p>{% blocktrans %}
+    Relaciones entre issues: <em>bloquea</em>, <em>bloqueado por</em>, <em>relacionado con</em>,
+    <em>duplica</em>, <em>duplicado por</em>. Al crear un link, jirrabit añade automáticamente el inverso en el
+    otro issue.
+  {% endblocktrans %}</p>
+</div>
+
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "Flujos típicos" %}</h2>
+
+  <h3>{% trans "Crear un proyecto" %}</h3>
+  <ol>
+    <li>{% trans "Pulsa «Nuevo proyecto» en la lista de proyectos." %}</li>
+    <li>{% trans "Asigna clave corta (3-5 letras) y nombre largo." %}</li>
+    <li>{% trans "Añade miembros desde la pestaña «Miembros» con su rol." %}</li>
+  </ol>
+
+  <h3>{% trans "Crear y trabajar una tarea" %}</h3>
+  <ol>
+    <li>{% trans "Pulsa «+ Crear tarea» dentro de un proyecto." %}</li>
+    <li>{% trans "Rellena resumen, tipo, prioridad, sprint (opcional) y descripción." %}</li>
+    <li>{% trans "Una vez creada, los campos se editan in-line haciendo click sobre ellos." %}</li>
+    <li>{% trans "Mueve el estado desde el tablero arrastrando la tarjeta o desde el detalle." %}</li>
+  </ol>
+
+  <h3>{% trans "Planificar un sprint" %}</h3>
+  <ol>
+    <li>{% trans "Crea el sprint desde el detalle del proyecto." %}</li>
+    <li>{% trans "Asigna issues al sprint desde el backlog o desde el detalle del issue." %}</li>
+    <li>{% trans "Cuando comience, pulsa «Iniciar» en el sprint." %}</li>
+    <li>{% trans "Sigue el avance en el tablero y revisa la burndown chart en cualquier momento." %}</li>
+  </ol>
+
+  <h3>{% trans "Buscar con JQL-lite" %}</h3>
+  <p>{% blocktrans %}
+    En la barra de búsqueda usa una mini-sintaxis tipo Jira. Ejemplos:
+  {% endblocktrans %}</p>
+  <ul>
+    <li><code>project=WEB AND status="In Progress"</code></li>
+    <li><code>assignee=alice AND priority=High ORDER BY updated DESC</code></li>
+    <li><code>label=frontend AND type=Bug</code></li>
+    <li><code>epic="Checkout v2" AND status!=Done</code></li>
+  </ul>
+  <p>{% blocktrans %}
+    Campos soportados: <code>project</code>, <code>status</code>, <code>priority</code>, <code>assignee</code>,
+    <code>reporter</code>, <code>type</code>, <code>label</code>, <code>sprint</code>, <code>epic</code>,
+    <code>text</code>. Operadores: <code>=</code>, <code>!=</code>, <code>~</code> (contiene),
+    <code>in (a,b)</code>. Para los campos de usuario también vale el display name
+    (<code>assignee="Erin Soto"</code>).
+  {% endblocktrans %}</p>
+</div>
+
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "Atajos y opciones" %}</h2>
+  <ul>
+    <li>{% trans "Click sobre cualquier campo del detalle de un issue → edición en sitio." %}</li>
+    <li>{% trans "El icono 🔔 abre la bandeja de notificaciones." %}</li>
+    <li>{% trans "El icono 🔑 lleva a tus API keys para integraciones (Authorization: Bearer)." %}</li>
+    <li>{% trans "Desde el perfil puedes elegir la paleta de colores que más te guste." %}</li>
+    <li>{% trans "El idioma se respeta según la cabecera Accept-Language del navegador (ES/EN)." %}</li>
+  </ul>
+</div>
+{% endblock %}
