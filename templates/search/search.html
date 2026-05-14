@@ -24,20 +24,23 @@
   {% endif %}
 
   {% if saved_filters %}
-  <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-    <span style="color:var(--ink-500); font-size:12px;">{% trans "Tuyos / compartidos:" %}</span>
+  <nav class="tabs" style="margin-top:14px;">
+    <a href="{% url 'search:search' %}" class="{% if not query %}active{% endif %}">{% trans "Todos" %}</a>
     {% for f in saved_filters %}
-      <span class="saved-filter" id="filter-{{ f.pk }}" style="display:inline-flex; align-items:center; gap:2px;">
-        <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }} — {{ f.get_scope_display }}">{% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}</a>
+      <a href="?q={{ f.query|urlencode }}" class="{% if query == f.query %}active{% endif %}"
+         title="{{ f.query }} — {{ f.get_scope_display }}">
+        {% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}
         {% if f.owner_id == request.user.pk or request.user.is_superuser %}
-          <form hx-post="{% url 'search:filter_delete' f.pk %}" hx-target="#filter-{{ f.pk }}" hx-swap="outerHTML" hx-confirm="{% blocktrans with name=f.name %}¿Borrar filtro «{{ name }}»?{% endblocktrans %}" style="display:inline; margin:0;">
+          <form hx-post="{% url 'search:filter_delete' f.pk %}" hx-target="closest a" hx-swap="outerHTML"
+                hx-confirm="{% blocktrans with name=f.name %}¿Borrar filtro «{{ name }}»?{% endblocktrans %}"
+                style="display:inline; margin:0;">
             {% csrf_token %}
-            <button class="btn ghost small" type="submit" style="padding:0 6px; line-height:1;" title="{% trans 'Borrar filtro' %}">×</button>
+            <button class="btn ghost small" type="submit" style="padding:0 4px; line-height:1; margin-left:4px;" title="{% trans 'Borrar filtro' %}">×</button>
           </form>
         {% endif %}
-      </span>
+      </a>
     {% endfor %}
-  </div>
+  </nav>
   {% endif %}
 
   {% if error %}

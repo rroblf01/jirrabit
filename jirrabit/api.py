@@ -1,17 +1,18 @@
 """Public REST API powered by django-ninja.
 
-Mounted at ``/api/`` from :mod:`jirrabit.urls`. Two auth methods are
-accepted on every endpoint:
+Mounted at ``/api/v1/`` from :mod:`jirrabit.urls`. The ``/v1/`` prefix
+gives us room to break schemas in a future ``v2`` without breaking
+existing clients. Two auth methods are accepted on every endpoint:
 
 - session cookie (used by the web UI through ``django_auth``).
 - ``Authorization: Bearer <token>`` for headless / scripted access; the
   token is matched against ``accounts.APIKey.token_hash``.
 
-The first matcher to authenticate wins. Unauthenticated requests get
-``401 Unauthorized``.
+List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
+200) query params and wrap items in a ``Page`` envelope.
 """
 from datetime import date as _date
-from typing import List, Optional
+from typing import Generic, List, Optional, TypeVar
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -24,12 +25,7 @@ from projects.models import Project, Sprint
 
 
 class APIKeyAuth(HttpBearer):
-    """Bearer token auth backed by ``accounts.APIKey``.
-
-    Returns the owner ``User`` so view code can keep using
-    ``request.auth`` (or ``request.user`` set below) the same way as
-    session-authenticated requests.
-    """
+    """Bearer token auth backed by ``accounts.APIKey``."""
 
     def authenticate(self, request, token: str):
         if not token:
@@ -42,15 +38,61 @@ class APIKeyAuth(HttpBearer):
         except APIKey.DoesNotExist:
             return None
         APIKey.objects.filter(pk=key.pk).update(last_used_at=timezone.now())
-        # Make ``request.user`` work in handlers expecting session auth.
         request.user = key.owner
         return key.owner
 
 
-api = NinjaAPI(title="Jirrabit API", version="1.0", auth=[django_auth, APIKeyAuth()])
+api = NinjaAPI(
+    title="Jirrabit API",
+    version="1.0",
+    urls_namespace="api-v1",
+    auth=[django_auth, APIKeyAuth()],
+)
 
 
-# --- schemas ---
+# --- pagination helpers --------------------------------------------------
+
+DEFAULT_PAGE_SIZE = 50
+MAX_PAGE_SIZE = 200
+
+T = TypeVar("T")
+
+
+class Page(Schema, Generic[T]):
+    """Generic list-envelope returned by list endpoints."""
+
+    count: int
+    page: int
+    size: int
+    pages: int
+    next: Optional[int] = None
+    previous: Optional[int] = None
+    items: List[T]
+
+
+def paginate(queryset, builder, page: int, size: int) -> dict:
+    """Slice ``queryset`` and wrap into a ``Page`` payload.
+
+    ``builder(item)`` converts each row to the right schema.
+    """
+    page = max(int(page or 1), 1)
+    size = max(1, min(int(size or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
+    total = queryset.count()
+    offset = (page - 1) * size
+    items = [builder(o) for o in queryset[offset : offset + size]]
+    pages = max(1, (total + size - 1) // size)
+    return {
+        "count": total,
+        "page": page,
+        "size": size,
+        "pages": pages,
+        "next": page + 1 if page < pages else None,
+        "previous": page - 1 if page > 1 else None,
+        "items": items,
+    }
+
+
+# --- schemas -------------------------------------------------------------
 
 class UserOut(ModelSchema):
     class Meta:
@@ -142,11 +184,12 @@ class CommentIn(Schema):
     body: str
 
 
-# --- endpoints ---
+# --- endpoints -----------------------------------------------------------
 
-@api.get("/projects/", response=List[ProjectOut])
-def list_projects(request):
-    return list(Project.objects.filter_visible(request.user))
+@api.get("/projects/", response=Page[ProjectOut])
+def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+    qs = Project.objects.filter_visible(request.user).order_by("key")
+    return paginate(qs, lambda p: ProjectOut.from_orm(p), page, size)
 
 
 @api.get("/projects/{key}/", response=ProjectOut)
@@ -154,21 +197,30 @@ def get_project(request, key: str):
     return get_object_or_404(Project, key=key)
 
 
-@api.get("/projects/{key}/sprints/", response=List[SprintOut])
-def list_sprints(request, key: str):
+@api.get("/projects/{key}/sprints/", response=Page[SprintOut])
+def list_sprints(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     project = get_object_or_404(Project, key=key)
-    return list(project.sprints.all())
+    return paginate(project.sprints.all(), lambda s: SprintOut.from_orm(s), page, size)
 
 
-@api.get("/projects/{key}/issues/", response=List[IssueOut])
-def list_issues(request, key: str, status: Optional[str] = None, assignee: Optional[str] = None):
+@api.get("/projects/{key}/issues/", response=Page[IssueOut])
+def list_issues(
+    request,
+    key: str,
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+    status: Optional[str] = None,
+    assignee: Optional[str] = None,
+):
     project = get_object_or_404(Project, key=key)
-    qs = project.issues.select_related("status", "priority", "issue_type", "assignee", "reporter", "project")
+    qs = project.issues.select_related(
+        "status", "priority", "issue_type", "assignee", "reporter", "project"
+    ).order_by("-updated_at")
     if status:
         qs = qs.filter(status__name__iexact=status)
     if assignee:
         qs = qs.filter(assignee__username=assignee)
-    return [IssueOut.from_issue(i) for i in qs[:200]]
+    return paginate(qs, IssueOut.from_issue, page, size)
 
 
 @api.post("/projects/{key}/issues/", response=IssueOut)
@@ -213,10 +265,11 @@ def delete_issue(request, key: str):
     return {"deleted": key}
 
 
-@api.get("/issues/{key}/comments/", response=List[CommentOut])
-def list_comments(request, key: str):
+@api.get("/issues/{key}/comments/", response=Page[CommentOut])
+def list_comments(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     issue = get_object_or_404(Issue, key=key)
-    return [CommentOut.from_comment(c) for c in issue.comments.select_related("author")]
+    qs = issue.comments.select_related("author").order_by("created_at")
+    return paginate(qs, CommentOut.from_comment, page, size)
 
 
 @api.post("/issues/{key}/comments/", response=CommentOut)

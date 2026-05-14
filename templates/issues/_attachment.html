@@ -1,9 +1,21 @@
-<div class="attachment-thumb">
-  {% if a.content_type and a.content_type|slice:":6" == "image/" %}
-    <a href="{{ a.data_url }}" target="_blank"><img src="{{ a.data_url }}" alt="{{ a.filename }}"></a>
-  {% else %}
-    📎
-  {% endif %}
-  <a href="{{ a.data_url }}" download="{{ a.filename }}">{{ a.filename }}</a>
-  <span style="color:var(--ink-500);">— {{ a.uploaded_by }} · {{ a.uploaded_at|date:"DATETIME_FORMAT" }} · {{ a.size_human }}</span>
+{% load i18n %}
+<div class="attachment-thumb" style="flex-direction:column; align-items:flex-start; gap:4px;">
+  <div style="display:flex; align-items:center; gap:6px;">
+    {% if a.content_type and a.content_type|slice:":6" == "image/" %}
+      <a href="{{ a.data_url }}" target="_blank"><img src="{{ a.data_url }}" alt="{{ a.filename }}"></a>
+    {% elif a.content_type == "application/pdf" %}
+      📄
+    {% else %}
+      📎
+    {% endif %}
+    <a href="{{ a.data_url }}" download="{{ a.filename }}">{{ a.filename }}</a>
+    <span style="color:var(--ink-500);">— {{ a.uploaded_by }} · {{ a.uploaded_at|date:"DATETIME_FORMAT" }} · {{ a.size_human }}</span>
+    {% if a.content_type == "application/pdf" %}
+      <button type="button" class="btn ghost small"
+              onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='block'?'none':'block'">
+        {% trans "Vista previa" %}
+      </button>
+      <iframe src="{{ a.data_url }}" style="display:none; width:100%; max-width:760px; height:480px; border:1px solid var(--ink-300); border-radius:8px; margin-top:6px;"></iframe>
+    {% endif %}
+  </div>
 </div>

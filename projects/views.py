@@ -218,6 +218,24 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["sprint"] = sprint
         ctx["sprints"] = [s async for s in project.sprints.all()]
 
+        # Velocity: closed sprints, committed (sum SP at start) vs
+        # completed (sum SP of issues resolved during the sprint).
+        from issues.models import Issue
+        velocity = []
+        async for s in project.sprints.filter(status="closed").order_by("end_date")[:12]:
+            sprint_issues = [i async for i in Issue.objects.filter(sprint=s)]
+            committed = sum(i.story_points or 0 for i in sprint_issues)
+            completed = sum(
+                (i.story_points or 0) for i in sprint_issues
+                if i.resolved_at and s.start_date and s.end_date
+                and s.start_date <= i.resolved_at.date() <= s.end_date
+            )
+            velocity.append({"name": s.name, "committed": committed, "completed": completed})
+        ctx["velocity"] = velocity
+        ctx["velocity_max"] = max(
+            (max(v["committed"], v["completed"]) for v in velocity), default=0
+        ) or 1
+
         if sprint and sprint.start_date and sprint.end_date:
             from issues.models import Issue
             issues = [i async for i in Issue.objects.filter(sprint=sprint)]

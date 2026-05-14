@@ -8,6 +8,7 @@ app_name = "accounts"
 urlpatterns = [
     path("login/", views.JirrabitLoginView.as_view(), name="login"),
     path("logout/", views.JirrabitLogoutView.as_view(), name="logout"),
+    path("logout-all/", views.LogoutAllDevicesView.as_view(), name="logout_all"),
     path("register/", views.RegisterView.as_view(), name="register"),
     path(
         "password-reset/",

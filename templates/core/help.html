@@ -9,6 +9,8 @@
     <a class="badge" href="#glossary">{% trans "Glosario" %}</a>
     <a class="badge" href="#flows">{% trans "Flujos típicos" %}</a>
     <a class="badge" href="#shortcuts">{% trans "Atajos" %}</a>
+    <a class="badge" href="#api">API</a>
+    <a class="badge" href="#import">{% trans "Importar Jira" %}</a>
   </nav>
 </div>
 
@@ -171,10 +173,62 @@
   <h2>{% trans "Atajos y opciones" %}</h2>
   <ul>
     <li>{% trans "Click sobre cualquier campo del detalle de un issue → edición en sitio." %}</li>
-    <li>{% trans "El icono 🔔 abre la bandeja de notificaciones." %}</li>
+    <li>{% trans "El icono 🔔 abre la bandeja de notificaciones (badge en vivo cada 30s)." %}</li>
     <li>{% trans "El icono 🔑 lleva a tus API keys para integraciones (Authorization: Bearer)." %}</li>
-    <li>{% trans "Desde el perfil puedes elegir la paleta de colores que más te guste." %}</li>
+    <li>{% trans "Desde el perfil puedes elegir la paleta de colores y cerrar sesión en todos los dispositivos." %}</li>
     <li>{% trans "El idioma se respeta según la cabecera Accept-Language del navegador (ES/EN)." %}</li>
+    <li>{% trans "Las imágenes adjuntas se muestran como miniatura; los PDF tienen botón «Vista previa» que los abre en línea." %}</li>
+    <li>{% trans "Los filtros guardados aparecen como pestañas en la página de búsqueda." %}</li>
+    <li>{% trans "En burndown verás también el «Velocity chart» con los últimos sprints cerrados." %}</li>
   </ul>
+
+  <h3>{% trans "Atajos de teclado" %}</h3>
+  <table>
+    <thead><tr><th>{% trans "Tecla" %}</th><th>{% trans "Acción" %}</th></tr></thead>
+    <tbody>
+      <tr><td><kbd>g h</kbd></td><td>{% trans "Home" %}</td></tr>
+      <tr><td><kbd>g p</kbd></td><td>{% trans "Lista de proyectos" %}</td></tr>
+      <tr><td><kbd>g b</kbd></td><td>{% trans "Tablero del proyecto actual" %}</td></tr>
+      <tr><td><kbd>g i</kbd></td><td>{% trans "Lista de issues del proyecto actual" %}</td></tr>
+      <tr><td><kbd>g a</kbd></td><td>{% trans "Esta ayuda" %}</td></tr>
+      <tr><td><kbd>c</kbd></td><td>{% trans "Crear tarea en el proyecto actual" %}</td></tr>
+      <tr><td><kbd>/</kbd></td><td>{% trans "Foco en la búsqueda global" %}</td></tr>
+      <tr><td><kbd>?</kbd></td><td>{% trans "Mostrar este listado en un modal" %}</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div id="api" style="position:relative; top:-60px;"></div>
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "API REST" %}</h2>
+  <p>{% blocktrans %}
+    Toda la información es también accesible vía HTTP en <code>/api/v1/</code>.
+    Documentación interactiva en <a href="/api/v1/docs">/api/v1/docs</a>.
+    Dos métodos de auth:
+  {% endblocktrans %}</p>
+  <ul>
+    <li>{% trans "Cookie de sesión (la misma del navegador)." %}</li>
+    <li>{% blocktrans %}Cabecera <code>Authorization: Bearer &lt;token&gt;</code> con un API key generado en <a href="/accounts/api-keys/">tus API keys</a>.{% endblocktrans %}</li>
+  </ul>
+  <p>{% blocktrans %}
+    Listados devuelven envoltura paginada <code>{count, page, size, pages, next, previous, items}</code>;
+    usa <code>?page=N&amp;size=M</code> (size máximo 200).
+    Rate limit por defecto: 120 peticiones/min por API key o sesión.
+  {% endblocktrans %}</p>
+</div>
+
+<div id="import" style="position:relative; top:-60px;"></div>
+<div class="card" style="max-width:880px;">
+  <h2>{% trans "Importar desde Jira" %}</h2>
+  <p>{% blocktrans %}
+    Si vienes de un Jira real, exporta los issues a CSV (Issue Navigator → Export → CSV all fields) y dispara:
+  {% endblocktrans %}</p>
+  <pre style="background:var(--ink-50); padding:10px; border-radius:6px; font-size:13px;"><code>python manage.py import_jira data.csv --project DEMO --reporter alice_pm</code></pre>
+  <p>{% blocktrans %}
+    Mapea automáticamente <em>summary</em>, <em>type</em>, <em>status</em>, <em>priority</em>,
+    <em>assignee</em>, <em>reporter</em>, <em>description</em>, <em>sprint</em>, <em>labels</em>,
+    <em>story points</em>, <em>due date</em> y los <em>comments</em>. Tipos/estados/prioridades
+    desconocidos se crean al vuelo. Añade <code>--dry-run</code> para revisar sin escribir.
+  {% endblocktrans %}</p>
 </div>
 {% endblock %}

@@ -170,3 +170,126 @@ def login_throttle_middleware(get_response):
         return get_response(request)
 
     return middleware
+
+
+# ---------------------------------------------------------------------------
+# Content-Security-Policy header
+# ---------------------------------------------------------------------------
+
+@sync_and_async_middleware
+def csp_middleware(get_response):
+    """Set a strict ``Content-Security-Policy`` on every response.
+
+    ``'unsafe-inline'`` on ``style-src`` and ``script-src`` is required
+    because the project still ships some inline styles/scripts (palette
+    overrides, board drag-and-drop bootstrap, htmx CDN tag). Tighten once
+    those are moved to external files.
+    """
+    policy = (
+        "default-src 'self'; "
+        "img-src 'self' data: blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "connect-src 'self' ws: wss:; "
+        "font-src 'self' data:; "
+        "frame-ancestors 'none'; "
+        "form-action 'self'; "
+        "base-uri 'self'; "
+        "object-src 'none';"
+    )
+
+    def _apply(response):
+        response.setdefault("Content-Security-Policy", policy)
+        response.setdefault("X-Content-Type-Options", "nosniff")
+        return response
+
+    if iscoroutinefunction(get_response):
+        async def middleware(request):
+            return _apply(await get_response(request))
+        return middleware
+
+    def middleware(request):
+        return _apply(get_response(request))
+
+    return middleware
+
+
+# ---------------------------------------------------------------------------
+# API rate limit
+# ---------------------------------------------------------------------------
+
+_api_attempts: dict[str, list[float]] = defaultdict(list)
+
+
+def _api_bucket(request, user=None) -> str | None:
+    """Return the bucket key for an API request.
+
+    Prefers the bearer token (cheap, no DB hit) so we don't have to resolve
+    the session user; falls back to the resolved user when present, or to
+    the client IP for anonymous calls.
+    """
+    if not request.path.startswith("/api/"):
+        return None
+    auth = request.META.get("HTTP_AUTHORIZATION", "")
+    if auth.lower().startswith("bearer "):
+        token = auth[7:].strip()
+        return f"apikey:{token[:8]}"
+    if user is not None and getattr(user, "is_authenticated", False):
+        return f"session:{user.pk}"
+    return f"ip:{_client_ip(request)}"
+
+
+def _api_throttled(key: str) -> bool:
+    now = time.monotonic()
+    window = settings.JIRRABIT_API_RATE_WINDOW
+    limit = settings.JIRRABIT_API_RATE_LIMIT
+    with _lock:
+        attempts = [t for t in _api_attempts[key] if now - t < window]
+        if len(attempts) >= limit:
+            _api_attempts[key] = attempts
+            return True
+        attempts.append(now)
+        _api_attempts[key] = attempts
+        return False
+
+
+@sync_and_async_middleware
+def api_rate_limit_middleware(get_response):
+    """Throttle ``/api/*`` per identity (API key prefix, session pk or IP).
+
+    Limit configurable via ``JIRRABIT_API_RATE_LIMIT`` (default 120) over
+    ``JIRRABIT_API_RATE_WINDOW`` seconds (default 60). Replies 429 with a
+    ``Retry-After`` header when the bucket is exhausted.
+    """
+
+    def _too_many() -> HttpResponse:
+        return HttpResponse(
+            "Rate limit exceeded.",
+            status=429,
+            content_type="text/plain",
+            headers={"Retry-After": str(settings.JIRRABIT_API_RATE_WINDOW)},
+        )
+
+    if iscoroutinefunction(get_response):
+        async def middleware(request):
+            if request.path.startswith("/api/"):
+                auth = request.META.get("HTTP_AUTHORIZATION", "")
+                user = None
+                if not auth.lower().startswith("bearer "):
+                    # Cookie auth — resolve via auser() to avoid the lazy
+                    # ``request.user`` access raising SynchronousOnlyOperation.
+                    user = await request.auser()
+                key = _api_bucket(request, user=user)
+                if key and _api_throttled(key):
+                    return _too_many()
+            return await get_response(request)
+        return middleware
+
+    def middleware(request):
+        if request.path.startswith("/api/"):
+            key = _api_bucket(request, user=request.user)
+            if key and _api_throttled(key):
+                return _too_many()
+        return get_response(request)
+
+    return middleware

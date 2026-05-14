@@ -62,10 +62,12 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "core.middleware.login_throttle_middleware",
+    "core.middleware.api_rate_limit_middleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "django_htmx.middleware.HtmxMiddleware",
     "core.middleware.nav_context_middleware",
+    "core.middleware.csp_middleware",
 ]
 
 ROOT_URLCONF = "jirrabit.urls"
@@ -199,6 +201,10 @@ else:
 JIRRABIT_LOGIN_THROTTLE_LIMIT = int(os.environ.get("JIRRABIT_LOGIN_LIMIT", "8"))
 JIRRABIT_LOGIN_THROTTLE_WINDOW = int(os.environ.get("JIRRABIT_LOGIN_WINDOW", "300"))
 JIRRABIT_LOGIN_THROTTLE_BAN = int(os.environ.get("JIRRABIT_LOGIN_BAN", "900"))
+
+# --- API rate limit ------------------------------------------------------
+JIRRABIT_API_RATE_LIMIT = int(os.environ.get("JIRRABIT_API_RATE_LIMIT", "120"))
+JIRRABIT_API_RATE_WINDOW = int(os.environ.get("JIRRABIT_API_RATE_WINDOW", "60"))
 
 # --- registration -------------------------------------------------------
 # When True, ``/accounts/register/`` requires a valid invite token.

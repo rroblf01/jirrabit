@@ -190,6 +190,90 @@
   document.addEventListener("DOMContentLoaded", () => scanMentions(document));
   document.body.addEventListener("htmx:afterSwap", (e) => scanMentions(e.target));
 
+  // --- Keyboard shortcuts ------------------------------------------------
+  // Jira-style: ``g`` starts a navigation sequence (``g i`` → issues,
+  // ``g p`` → projects, ``g b`` → board, ``g h`` → home, ``g a`` → help).
+  // ``c`` opens "create issue" on the current project, ``/`` focuses the
+  // global search. Disabled while typing in an input.
+  const shortcutHelp = [
+    ["g h", "Home"],
+    ["g p", "Proyectos"],
+    ["g b", "Board del proyecto actual"],
+    ["g i", "Lista de issues del proyecto actual"],
+    ["g a", "Ayuda"],
+    ["c",   "Crear tarea en el proyecto actual"],
+    ["/",   "Foco en la búsqueda"],
+    ["?",   "Mostrar esta ayuda"],
+  ];
+
+  function inTypingContext(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+  }
+
+  function projectKeyFromUrl() {
+    const m = location.pathname.match(/\/(?:projects|board|issues\/projects)\/([A-Z][A-Z0-9]+)/);
+    return m ? m[1] : null;
+  }
+
+  function go(url) { window.location.href = url; }
+
+  let gPending = false;
+  let gTimeout = null;
+  document.addEventListener("keydown", (e) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (inTypingContext(e.target)) return;
+
+    if (e.key === "/") {
+      e.preventDefault();
+      const search = document.querySelector('.topbar input[type="search"]');
+      if (search) search.focus();
+      return;
+    }
+    if (e.key === "?") { e.preventDefault(); openShortcutHelp(); return; }
+    if (e.key === "c") {
+      const key = projectKeyFromUrl();
+      if (key) { e.preventDefault(); go(`/issues/projects/${key}/new/`); }
+      return;
+    }
+    if (gPending) {
+      gPending = false; clearTimeout(gTimeout);
+      const key = projectKeyFromUrl();
+      if (e.key === "h") { e.preventDefault(); go("/"); }
+      else if (e.key === "p") { e.preventDefault(); go("/projects/"); }
+      else if (e.key === "a") { e.preventDefault(); go("/help/"); }
+      else if (e.key === "b" && key) { e.preventDefault(); go(`/board/${key}/`); }
+      else if (e.key === "i" && key) { e.preventDefault(); go(`/issues/projects/${key}/list/`); }
+      return;
+    }
+    if (e.key === "g") {
+      gPending = true;
+      gTimeout = setTimeout(() => { gPending = false; }, 800);
+    }
+  });
+
+  function openShortcutHelp() {
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    const rows = shortcutHelp.map(([k, d]) =>
+      `<tr><td><kbd style="background:var(--ink-100); padding:2px 6px; border-radius:4px; font-family:monospace;">${k}</kbd></td><td style="padding-left:12px;">${d}</td></tr>`
+    ).join("");
+    backdrop.innerHTML = `
+      <div class="modal">
+        <h3>Atajos de teclado</h3>
+        <table><tbody>${rows}</tbody></table>
+        <div class="actions"><button class="btn" data-close>Cerrar</button></div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    function close() { backdrop.remove(); }
+    backdrop.querySelector("[data-close]").onclick = close;
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    document.addEventListener("keydown", function onEsc(e) {
+      if (e.key === "Escape") { close(); document.removeEventListener("keydown", onEsc); }
+    });
+  }
+
   // --- Copy to clipboard -------------------------------------------------
   document.body.addEventListener("click", async (e) => {
     const btn = e.target.closest(".copy-btn");

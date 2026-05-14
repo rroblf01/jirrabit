@@ -5,7 +5,7 @@ from .api import api as ninja_api
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", ninja_api.urls),
+    path("api/v1/", ninja_api.urls),
     path("accounts/", include("accounts.urls", namespace="accounts")),
     path("projects/", include("projects.urls", namespace="projects")),
     path("issues/", include("issues.urls", namespace="issues")),

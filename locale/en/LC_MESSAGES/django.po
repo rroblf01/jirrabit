@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-14 09:22+0200\n"
+"POT-Creation-Date: 2026-05-14 10:54+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,7 +75,7 @@ msgstr "Status change"
 msgid "Cambio en seguidos"
 msgstr "Watch change"
 
-#: accounts/views.py:100
+#: accounts/views.py:131
 msgid "Necesitas una invitación válida para registrarte."
 msgstr "You need a valid invitation to register."
 
@@ -245,6 +245,24 @@ msgstr "no email"
 msgid "Guardar"
 msgstr "Save"
 
+#: templates/accounts/profile.html:68
+msgid "Sesiones"
+msgstr ""
+
+#: templates/accounts/profile.html:70
+msgid ""
+"Si crees que alguien ha entrado en tu cuenta, cierra todas las sesiones "
+"activas (excepto la actual)."
+msgstr ""
+
+#: templates/accounts/profile.html:73
+msgid "¿Cerrar todas las sesiones excepto la actual?"
+msgstr ""
+
+#: templates/accounts/profile.html:75
+msgid "Cerrar sesión en todos los dispositivos"
+msgstr ""
+
 #: templates/accounts/register.html:6
 msgid "Crear cuenta"
 msgstr "Create account"
@@ -267,7 +285,7 @@ msgstr "Sign me up"
 msgid "¿Ya tienes cuenta?"
 msgstr "Already have an account?"
 
-#: templates/base.html:18
+#: templates/base.html:18 templates/core/help.html:189
 msgid "Home"
 msgstr "Home"
 
@@ -357,13 +375,13 @@ msgstr "Quick guide to the concepts and how to get started."
 msgid "Intro"
 msgstr ""
 
-#: templates/core/help.html:9 templates/core/help.html:27
+#: templates/core/help.html:9 templates/core/help.html:29
 #, fuzzy
 #| msgid "Usuario"
 msgid "Glosario"
 msgstr "User"
 
-#: templates/core/help.html:10 templates/core/help.html:125
+#: templates/core/help.html:10 templates/core/help.html:127
 msgid "Flujos típicos"
 msgstr "Common workflows"
 
@@ -371,11 +389,15 @@ msgstr "Common workflows"
 msgid "Atajos"
 msgstr ""
 
-#: templates/core/help.html:17
+#: templates/core/help.html:13
+msgid "Importar Jira"
+msgstr ""
+
+#: templates/core/help.html:19
 msgid "¿Qué es Jira (y qué es jirrabit)?"
 msgstr "What is Jira (and what is jirrabit)?"
 
-#: templates/core/help.html:18
+#: templates/core/help.html:20
 msgid ""
 "\n"
 "    Jira es una herramienta para coordinar el trabajo de un equipo: anotar "
@@ -387,11 +409,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:29 templates/core/home.html:15
+#: templates/core/help.html:31 templates/core/home.html:15
 msgid "Proyecto"
 msgstr "Project"
 
-#: templates/core/help.html:30
+#: templates/core/help.html:32
 msgid ""
 "\n"
 "    Contenedor de todo el trabajo de un producto o equipo. Cada proyecto "
@@ -404,11 +426,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:37
+#: templates/core/help.html:39
 msgid "Issue (tarea)"
 msgstr "Issue"
 
-#: templates/core/help.html:38
+#: templates/core/help.html:40
 msgid ""
 "\n"
 "    Unidad básica de trabajo: una cosa que alguien tiene que hacer. Cada "
@@ -419,43 +441,43 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:44
+#: templates/core/help.html:46
 msgid "Story"
 msgstr "Story"
 
-#: templates/core/help.html:44
+#: templates/core/help.html:46
 msgid "Funcionalidad nueva contada desde el punto de vista del usuario."
 msgstr "New functionality told from the user's point of view."
 
-#: templates/core/help.html:45
+#: templates/core/help.html:47
 msgid "Task"
 msgstr "Task"
 
-#: templates/core/help.html:45
+#: templates/core/help.html:47
 msgid "Tarea técnica o trabajo concreto sin valor directo de negocio."
 msgstr "Technical task or concrete work with no direct business value."
 
-#: templates/core/help.html:46
+#: templates/core/help.html:48
 msgid "Bug"
 msgstr "Bug"
 
-#: templates/core/help.html:46
+#: templates/core/help.html:48
 msgid "Algo que no funciona como debería."
 msgstr "Something not working as it should."
 
-#: templates/core/help.html:47
+#: templates/core/help.html:49
 msgid "Subtask"
 msgstr "Subtask"
 
-#: templates/core/help.html:47
+#: templates/core/help.html:49
 msgid "Pieza más pequeña que cuelga de otro issue (su parent)."
 msgstr "Smaller piece hanging off another issue (its parent)."
 
-#: templates/core/help.html:50
+#: templates/core/help.html:52
 msgid "Epic"
 msgstr "Epic"
 
-#: templates/core/help.html:51
+#: templates/core/help.html:53
 msgid ""
 "\n"
 "    Pieza grande de trabajo que agrupa varios issues relacionados. Una epic "
@@ -465,13 +487,13 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:56
+#: templates/core/help.html:58 templates/projects/burndown.html:130
 #, fuzzy
 #| msgid "Sin sprints."
 msgid "Sprint"
 msgstr "No sprints."
 
-#: templates/core/help.html:57
+#: templates/core/help.html:59
 msgid ""
 "\n"
 "    Ventana de tiempo (típicamente 1 a 4 semanas) en la que el equipo se "
@@ -482,11 +504,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:63
+#: templates/core/help.html:65
 msgid "Estado y workflow"
 msgstr "Status and workflow"
 
-#: templates/core/help.html:64
+#: templates/core/help.html:66
 msgid ""
 "\n"
 "    El estado describe en qué punto está un issue: por ejemplo <em>To Do</"
@@ -501,12 +523,12 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:72 templates/core/home.html:15
+#: templates/core/help.html:74 templates/core/home.html:15
 #: templates/issues/detail.html:103 templates/search/_results.html:6
 msgid "Prioridad"
 msgstr "Priority"
 
-#: templates/core/help.html:73
+#: templates/core/help.html:75
 msgid ""
 "\n"
 "    Indica la urgencia: <em>Highest</em>, <em>High</em>, <em>Medium</em>, "
@@ -515,11 +537,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:78 templates/issues/detail.html:109
+#: templates/core/help.html:80 templates/issues/detail.html:109
 msgid "Story points"
 msgstr "Story points"
 
-#: templates/core/help.html:79
+#: templates/core/help.html:81
 msgid ""
 "\n"
 "    Estimación abstracta del esfuerzo de un issue (no de horas). Sirven para "
@@ -528,11 +550,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:84
+#: templates/core/help.html:86
 msgid "Etiquetas (labels)"
 msgstr "Labels"
 
-#: templates/core/help.html:85
+#: templates/core/help.html:87
 msgid ""
 "\n"
 "    Tags libres que se pueden añadir a un issue para clasificarlo "
@@ -541,41 +563,41 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:90
+#: templates/core/help.html:92
 msgid "Asignado, reporter y watchers"
 msgstr "Assignee, reporter and watchers"
 
-#: templates/core/help.html:92 templates/issues/detail.html:101
+#: templates/core/help.html:94 templates/issues/detail.html:101
 msgid "Reporter"
 msgstr "Reporter"
 
-#: templates/core/help.html:92
+#: templates/core/help.html:94
 msgid "quien creó el issue."
 msgstr "who created the issue."
 
-#: templates/core/help.html:93
+#: templates/core/help.html:95
 msgid "Asignado (assignee)"
 msgstr "Assignee"
 
-#: templates/core/help.html:93
+#: templates/core/help.html:95
 msgid "persona responsable de avanzarlo."
 msgstr "person responsible for moving it forward."
 
-#: templates/core/help.html:94
+#: templates/core/help.html:96
 msgid "Watchers"
 msgstr "Watchers"
 
-#: templates/core/help.html:94
+#: templates/core/help.html:96
 msgid "gente suscrita a los cambios; reciben emails y notificaciones."
 msgstr "people subscribed to changes; they receive emails and notifications."
 
-#: templates/core/help.html:97
+#: templates/core/help.html:99
 #, fuzzy
 #| msgid "Comentario"
 msgid "Comentarios y menciones"
 msgstr "Comment"
 
-#: templates/core/help.html:98
+#: templates/core/help.html:100
 msgid ""
 "\n"
 "    Cualquier miembro del proyecto puede comentar en un issue. Soporta "
@@ -585,11 +607,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:103 templates/issues/detail.html:23
+#: templates/core/help.html:105 templates/issues/detail.html:23
 msgid "Adjuntos"
 msgstr "Attachments"
 
-#: templates/core/help.html:104
+#: templates/core/help.html:106
 msgid ""
 "\n"
 "    Archivos pequeños asociados al issue (capturas, logs, notas…). Se "
@@ -598,11 +620,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:109
+#: templates/core/help.html:111
 msgid "Time tracking"
 msgstr "Time tracking"
 
-#: templates/core/help.html:110
+#: templates/core/help.html:112
 msgid ""
 "\n"
 "    Cada issue tiene una estimación (en minutos) y se le pueden ir "
@@ -612,11 +634,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:115
+#: templates/core/help.html:117
 msgid "Issue links"
 msgstr "Issue links"
 
-#: templates/core/help.html:116
+#: templates/core/help.html:118
 msgid ""
 "\n"
 "    Relaciones entre issues: <em>bloquea</em>, <em>bloqueado por</em>, "
@@ -627,80 +649,80 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:127
+#: templates/core/help.html:129
 #, fuzzy
 #| msgid "Nuevo proyecto"
 msgid "Crear un proyecto"
 msgstr "New project"
 
-#: templates/core/help.html:129
+#: templates/core/help.html:131
 msgid "Pulsa «Nuevo proyecto» en la lista de proyectos."
 msgstr "Click «New project» in the projects list."
 
-#: templates/core/help.html:130
+#: templates/core/help.html:132
 msgid "Asigna clave corta (3-5 letras) y nombre largo."
 msgstr "Pick a short key (3–5 letters) and a long name."
 
-#: templates/core/help.html:131
+#: templates/core/help.html:133
 msgid "Añade miembros desde la pestaña «Miembros» con su rol."
 msgstr "Add members from the «Members» tab with their role."
 
-#: templates/core/help.html:134
+#: templates/core/help.html:136
 msgid "Crear y trabajar una tarea"
 msgstr "Create and work an issue"
 
-#: templates/core/help.html:136
+#: templates/core/help.html:138
 msgid "Pulsa «+ Crear tarea» dentro de un proyecto."
 msgstr "Click «+ Create issue» inside a project."
 
-#: templates/core/help.html:137
+#: templates/core/help.html:139
 msgid "Rellena resumen, tipo, prioridad, sprint (opcional) y descripción."
 msgstr "Fill in summary, type, priority, sprint (optional) and description."
 
-#: templates/core/help.html:138
+#: templates/core/help.html:140
 msgid ""
 "Una vez creada, los campos se editan in-line haciendo click sobre ellos."
 msgstr ""
 
-#: templates/core/help.html:139
+#: templates/core/help.html:141
 msgid ""
 "Mueve el estado desde el tablero arrastrando la tarjeta o desde el detalle."
 msgstr ""
 
-#: templates/core/help.html:142
+#: templates/core/help.html:144
 msgid "Planificar un sprint"
 msgstr "Plan a sprint"
 
-#: templates/core/help.html:144
+#: templates/core/help.html:146
 msgid "Crea el sprint desde el detalle del proyecto."
 msgstr "Create the sprint from the project detail."
 
-#: templates/core/help.html:145
+#: templates/core/help.html:147
 msgid "Asigna issues al sprint desde el backlog o desde el detalle del issue."
 msgstr "Assign issues to the sprint from the backlog or from the issue detail."
 
-#: templates/core/help.html:146
+#: templates/core/help.html:148
 msgid "Cuando comience, pulsa «Iniciar» en el sprint."
 msgstr "When it begins, click «Start» on the sprint."
 
-#: templates/core/help.html:147
+#: templates/core/help.html:149
 msgid ""
 "Sigue el avance en el tablero y revisa la burndown chart en cualquier "
 "momento."
 msgstr ""
 
-#: templates/core/help.html:150
+#: templates/core/help.html:152
 msgid "Buscar con JQL-lite"
 msgstr "Search with JQL-lite"
 
-#: templates/core/help.html:151
+#: templates/core/help.html:153
 msgid ""
 "\n"
 "    En la barra de búsqueda usa una mini-sintaxis tipo Jira. Ejemplos:\n"
 "  "
 msgstr ""
 
-#: templates/core/help.html:160
+#: templates/core/help.html:162
 msgid ""
 "\n"
 "    Campos soportados: <code>project</code>, <code>status</code>, "
@@ -715,30 +737,162 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:171
+#: templates/core/help.html:173
 msgid "Atajos y opciones"
 msgstr "Shortcuts and options"
 
-#: templates/core/help.html:173
+#: templates/core/help.html:175
 msgid "Click sobre cualquier campo del detalle de un issue → edición en sitio."
 msgstr "Click any field on the issue detail → inline edit."
 
-#: templates/core/help.html:174
-msgid "El icono 🔔 abre la bandeja de notificaciones."
+#: templates/core/help.html:176
+#, fuzzy
+#| msgid "El icono 🔔 abre la bandeja de notificaciones."
+msgid "El icono 🔔 abre la bandeja de notificaciones (badge en vivo cada 30s)."
 msgstr "The 🔔 icon opens the notifications inbox."
 
-#: templates/core/help.html:175
+#: templates/core/help.html:177
 msgid ""
 "El icono 🔑 lleva a tus API keys para integraciones (Authorization: Bearer)."
 msgstr ""
 
-#: templates/core/help.html:176
-msgid "Desde el perfil puedes elegir la paleta de colores que más te guste."
+#: templates/core/help.html:178
+#, fuzzy
+#| msgid "Desde el perfil puedes elegir la paleta de colores que más te guste."
+msgid ""
+"Desde el perfil puedes elegir la paleta de colores y cerrar sesión en todos "
+"los dispositivos."
 msgstr "From your profile you can pick the color palette you like best."
 
-#: templates/core/help.html:177
+#: templates/core/help.html:179
 msgid ""
 "El idioma se respeta según la cabecera Accept-Language del navegador (ES/EN)."
+msgstr ""
+
+#: templates/core/help.html:180
+msgid ""
+"Las imágenes adjuntas se muestran como miniatura; los PDF tienen botón "
+"«Vista previa» que los abre en línea."
+msgstr ""
+
+#: templates/core/help.html:181
+msgid "Los filtros guardados aparecen como pestañas en la página de búsqueda."
+msgstr ""
+
+#: templates/core/help.html:182
+msgid ""
+"En burndown verás también el «Velocity chart» con los últimos sprints "
+"cerrados."
+msgstr ""
+
+#: templates/core/help.html:185
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Atajos de teclado"
+msgstr "Status change"
+
+#: templates/core/help.html:187
+msgid "Tecla"
+msgstr ""
+
+#: templates/core/help.html:187
+#, fuzzy
+#| msgid "Mención"
+msgid "Acción"
+msgstr "Mention"
+
+#: templates/core/help.html:190
+#, fuzzy
+#| msgid "Mis proyectos"
+msgid "Lista de proyectos"
+msgstr "My projects"
+
+#: templates/core/help.html:191
+msgid "Tablero del proyecto actual"
+msgstr ""
+
+#: templates/core/help.html:192
+msgid "Lista de issues del proyecto actual"
+msgstr ""
+
+#: templates/core/help.html:193
+#, fuzzy
+#| msgid "Estado"
+msgid "Esta ayuda"
+msgstr "Status"
+
+#: templates/core/help.html:194
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Crear tarea en el proyecto actual"
+msgstr "New project"
+
+#: templates/core/help.html:195
+msgid "Foco en la búsqueda global"
+msgstr ""
+
+#: templates/core/help.html:196
+msgid "Mostrar este listado en un modal"
+msgstr ""
+
+#: templates/core/help.html:203
+msgid "API REST"
+msgstr ""
+
+#: templates/core/help.html:204
+msgid ""
+"\n"
+"    Toda la información es también accesible vía HTTP en <code>/api/v1/</"
+"code>.\n"
+"    Documentación interactiva en <a href=\"/api/v1/docs\">/api/v1/docs</a>.\n"
+"    Dos métodos de auth:\n"
+"  "
+msgstr ""
+
+#: templates/core/help.html:210
+msgid "Cookie de sesión (la misma del navegador)."
+msgstr ""
+
+#: templates/core/help.html:211
+msgid ""
+"Cabecera <code>Authorization: Bearer &lt;token&gt;</code> con un API key "
+"generado en <a href=\"/accounts/api-keys/\">tus API keys</a>."
+msgstr ""
+
+#: templates/core/help.html:213
+msgid ""
+"\n"
+"    Listados devuelven envoltura paginada <code>{count, page, size, pages, "
+"next, previous, items}</code>;\n"
+"    usa <code>?page=N&amp;size=M</code> (size máximo 200).\n"
+"    Rate limit por defecto: 120 peticiones/min por API key o sesión.\n"
+"  "
+msgstr ""
+
+#: templates/core/help.html:222
+msgid "Importar desde Jira"
+msgstr ""
+
+#: templates/core/help.html:223
+msgid ""
+"\n"
+"    Si vienes de un Jira real, exporta los issues a CSV (Issue Navigator → "
+"Export → CSV all fields) y dispara:\n"
+"  "
+msgstr ""
+
+#: templates/core/help.html:227
+msgid ""
+"\n"
+"    Mapea automáticamente <em>summary</em>, <em>type</em>, <em>status</em>, "
+"<em>priority</em>,\n"
+"    <em>assignee</em>, <em>reporter</em>, <em>description</em>, <em>sprint</"
+"em>, <em>labels</em>,\n"
+"    <em>story points</em>, <em>due date</em> y los <em>comments</em>. Tipos/"
+"estados/prioridades\n"
+"    desconocidos se crean al vuelo. Añade <code>--dry-run</code> para "
+"revisar sin escribir.\n"
+"  "
 msgstr ""
 
 #: templates/core/home.html:5
@@ -805,6 +959,10 @@ msgstr "You don't belong to any project."
 #: templates/core/home.html:52
 msgid "Crea uno"
 msgstr "Create one"
+
+#: templates/issues/_attachment.html:16
+msgid "Vista previa"
+msgstr ""
 
 #: templates/issues/detail.html:12
 #, fuzzy
@@ -1010,6 +1168,36 @@ msgstr ""
 msgid "Sin sprint válido o sin fechas configuradas."
 msgstr ""
 
+#: templates/projects/burndown.html:84
+msgid "Velocity"
+msgstr ""
+
+#: templates/projects/burndown.html:84
+msgid "últimos sprints cerrados"
+msgstr ""
+
+#: templates/projects/burndown.html:122
+#, fuzzy
+#| msgid "Compartido"
+msgid "comprometido"
+msgstr "Shared"
+
+#: templates/projects/burndown.html:124
+msgid "completado"
+msgstr ""
+
+#: templates/projects/burndown.html:130
+#, fuzzy
+#| msgid "Compartido"
+msgid "Comprometido"
+msgstr "Shared"
+
+#: templates/projects/burndown.html:130
+#, fuzzy
+#| msgid "Compartido"
+msgid "Completado"
+msgstr "Shared"
+
 #: templates/projects/detail.html:8
 msgid "Crear tarea"
 msgstr "Create issue"
@@ -1114,25 +1302,28 @@ msgid "Guardar filtro"
 msgstr "Save filter"
 
 #: templates/search/search.html:28
-msgid "Tuyos / compartidos:"
-msgstr "Yours / shared:"
+msgid "Todos"
+msgstr ""
 
-#: templates/search/search.html:33
+#: templates/search/search.html:35
 #, python-format
 msgid "¿Borrar filtro «%(name)s»?"
 msgstr "Delete filter «%(name)s»?"
 
-#: templates/search/search.html:35
+#: templates/search/search.html:38
 msgid "Borrar filtro"
 msgstr "Delete filter"
 
-#: templates/search/search.html:48
+#: templates/search/search.html:51
 msgid "¿Quisiste decir"
 msgstr ""
 
-#: templates/search/search.html:53
+#: templates/search/search.html:56
 msgid "Campos válidos:"
 msgstr ""
+
+#~ msgid "Tuyos / compartidos:"
+#~ msgstr "Yours / shared:"
 
 #~ msgid "Sin proyectos todavía."
 #~ msgstr "No projects yet."

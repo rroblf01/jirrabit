@@ -59,6 +59,37 @@ class JirrabitLogoutView(View):
         return redirect(settings.LOGOUT_REDIRECT_URL)
 
 
+class LogoutAllDevicesView(AsyncLoginRequiredMixin, View):
+    """Invalidate every active session for the current user.
+
+    Iterates ``django.contrib.sessions.models.Session`` rows, decodes the
+    payload, and deletes those that belong to the user. Cheap enough for
+    a handful of sessions per user; for a multi-tenant SaaS, switch the
+    session backend to one that indexes by user (e.g.
+    ``django-user-sessions``).
+    """
+
+    async def post(self, request):
+        from asgiref.sync import sync_to_async
+        from django.contrib.sessions.models import Session
+        user_pk = str(request.user.pk)
+        current_key = request.session.session_key
+
+        def _purge():
+            count = 0
+            for s in Session.objects.iterator():
+                data = s.get_decoded()
+                if str(data.get("_auth_user_id")) == user_pk and s.session_key != current_key:
+                    s.delete()
+                    count += 1
+            return count
+
+        count = await sync_to_async(_purge, thread_sensitive=True)()
+        from django.contrib import messages
+        messages.success(request, f"{count} sesiones revocadas.")
+        return redirect("accounts:profile")
+
+
 class RegisterView(AsyncFormView):
     form_class = RegisterForm
     template_name = "accounts/register.html"

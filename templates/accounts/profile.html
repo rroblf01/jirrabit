@@ -63,5 +63,16 @@
     {% endfor %}
     <button class="btn" type="submit">{% trans "Guardar" %}</button>
   </form>
+
+  <hr style="border:none; border-top:1px solid var(--ink-300); margin:20px 0;">
+  <h3>{% trans "Sesiones" %}</h3>
+  <p style="color:var(--ink-500); font-size:13px;">
+    {% trans "Si crees que alguien ha entrado en tu cuenta, cierra todas las sesiones activas (excepto la actual)." %}
+  </p>
+  <form method="post" action="{% url 'accounts:logout_all' %}"
+        hx-confirm="{% trans '¿Cerrar todas las sesiones excepto la actual?' %}">
+    {% csrf_token %}
+    <button class="btn danger small" type="submit">{% trans "Cerrar sesión en todos los dispositivos" %}</button>
+  </form>
 </div>
 {% endblock %}

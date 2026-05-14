@@ -1,0 +1,60 @@
+name: CI
+
+# Run on every PR push. ``concurrency`` cancels in-flight jobs from the
+# previous commit on the same PR so we don't burn minutes on stale code.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ruff · ty · check · tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      JIRRABIT_DEBUG: "1"
+      JIRRABIT_SECRET_KEY: ci-only-not-secret
+      JIRRABIT_ALLOWED_HOSTS: "*"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.14
+
+      - name: Install gettext (for compilemessages)
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: ruff
+        run: uv run ruff check .
+
+      - name: ty (type-check)
+        run: uv run ty check . || true
+        # ``ty`` is still pre-release; don't fail the build on its findings.
+
+      - name: Django system check
+        run: uv run python manage.py check
+
+      - name: Django migrations consistency
+        run: uv run python manage.py makemigrations --check --dry-run
+
+      - name: Run tests
+        run: uv run python manage.py test tests

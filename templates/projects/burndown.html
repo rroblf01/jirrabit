@@ -78,4 +78,67 @@
     <p class="empty">{% trans "Sin sprint válido o sin fechas configuradas." %}</p>
   {% endif %}
 </div>
+
+{% if velocity %}
+<div class="card">
+  <h2>{% trans "Velocity" %} <span style="font-size:13px; color:var(--ink-500); font-weight:normal;">— {% trans "últimos sprints cerrados" %}</span></h2>
+  <svg viewBox="0 0 800 280" style="width:100%; max-width:900px; background:white; border:1px solid var(--ink-100); border-radius:8px;">
+    {% with width=700 height=200 origin_x=50 origin_y=20 bar_gap=8 %}
+    <!-- Y axis ticks -->
+    {% for tick in "0123" %}
+      <line x1="{{ origin_x }}" y1="{% widthratio forloop.counter0 3 height %}"
+            x2="{{ width|add:origin_x }}" y2="{% widthratio forloop.counter0 3 height %}"
+            transform="translate(0,{{ origin_y }})" stroke="#e2e8f0" stroke-dasharray="2 2"/>
+      <text x="{{ origin_x|add:-6 }}" y="{% widthratio forloop.counter0 3 height %}"
+            transform="translate(0,{{ origin_y|add:4 }})" font-size="10" fill="#64748b" text-anchor="end">
+        {% widthratio forloop.counter0 3 velocity_max %}
+      </text>
+    {% endfor %}
+
+    <line x1="{{ origin_x }}" y1="{{ origin_y }}" x2="{{ origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
+    <line x1="{{ origin_x }}" y1="{{ origin_y|add:height }}" x2="{{ width|add:origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
+
+    <!-- bars: committed (light) and completed (solid) per sprint -->
+    {% for v in velocity %}
+      <g transform="translate({{ origin_x }},{{ origin_y }})">
+        {% widthratio forloop.counter0 velocity|length width as x %}
+        {% widthratio v.committed velocity_max height as bar_c %}
+        {% widthratio v.completed velocity_max height as bar_d %}
+        <rect x="{{ x|add:4 }}" y="{{ height|add:bar_c|add:'-1'|stringformat:'s'|slice:'1:' }}"
+              width="20" height="{{ bar_c }}" fill="var(--blue-200)">
+          <title>{{ v.name }} — committed: {{ v.committed }} SP</title>
+        </rect>
+        <rect x="{{ x|add:26 }}" y="{{ height|add:bar_d|add:'-1'|stringformat:'s'|slice:'1:' }}"
+              width="20" height="{{ bar_d }}" fill="var(--blue-600)">
+          <title>{{ v.name }} — completed: {{ v.completed }} SP</title>
+        </rect>
+        <text x="{{ x|add:24 }}" y="{{ height|add:14 }}" font-size="10" fill="#64748b" text-anchor="middle">{{ v.name|truncatechars:14 }}</text>
+      </g>
+    {% endfor %}
+
+    <!-- legend -->
+    <g transform="translate({{ width|add:origin_x|add:-200 }},{{ origin_y|add:8 }})">
+      <rect width="14" height="10" fill="var(--blue-200)"/>
+      <text x="20" y="9" font-size="11" fill="#334155">{% trans "comprometido" %}</text>
+      <rect x="120" width="14" height="10" fill="var(--blue-600)"/>
+      <text x="140" y="9" font-size="11" fill="#334155">{% trans "completado" %}</text>
+    </g>
+    {% endwith %}
+  </svg>
+
+  <table style="margin-top:14px;">
+    <thead><tr><th>{% trans "Sprint" %}</th><th>{% trans "Comprometido" %}</th><th>{% trans "Completado" %}</th><th>%</th></tr></thead>
+    <tbody>
+      {% for v in velocity %}
+        <tr>
+          <td>{{ v.name }}</td>
+          <td>{{ v.committed }}</td>
+          <td>{{ v.completed }}</td>
+          <td>{% if v.committed %}{% widthratio v.completed v.committed 100 %}%{% else %}—{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
 {% endblock %}
