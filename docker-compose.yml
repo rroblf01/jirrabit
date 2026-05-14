@@ -1,41 +1,41 @@
-version: "3.9"
-
 services:
-  db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: jirrabit
-      POSTGRES_USER: jirrabit
-      POSTGRES_PASSWORD: jirrabit
+  jirrabit-db:
+    image: postgres:18.3-alpine3.23
+    env_file:
+      - .env
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "jirrabit"]
+      test: ["CMD", "pg_isready", "-U", "${JIRRABIT_DB_USER:-jirrabit}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    # Backs Channels group fanout so multi-process daphne stays in sync.
+    image: redis:8.6.3-alpine3.23
+    env_file:
+      - .env
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
 
   web:
     build: .
+    env_file:
+      - .env
     depends_on:
-      db:
+      jirrabit-db:
         condition: service_healthy
-    environment:
-      JIRRABIT_DEBUG: "0"
-      JIRRABIT_ALLOWED_HOSTS: "*"
-      JIRRABIT_DB_ENGINE: postgres
-      JIRRABIT_DB_NAME: jirrabit
-      JIRRABIT_DB_USER: jirrabit
-      JIRRABIT_DB_PASSWORD: jirrabit
-      JIRRABIT_DB_HOST: db
-      JIRRABIT_DB_PORT: "5432"
-      JIRRABIT_SECRET_KEY: change-me-in-prod
+      redis:
+        condition: service_healthy
     ports:
       - "8000:8000"
     command: >
-      sh -c "python manage.py migrate --noinput &&
-             python manage.py seed_jirrabit &&
-             daphne -b 0.0.0.0 -p 8000 jirrabit.asgi:application"
+      sh -c "python manage.py runserver 0.0.0.0:8000"
 
 volumes:
   pgdata:

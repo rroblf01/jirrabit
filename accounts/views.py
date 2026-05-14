@@ -58,10 +58,52 @@ class RegisterView(AsyncFormView):
     template_name = "accounts/register.html"
     success_url = reverse_lazy("core:home")
 
+    async def _aget_valid_invite(self):
+        """Return a valid ``InviteToken`` for the current request, or ``None``."""
+        from django.conf import settings as dj_settings
+        from django.utils import timezone
+
+        from .models import InviteToken
+
+        if not dj_settings.JIRRABIT_INVITE_ONLY:
+            return "open"  # registration is open, no invite required
+        token = self.request.GET.get("token") or self.request.POST.get("token") or ""
+        if not token:
+            return None
+        return await InviteToken.objects.filter(
+            token=token, used_at__isnull=True, expires_at__gt=timezone.now()
+        ).afirst()
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        ctx["invite_only"] = settings.JIRRABIT_INVITE_ONLY
+        ctx["token"] = self.request.GET.get("token") or self.request.POST.get("token") or ""
+        ctx["invite_invalid"] = (
+            settings.JIRRABIT_INVITE_ONLY and (await self._aget_valid_invite()) is None
+        )
+        return ctx
+
+    async def get(self, request, *args, **kwargs):
+        return await super().get(request, *args, **kwargs)
+
+    async def post(self, request, *args, **kwargs):
+        invite = await self._aget_valid_invite()
+        if invite is None:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("Necesitas una invitación válida para registrarte.")
+        self._invite = invite
+        return await super().post(request, *args, **kwargs)
+
     async def aform_valid(self, form):
-        # ``UserCreationForm.save(commit=False)`` already sets the password.
+        from django.utils import timezone
+
         user = form.save(commit=False)
         await user.asave()
+        invite = getattr(self, "_invite", None)
+        if invite and invite != "open":
+            invite.used_at = timezone.now()
+            invite.used_by = user
+            await invite.asave(update_fields=["used_at", "used_by"])
         await alogin(self.request, user)
         return redirect(await self.aget_success_url())
 
@@ -152,3 +194,42 @@ class UserMentionSearchView(AsyncLoginRequiredMixin, View):
         )[:8]
         users = [u async for u in qs]
         return await arender(request, "notifications/_mention_list.html", {"users": users})
+
+
+class APIKeyListView(AsyncLoginRequiredMixin, AsyncListView):
+    template_name = "accounts/api_keys.html"
+    context_object_name = "keys"
+
+    async def aget_queryset(self):
+        from .models import APIKey
+        return APIKey.objects.filter(owner=self.request.user)
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        # ``fresh_token`` is set after creation via session flash.
+        ctx["fresh_token"] = self.request.session.pop("fresh_api_token", None)
+        ctx["fresh_name"] = self.request.session.pop("fresh_api_name", None)
+        return ctx
+
+
+class APIKeyCreateView(AsyncLoginRequiredMixin, View):
+    async def post(self, request):
+        from asgiref.sync import sync_to_async
+        from .models import APIKey
+        name = request.POST.get("name", "").strip() or "default"
+        _, plain = await sync_to_async(APIKey.create_for)(owner=request.user, name=name)
+        # Stash the plaintext in the session so the next render can show it once.
+        request.session["fresh_api_token"] = plain
+        request.session["fresh_api_name"] = name
+        return redirect("accounts:api_keys")
+
+
+class APIKeyRevokeView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, pk):
+        from django.utils import timezone
+        from .models import APIKey
+        k = await APIKey.objects.filter(pk=pk, owner=request.user).afirst()
+        if k:
+            k.revoked_at = timezone.now()
+            await k.asave(update_fields=["revoked_at"])
+        return redirect("accounts:api_keys")

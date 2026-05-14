@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card" style="max-width:780px;">
+  <h1>API keys</h1>
+  <p style="color:var(--ink-500); font-size:13px;">
+    Tokens personales para integraciones headless. Envíalos como
+    <code>Authorization: Bearer &lt;token&gt;</code> contra <code>/api/</code>.
+  </p>
+
+  {% if fresh_token %}
+  <div class="flash" style="background:#fef3c7; color:#92400e;">
+    <strong>Token «{{ fresh_name }}»:</strong>
+    <code style="word-break:break-all; user-select:all;">{{ fresh_token }}</code><br>
+    <small>Cópialo ahora. No volverás a verlo.</small>
+  </div>
+  {% endif %}
+
+  <form method="post" action="{% url 'accounts:api_key_create' %}" class="row" style="margin-bottom:14px;">
+    {% csrf_token %}
+    <input type="text" name="name" placeholder="Nombre (p.ej. ci-bot)" style="width:280px;">
+    <button class="btn" type="submit">Crear token</button>
+  </form>
+
+  <table>
+    <thead><tr><th>Nombre</th><th>Prefijo</th><th>Estado</th><th>Creado</th><th>Último uso</th><th></th></tr></thead>
+    <tbody>
+    {% for k in keys %}
+      <tr>
+        <td>{{ k.name }}</td>
+        <td><code>{{ k.prefix }}…</code></td>
+        <td>{% if k.is_active %}<span class="badge done">activa</span>{% else %}<span class="badge bug">revocada</span>{% endif %}</td>
+        <td>{{ k.created_at|date:"d M H:i" }}</td>
+        <td>{{ k.last_used_at|date:"d M H:i"|default:"—" }}</td>
+        <td>
+          {% if k.is_active %}
+          <form method="post" action="{% url 'accounts:api_key_revoke' k.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button class="btn ghost small" type="submit"
+                    onclick="return confirm('¿Revocar «{{ k.name }}»?')">revocar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="empty">Sin tokens.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

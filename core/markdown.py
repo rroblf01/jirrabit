@@ -16,10 +16,18 @@ _ALLOWED_ATTRS = {
     "input": ["type", "checked", "disabled"],
     "span": ["class"],
 }
+_ALLOWED_PROTOCOLS = ("http", "https", "mailto")
 _MENTION_RE = re.compile(r"(?<!\w)@([\w._-]+)")
 
 
 def render_markdown(text: str) -> str:
+    """Markdown → safe HTML.
+
+    Only ``http``, ``https`` and ``mailto`` URL schemes survive, so a
+    payload like ``[click](javascript:alert(1))`` is stripped to text by
+    bleach. Mentions get rewritten to relative links pointing at the user
+    search page.
+    """
     if not text:
         return ""
     html = md.markdown(
@@ -28,9 +36,15 @@ def render_markdown(text: str) -> str:
         output_format="html",
     )
     html = _MENTION_RE.sub(
-        r'<a href="/accounts/users/?q=\1" class="mention">@\1</a>', html
+        r'<a href="/accounts/users/?q=\1" class="mention" rel="noopener">@\1</a>', html
     )
-    cleaned = bleach.clean(html, tags=_ALLOWED_TAGS, attributes=_ALLOWED_ATTRS, strip=True)
+    cleaned = bleach.clean(
+        html,
+        tags=_ALLOWED_TAGS,
+        attributes=_ALLOWED_ATTRS,
+        protocols=_ALLOWED_PROTOCOLS,
+        strip=True,
+    )
     return cleaned
 
 

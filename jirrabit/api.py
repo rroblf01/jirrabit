@@ -1,21 +1,53 @@
 """Public REST API powered by django-ninja.
 
-Mounted at ``/api/`` from :mod:`jirrabit.urls`. Authentication uses the
-existing session cookie. All write endpoints require an active session;
-read endpoints filter by project visibility.
+Mounted at ``/api/`` from :mod:`jirrabit.urls`. Two auth methods are
+accepted on every endpoint:
+
+- session cookie (used by the web UI through ``django_auth``).
+- ``Authorization: Bearer <token>`` for headless / scripted access; the
+  token is matched against ``accounts.APIKey.token_hash``.
+
+The first matcher to authenticate wins. Unauthenticated requests get
+``401 Unauthorized``.
 """
 from datetime import date as _date
 from typing import List, Optional
 
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ninja import ModelSchema, NinjaAPI, Schema
-from ninja.security import django_auth
+from ninja.security import HttpBearer, django_auth
 
-from accounts.models import User
+from accounts.models import APIKey, User
 from issues.models import Comment, Issue, IssueType, Priority, Status
 from projects.models import Project, Sprint
 
-api = NinjaAPI(title="Jirrabit API", version="1.0", auth=django_auth)
+
+class APIKeyAuth(HttpBearer):
+    """Bearer token auth backed by ``accounts.APIKey``.
+
+    Returns the owner ``User`` so view code can keep using
+    ``request.auth`` (or ``request.user`` set below) the same way as
+    session-authenticated requests.
+    """
+
+    def authenticate(self, request, token: str):
+        if not token:
+            return None
+        try:
+            key = APIKey.objects.select_related("owner").get(
+                token_hash=APIKey.hash_token(token),
+                revoked_at__isnull=True,
+            )
+        except APIKey.DoesNotExist:
+            return None
+        APIKey.objects.filter(pk=key.pk).update(last_used_at=timezone.now())
+        # Make ``request.user`` work in handlers expecting session auth.
+        request.user = key.owner
+        return key.owner
+
+
+api = NinjaAPI(title="Jirrabit API", version="1.0", auth=[django_auth, APIKeyAuth()])
 
 
 # --- schemas ---

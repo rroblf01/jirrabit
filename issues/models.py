@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
 
 
 class IssueType(models.Model):
@@ -109,6 +110,8 @@ class Issue(models.Model):
     due_date = models.DateField(null=True, blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
 
+    description_html_cache = models.TextField(blank=True, default="")
+
     # Time tracking, in minutes.
     estimate_minutes = models.PositiveIntegerField(null=True, blank=True)
     time_spent_minutes = models.PositiveIntegerField(default=0)
@@ -139,10 +142,14 @@ class Issue(models.Model):
         if not self.key:
             num = self.project.next_issue_number()
             self.key = f"{self.project.key}-{num}"
+        from core.markdown import render_markdown
+        self.description_html_cache = render_markdown(self.description)
         super().save(*args, **kwargs)
 
     @property
     def description_html(self) -> str:
+        if self.description_html_cache:
+            return self.description_html_cache
         from core.markdown import render_markdown
         return render_markdown(self.description)
 
@@ -151,6 +158,7 @@ class Comment(models.Model):
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     body = models.TextField()
+    body_html_cache = models.TextField(blank=True, default="")
     edited = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -161,19 +169,26 @@ class Comment(models.Model):
     def __str__(self):
         return f"Comment on {self.issue.key}"
 
+    def save(self, *args, **kwargs):
+        from core.markdown import render_markdown
+        self.body_html_cache = render_markdown(self.body)
+        super().save(*args, **kwargs)
+
     @property
     def body_html(self) -> str:
+        if self.body_html_cache:
+            return self.body_html_cache
         from core.markdown import render_markdown
         return render_markdown(self.body)
 
 
 class IssueLink(models.Model):
     TYPE_CHOICES = (
-        ("blocks", "bloquea"),
-        ("blocked_by", "bloqueado por"),
-        ("relates_to", "relacionado con"),
-        ("duplicates", "duplica"),
-        ("duplicated_by", "duplicado por"),
+        ("blocks", _("bloquea")),
+        ("blocked_by", _("bloqueado por")),
+        ("relates_to", _("relacionado con")),
+        ("duplicates", _("duplica")),
+        ("duplicated_by", _("duplicado por")),
     )
     INVERSE = {
         "blocks": "blocked_by",

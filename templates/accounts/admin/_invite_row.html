@@ -1,0 +1,26 @@
+<tr id="invite-{{ i.pk }}" {% if fresh %}style="background:var(--blue-50);"{% endif %}>
+  <td>
+    <code style="font-size:11px;">{{ i.token|slice:":12" }}…</code>
+    {% if url %}<br><a href="{{ url }}" style="font-size:12px;" target="_blank">{{ url|truncatechars:50 }}</a>{% endif %}
+  </td>
+  <td>{{ i.email|default:"—" }}</td>
+  <td><span class="badge">{{ i.role }}</span></td>
+  <td>{{ i.created_at|date:"d M H:i" }}</td>
+  <td>{{ i.expires_at|date:"d M H:i" }}</td>
+  <td>
+    {% if i.used_at %}
+      ✓ {{ i.used_by|default:"?" }} ({{ i.used_at|date:"d M H:i" }})
+    {% elif not i.is_valid %}
+      <span class="badge bug">expirada</span>
+    {% else %}
+      <span class="badge done">activa</span>
+    {% endif %}
+  </td>
+  <td>
+    {% if i.is_valid and not i.used_at %}
+      <form hx-post="{% url 'accounts:admin_invite_revoke' i.pk %}" hx-target="#invite-{{ i.pk }}" hx-swap="outerHTML" style="display:inline;">
+        {% csrf_token %}<button class="btn ghost small" type="submit">revocar</button>
+      </form>
+    {% endif %}
+  </td>
+</tr>

@@ -35,7 +35,7 @@
 
       <h3 style="margin-top:18px;">Adjuntos</h3>
       <div id="attachments">
-        {% for a in issue.attachments.all %}{% include "issues/_attachment.html" with a=a %}{% empty %}
+        {% for a in attachments %}{% include "issues/_attachment.html" with a=a %}{% empty %}
           <div style="color:var(--ink-500); font-size:13px;">Sin adjuntos.</div>
         {% endfor %}
       </div>
@@ -47,7 +47,7 @@
 
       <h3 style="margin-top:18px;">Comentarios</h3>
       <div class="comments" id="comments">
-        {% for c in issue.comments.all %}{% include "issues/_comment.html" with c=c %}{% endfor %}
+        {% for c in comments %}{% include "issues/_comment.html" with c=c %}{% endfor %}
       </div>
       <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend" style="margin-top:10px;">
         {% csrf_token %}
@@ -60,7 +60,7 @@
 
       <h3 style="margin-top:18px;">Historial</h3>
       <ul style="font-size:13px; color:var(--ink-700);">
-        {% for h in issue.history.all|slice:":50" %}
+        {% for h in history %}
           <li>{{ h.created_at|date:"d M H:i" }} — <strong>{{ h.actor|default:"sistema" }}</strong> cambió <em>{{ h.field }}</em>: <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code></li>
         {% empty %}
           <li style="color:var(--ink-500);">Sin cambios registrados.</li>
@@ -91,7 +91,7 @@
       <dt>Tiempo registrado</dt>
       <dd>{{ issue.time_spent_minutes }} min</dd>
       <dt>Etiquetas</dt>
-      <dd>{% for l in issue.labels.all %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
+      <dd>{% for l in labels %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
 
       {% if custom_fields %}
         <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">

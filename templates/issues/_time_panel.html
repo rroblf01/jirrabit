@@ -8,5 +8,11 @@
       <li>{{ w.author.display_name|default:w.author.username }} +{{ w.minutes }}min{% if w.comment %} — {{ w.comment }}{% endif %}</li>
     {% endfor %}
   </ul>
+  {% if worklogs_has_more %}
+    <a href="?page={{ worklogs_page|add:1 }}#time-panel" style="font-size:12px;">Ver siguientes →</a>
+  {% endif %}
+  {% if worklogs_page > 1 %}
+    <a href="?page={{ worklogs_page|add:-1 }}#time-panel" style="font-size:12px; margin-right:6px;">← anteriores</a>
+  {% endif %}
   {% endif %}
 </div>

@@ -15,4 +15,5 @@ dependencies = [
     "channels>=4.1.0",
     "markdown>=3.6",
     "bleach>=6.1.0",
+    "channels-redis>=4.3.0",
 ]

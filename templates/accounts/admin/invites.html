@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Invitaciones</h1>
+  <p style="color:var(--ink-500); font-size:13px;">
+    Genera un enlace temporal para que alguien se registre.
+    {% if not invite_only %}<strong>Registro abierto — invitaciones opcionales.</strong>{% endif %}
+  </p>
+  <form hx-post="{% url 'accounts:admin_invite_create' %}" hx-target="#invite-rows" hx-swap="afterbegin" class="row" style="gap:8px;">
+    {% csrf_token %}
+    <input type="email" name="email" placeholder="email (opcional)" style="width:240px;">
+    <select name="role" style="width:120px;">
+      <option value="member">member</option>
+      <option value="admin">admin</option>
+      <option value="viewer">viewer</option>
+    </select>
+    <input type="number" name="days" value="7" min="1" max="365" title="días" style="width:80px;">
+    <button class="btn" type="submit">Crear</button>
+  </form>
+  <table style="margin-top:14px;">
+    <thead><tr><th>Token</th><th>Email</th><th>Rol</th><th>Creada</th><th>Caduca</th><th>Usada</th><th></th></tr></thead>
+    <tbody id="invite-rows">
+    {% for i in invites %}{% include "accounts/admin/_invite_row.html" %}{% empty %}
+      <tr><td colspan="7" class="empty">Sin invitaciones.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

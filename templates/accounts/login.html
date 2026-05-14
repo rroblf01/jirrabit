@@ -17,6 +17,9 @@
       <button class="btn" style="width:100%;" type="submit">Entrar</button>
     </form>
     <p style="margin-top:14px; font-size:13px; text-align:center;">
+      <a href="{% url 'accounts:password_reset' %}">¿Olvidaste la contraseña?</a>
+    </p>
+    <p style="margin-top:6px; font-size:13px; text-align:center;">
       ¿Sin cuenta? <a href="{% url 'accounts:register' %}">Regístrate</a>
     </p>
   </div>

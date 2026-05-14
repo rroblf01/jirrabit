@@ -1,6 +1,6 @@
-{% load static %}
+{% load static i18n %}
 <!DOCTYPE html>
-<html lang="es">
+<html lang="{{ LANGUAGE_CODE|default:'es' }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -13,23 +13,24 @@
 <header class="topbar">
   <div class="brand">jirra<span>bit</span></div>
   <nav>
-    <a href="{% url 'core:home' %}">Home</a>
-    <a href="{% url 'projects:list' %}">Proyectos</a>
-    <a href="{% url 'accounts:user_list' %}">Usuarios</a>
-    <a href="{% url 'accounts:notifications' %}" title="Notificaciones">🔔</a>
-    {% if user.is_superuser %}<a href="{% url 'accounts:admin_user_list' %}">Admin</a>{% endif %}
+    <a href="{% url 'core:home' %}">{% trans "Home" %}</a>
+    <a href="{% url 'projects:list' %}">{% trans "Proyectos" %}</a>
+    <a href="{% url 'accounts:user_list' %}">{% trans "Usuarios" %}</a>
+    <a href="{% url 'accounts:notifications' %}" title="{% trans 'Notificaciones' %}">🔔</a>
+    {% if user.is_superuser %}<a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>{% endif %}
   </nav>
   <div class="spacer"></div>
   <form class="search" method="get" action="{% url 'search:search' %}">
-    <input type="search" name="q" placeholder="JQL-lite o texto..." value="{{ request.GET.q|default:'' }}">
+    <input type="search" name="q" placeholder="{% trans 'JQL-lite o texto...' %}" value="{{ request.GET.q|default:'' }}">
   </form>
   <span class="user-chip">{{ user }}</span>
-  <a href="{% url 'accounts:profile' %}" title="Perfil">⚙</a>
-  <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">Salir</button></form>
+  <a href="{% url 'accounts:api_keys' %}" title="{% trans 'API keys' %}">🔑</a>
+  <a href="{% url 'accounts:profile' %}" title="{% trans 'Perfil' %}">⚙</a>
+  <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">{% trans "Salir" %}</button></form>
 </header>
 <div class="layout">
   <aside class="sidebar">
-    <h3>Proyectos</h3>
+    <h3>{% trans "Proyectos" %}</h3>
     <ul>
       {% for p in nav_projects %}
         <li><a href="{{ p.get_absolute_url }}">{{ p.key }} · {{ p.name }}</a></li>

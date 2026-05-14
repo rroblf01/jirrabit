@@ -99,3 +99,50 @@ class AdminUserToggleActiveView(AsyncSuperuserRequiredMixin, View):
         u.is_active = not u.is_active
         await u.asave()
         return await arender(request, "accounts/admin/_row.html", {"u": u})
+
+
+# --- invite tokens ---
+
+import secrets
+from datetime import timedelta
+
+from django.utils import timezone
+
+from .models import InviteToken
+
+
+class AdminInviteListView(AsyncSuperuserRequiredMixin, AsyncListView):
+    template_name = "accounts/admin/invites.html"
+    context_object_name = "invites"
+
+    async def aget_queryset(self):
+        return InviteToken.objects.all().select_related("created_by", "used_by")
+
+
+class AdminInviteCreateView(AsyncSuperuserRequiredMixin, View):
+    async def post(self, request):
+        days = int(request.POST.get("days", "7"))
+        invite = await InviteToken.objects.acreate(
+            created_by=request.user,
+            email=request.POST.get("email", "").strip(),
+            role=request.POST.get("role", "member"),
+            token=secrets.token_urlsafe(32),
+            expires_at=timezone.now() + timedelta(days=days),
+        )
+        url = request.build_absolute_uri(f"/accounts/register/?token={invite.token}")
+        return await arender(
+            request, "accounts/admin/_invite_row.html",
+            {"i": invite, "url": url, "fresh": True},
+        )
+
+
+class AdminInviteRevokeView(AsyncSuperuserRequiredMixin, View):
+    async def post(self, request, pk):
+        i = await InviteToken.objects.filter(pk=pk).afirst()
+        if i and not i.used_at:
+            i.expires_at = timezone.now()
+            await i.asave(update_fields=["expires_at"])
+        if i:
+            return await arender(request, "accounts/admin/_invite_row.html", {"i": i})
+        from django.http import HttpResponse
+        return HttpResponse("")

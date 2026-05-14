@@ -98,7 +98,9 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
     context_object_name = "issue"
 
     async def aget_object(self):
-        return await _aget_issue(self.kwargs["key"])
+        issue = await _aget_issue(self.kwargs["key"])
+        await aassert_can_view(self.request.user, issue.project)
+        return issue
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
@@ -111,6 +113,29 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["custom_fields"] = [
             f async for f in self.object.project.custom_fields.all()
         ]
+        # N+1 fix: pre-evaluate related collections.
+        ctx["comments"] = [
+            c async for c in self.object.comments.select_related("author").all()
+        ]
+        ctx["labels"] = [l async for l in self.object.labels.all()]
+        ctx["attachments"] = [
+            a async for a in self.object.attachments.select_related("uploaded_by").all()
+        ]
+        ctx["history"] = [
+            h async for h in self.object.history.select_related("actor")[:50]
+        ]
+        ctx["links"] = [
+            l async for l in self.object.links_out.select_related("target", "target__status")
+        ]
+        worklogs_qs = self.object.worklogs.select_related("author").order_by("-logged_at")
+        page = max(int(self.request.GET.get("page", "1")), 1)
+        per_page = 10
+        offset = (page - 1) * per_page
+        ctx["worklogs"] = [w async for w in worklogs_qs[offset : offset + per_page]]
+        ctx["worklogs_page"] = page
+        ctx["worklogs_has_more"] = await worklogs_qs[
+            offset + per_page : offset + per_page + 1
+        ].aexists()
         return ctx
 
 
@@ -150,9 +175,13 @@ class IssueListView(AsyncLoginRequiredMixin, AsyncListView):
 
     async def aget_queryset(self):
         self.project = await _aget_project(self.kwargs["key"])
-        return self.project.issues.select_related(
-            "status", "priority", "assignee", "issue_type"
-        ).all()
+        await aassert_can_view(self.request.user, self.project)
+        return (
+            self.project.issues
+            .select_related("status", "priority", "assignee", "issue_type")
+            .prefetch_related("labels")
+            .all()
+        )
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)

@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 
 class ProjectQuerySet(models.QuerySet):
@@ -58,9 +59,9 @@ class Project(models.Model):
 
 class ProjectMembership(models.Model):
     ROLE_CHOICES = (
-        ("admin", "Admin"),
-        ("member", "Member"),
-        ("viewer", "Viewer"),
+        ("admin", _("Admin")),
+        ("member", _("Member")),
+        ("viewer", _("Viewer")),
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="memberships")
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="memberships")
@@ -76,7 +77,7 @@ class ProjectMembership(models.Model):
 
 
 class SavedFilter(models.Model):
-    SCOPE_CHOICES = (("private", "Privado"), ("shared", "Compartido"))
+    SCOPE_CHOICES = (("private", _("Privado")), ("shared", _("Compartido")))
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters")
     name = models.CharField(max_length=120)
     query = models.TextField(help_text="JQL-lite query expression.")
@@ -122,13 +123,13 @@ class Webhook(models.Model):
 
 class CustomFieldDef(models.Model):
     TYPE_CHOICES = (
-        ("text", "Texto corto"),
-        ("textarea", "Texto largo"),
-        ("number", "Número"),
-        ("select", "Lista"),
-        ("date", "Fecha"),
-        ("user", "Usuario"),
-        ("checkbox", "Checkbox"),
+        ("text", _("Texto corto")),
+        ("textarea", _("Texto largo")),
+        ("number", _("Número")),
+        ("select", _("Lista")),
+        ("date", _("Fecha")),
+        ("user", _("Usuario")),
+        ("checkbox", _("Checkbox")),
     )
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="custom_fields")
     name = models.CharField(max_length=80)
@@ -172,7 +173,7 @@ class Epic(models.Model):
 
 
 class Sprint(models.Model):
-    STATUS = (("future", "Future"), ("active", "Active"), ("closed", "Closed"))
+    STATUS = (("future", _("Future")), ("active", _("Active")), ("closed", _("Closed")))
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="sprints")
     name = models.CharField(max_length=120)
     goal = models.CharField(max_length=255, blank=True)

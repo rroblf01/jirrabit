@@ -3,8 +3,17 @@
 <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--blue-700),var(--blue-900));">
   <div class="card" style="width:420px; max-width:90vw;">
     <h1 style="margin:0 0 12px 0; color:var(--blue-800);">Crear cuenta</h1>
+    {% if invite_only and invite_invalid %}
+      <div class="errors" style="margin-bottom:12px;">
+        El enlace de invitación es inválido, ha expirado o ya se usó. Pide uno nuevo a un admin.
+      </div>
+    {% endif %}
+    {% if invite_only and not invite_invalid and token %}
+      <p style="color:var(--ink-500); font-size:13px;">Registro autorizado por invitación.</p>
+    {% endif %}
     <form method="post">
       {% csrf_token %}
+      {% if token %}<input type="hidden" name="token" value="{{ token }}">{% endif %}
       {% for field in form %}
       <div class="form-row">
         <label>{{ field.label }}</label>
@@ -13,7 +22,7 @@
         {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
       </div>
       {% endfor %}
-      <button class="btn" style="width:100%;" type="submit">Registrarme</button>
+      <button class="btn" style="width:100%;" type="submit" {% if invite_only and invite_invalid %}disabled{% endif %}>Registrarme</button>
     </form>
     <p style="margin-top:14px; font-size:13px; text-align:center;">
       ¿Ya tienes cuenta? <a href="{% url 'accounts:login' %}">Entrar</a>
