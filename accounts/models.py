@@ -13,6 +13,11 @@ class User(AbstractUser):
     )
     job_title = models.CharField(max_length=120, blank=True)
     timezone = models.CharField(max_length=64, default="Europe/Madrid")
+    palette = models.CharField(
+        max_length=20,
+        default="blue",
+        help_text=_("Paleta de colores aplicada al renderizar la UI."),
+    )
 
     def __str__(self):
         return self.display_name or self.get_full_name() or self.username

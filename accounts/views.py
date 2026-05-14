@@ -126,6 +126,12 @@ class ProfileView(AsyncLoginRequiredMixin, AsyncUpdateView):
             instance=self.object,
         )
 
+    async def aget_context_data(self, **kwargs):
+        from core.palettes import PALETTE_CHOICES
+        ctx = await super().aget_context_data(**kwargs)
+        ctx["palette_chips"] = PALETTE_CHOICES
+        return ctx
+
     async def aform_valid(self, form):
         user = form.save(commit=False)
         if form.cleaned_data.get("clear_avatar"):

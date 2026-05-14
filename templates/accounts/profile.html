@@ -17,6 +17,18 @@
       <label>{{ field.label }}</label>{{ field }}
       {% if field.help_text %}<div style="font-size:12px;color:var(--ink-500)">{{ field.help_text|safe }}</div>{% endif %}
       {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
+      {% if field.name == "palette" %}
+      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+        {% for slug, label, swatch in palette_chips %}
+          <label style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:2px solid {% if slug == user.palette %}{{ swatch }}{% else %}var(--ink-300){% endif %}; border-radius:999px; font-size:12px;">
+            <input type="radio" name="palette" value="{{ slug }}" {% if slug == user.palette %}checked{% endif %} style="display:none;"
+                   onchange="this.form.querySelector('[name=palette]:not([type=radio])').value=this.value">
+            <span style="width:14px; height:14px; border-radius:999px; background:{{ swatch }};"></span>
+            {{ label }}
+          </label>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
     {% endfor %}
     <button class="btn" type="submit">{% trans "Guardar" %}</button>

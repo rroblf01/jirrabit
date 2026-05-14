@@ -30,7 +30,16 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ("display_name", "first_name", "last_name", "email", "job_title", "timezone")
+        fields = ("display_name", "first_name", "last_name", "email", "job_title", "timezone", "palette")
+        widgets = {
+            "palette": forms.Select(choices=()),  # populated in __init__
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from core.palettes import palette_choices_simple
+        self.fields["palette"].widget = forms.Select(choices=palette_choices_simple())
+        self.fields["palette"].label = _("Paleta de colores")
 
     def clean_avatar_file(self):
         f = self.cleaned_data.get("avatar_file")
