@@ -1,13 +1,14 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
-    <h1 style="margin:0;">Notificaciones</h1>
+    <h1 style="margin:0;">{% trans "Notificaciones" %}</h1>
     <div class="spacer"></div>
     <form hx-post="{% url 'accounts:notifications_mark_read' %}"
           hx-target="#notif-list" hx-swap="outerHTML">
       {% csrf_token %}
-      <button class="btn ghost small" type="submit">Marcar todas como leídas</button>
+      <button class="btn ghost small" type="submit">{% trans "Marcar todas como leídas" %}</button>
     </form>
   </div>
   <div id="notif-list" style="margin-top:14px;">

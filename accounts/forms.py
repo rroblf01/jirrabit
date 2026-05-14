@@ -3,6 +3,7 @@ import binascii
 
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
+from django.utils.translation import gettext_lazy as _
 
 from .models import User
 
@@ -22,10 +23,10 @@ class RegisterForm(UserCreationForm):
 class ProfileForm(forms.ModelForm):
     avatar_file = forms.ImageField(
         required=False,
-        label="Avatar",
-        help_text="PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos.",
+        label=_("Avatar"),
+        help_text=_("PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos."),
     )
-    clear_avatar = forms.BooleanField(required=False, label="Quitar avatar actual")
+    clear_avatar = forms.BooleanField(required=False, label=_("Quitar avatar actual"))
 
     class Meta:
         model = User
@@ -38,10 +39,10 @@ class ProfileForm(forms.ModelForm):
         content_type = getattr(f, "content_type", "") or ""
         if content_type not in ALLOWED_AVATAR_MIME:
             raise forms.ValidationError(
-                f"Tipo no soportado: {content_type or 'desconocido'}."
+                _("Tipo no soportado: %(ct)s.") % {"ct": content_type or _("desconocido")}
             )
         if f.size and f.size > MAX_AVATAR_BYTES:
-            raise forms.ValidationError("La imagen supera el tamaño máximo permitido.")
+            raise forms.ValidationError(_("La imagen supera el tamaño máximo permitido."))
         return f
 
     def encoded_avatar(self):

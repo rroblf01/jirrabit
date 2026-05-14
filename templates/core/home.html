@@ -1,15 +1,19 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
-  <h1>Hola, {{ user.display_name|default:user.username }}</h1>
-  <p style="color:var(--ink-500);">Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en los que participas.</p>
+  <h1>{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>
+  <p style="color:var(--ink-500);">{% trans "Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en los que participas." %}</p>
 </div>
 
 <div class="card">
-  <h2>Mis tareas abiertas</h2>
+  <h2>{% trans "Mis tareas abiertas" %}</h2>
   {% if my_issues %}
   <table>
-    <thead><tr><th>Clave</th><th>Tipo</th><th>Resumen</th><th>Estado</th><th>Prioridad</th><th>Proyecto</th></tr></thead>
+    <thead><tr>
+      <th>{% trans "Clave" %}</th><th>{% trans "Tipo" %}</th><th>{% trans "Resumen" %}</th>
+      <th>{% trans "Estado" %}</th><th>{% trans "Prioridad" %}</th><th>{% trans "Proyecto" %}</th>
+    </tr></thead>
     <tbody>
     {% for i in my_issues %}
       <tr>
@@ -23,14 +27,17 @@
     {% endfor %}
     </tbody>
   </table>
-  {% else %}<div class="empty">Sin tareas asignadas.</div>{% endif %}
+  {% else %}<div class="empty">{% trans "Sin tareas asignadas." %}</div>{% endif %}
 </div>
 
 <div class="card">
-  <h2>Mis proyectos</h2>
+  <h2>{% trans "Mis proyectos" %}</h2>
   {% if projects %}
   <table>
-    <thead><tr><th>Clave</th><th>Nombre</th><th>Lead</th><th>Abiertas</th></tr></thead>
+    <thead><tr>
+      <th>{% trans "Clave" %}</th><th>{% trans "Nombre" %}</th>
+      <th>{% trans "Lead" %}</th><th>{% trans "Abiertas" %}</th>
+    </tr></thead>
     <tbody>
     {% for p in projects %}
       <tr>
@@ -42,6 +49,6 @@
     {% endfor %}
     </tbody>
   </table>
-  {% else %}<div class="empty">No participas en ningún proyecto. <a href="{% url 'projects:create' %}">Crea uno</a>.</div>{% endif %}
+  {% else %}<div class="empty">{% trans "No participas en ningún proyecto." %} <a href="{% url 'projects:create' %}">{% trans "Crea uno" %}</a>.</div>{% endif %}
 </div>
 {% endblock %}

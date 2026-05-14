@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
-  <h1>Búsqueda</h1>
+  <h1>{% trans "Búsqueda" %}</h1>
   <p style="color:var(--ink-500); font-size:13px;">
-    JQL-lite: <code>project=WEB AND status="In Progress" AND assignee=alice ORDER BY priority DESC</code>.
-    Operadores: <code>=</code>, <code>!=</code>, <code>~</code>, <code>in (a,b)</code>. Texto libre también funciona.
+    {% trans "JQL-lite:" %} <code>project=WEB AND status="In Progress" AND assignee=alice ORDER BY priority DESC</code>.
+    {% trans "Operadores:" %} <code>=</code>, <code>!=</code>, <code>~</code>, <code>in (a,b)</code>. {% trans "Texto libre también funciona." %}
   </p>
   <form method="get" style="display:flex; gap:8px;">
     <input type="search" name="q" value="{{ query }}" autofocus style="flex:1;"
@@ -16,22 +17,22 @@
   <form method="post" action="{% url 'search:filter_create' %}" style="display:inline-flex; gap:6px; margin-top:10px; align-items:center;">
     {% csrf_token %}
     <input type="hidden" name="query" value="{{ query }}">
-    <input type="text" name="name" placeholder="nombre del filtro" style="width:200px;">
-    <select name="scope"><option value="private">Privado</option><option value="shared">Compartido</option></select>
-    <button class="btn small" type="submit">Guardar filtro</button>
+    <input type="text" name="name" placeholder="{% trans 'nombre del filtro' %}" style="width:200px;">
+    <select name="scope"><option value="private">{% trans "Privado" %}</option><option value="shared">{% trans "Compartido" %}</option></select>
+    <button class="btn small" type="submit">{% trans "Guardar filtro" %}</button>
   </form>
   {% endif %}
 
   {% if saved_filters %}
   <div style="margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-    <span style="color:var(--ink-500); font-size:12px;">Tuyos / compartidos:</span>
+    <span style="color:var(--ink-500); font-size:12px;">{% trans "Tuyos / compartidos:" %}</span>
     {% for f in saved_filters %}
       <span class="saved-filter" id="filter-{{ f.pk }}" style="display:inline-flex; align-items:center; gap:2px;">
         <a class="badge" href="?q={{ f.query|urlencode }}" title="{{ f.query }} — {{ f.get_scope_display }}">{% if f.scope == "shared" %}👥{% else %}🔒{% endif %} {{ f.name }}</a>
         {% if f.owner_id == request.user.pk or request.user.is_superuser %}
-          <form hx-post="{% url 'search:filter_delete' f.pk %}" hx-target="#filter-{{ f.pk }}" hx-swap="outerHTML" hx-confirm="¿Borrar filtro «{{ f.name }}»?" style="display:inline; margin:0;">
+          <form hx-post="{% url 'search:filter_delete' f.pk %}" hx-target="#filter-{{ f.pk }}" hx-swap="outerHTML" hx-confirm="{% blocktrans with name=f.name %}¿Borrar filtro «{{ name }}»?{% endblocktrans %}" style="display:inline; margin:0;">
             {% csrf_token %}
-            <button class="btn ghost small" type="submit" style="padding:0 6px; line-height:1;" title="Borrar filtro">×</button>
+            <button class="btn ghost small" type="submit" style="padding:0 6px; line-height:1;" title="{% trans 'Borrar filtro' %}">×</button>
           </form>
         {% endif %}
       </span>

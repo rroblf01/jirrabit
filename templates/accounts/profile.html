@@ -1,12 +1,13 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card" style="max-width:640px;">
-  <h1>Mi perfil</h1>
+  <h1>{% trans "Mi perfil" %}</h1>
   <div class="row" style="margin-bottom:18px; gap:14px;">
     {% include "_avatar.html" with u=user size="lg" %}
     <div>
       <div style="font-weight:600;">{{ user }}</div>
-      <div style="font-size:13px; color:var(--ink-500);">{{ user.email|default:"sin email" }}</div>
+      <div style="font-size:13px; color:var(--ink-500);">{{ user.email|default:_("sin email") }}</div>
     </div>
   </div>
   <form method="post" enctype="multipart/form-data">
@@ -18,7 +19,7 @@
       {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
     </div>
     {% endfor %}
-    <button class="btn" type="submit">Guardar</button>
+    <button class="btn" type="submit">{% trans "Guardar" %}</button>
   </form>
 </div>
 {% endblock %}

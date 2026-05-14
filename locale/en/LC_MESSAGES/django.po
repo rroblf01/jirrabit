@@ -1,0 +1,455 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-14 07:12+0200\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: accounts/admin_views.py:26
+msgid "Solo administradores."
+msgstr "Admin access only."
+
+#: accounts/forms.py:26
+msgid "Avatar"
+msgstr "Avatar"
+
+#: accounts/forms.py:27
+msgid "PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos."
+msgstr "PNG/JPEG/GIF/WebP. Stored as base64 in the database."
+
+#: accounts/forms.py:29
+msgid "Quitar avatar actual"
+msgstr "Remove current avatar"
+
+#: accounts/forms.py:42
+#, python-format
+msgid "Tipo no soportado: %(ct)s."
+msgstr "Unsupported type: %(ct)s."
+
+#: accounts/forms.py:42
+msgid "desconocido"
+msgstr "unknown"
+
+#: accounts/forms.py:45
+msgid "La imagen supera el tamaño máximo permitido."
+msgstr "Image exceeds the maximum allowed size."
+
+#: accounts/models.py:118
+msgid "Mención"
+msgstr "Mention"
+
+#: accounts/models.py:119
+msgid "Asignación"
+msgstr "Assignment"
+
+#: accounts/models.py:120
+msgid "Comentario"
+msgstr "Comment"
+
+#: accounts/models.py:121
+msgid "Cambio de estado"
+msgstr "Status change"
+
+#: accounts/models.py:122
+msgid "Cambio en seguidos"
+msgstr "Watch change"
+
+#: accounts/views.py:94
+msgid "Necesitas una invitación válida para registrarte."
+msgstr "You need a valid invitation to register."
+
+#: core/permissions.py:60
+msgid "No tienes acceso a este proyecto."
+msgstr "You don't have access to this project."
+
+#: core/permissions.py:71
+msgid "Necesitas rol 'member' o superior."
+msgstr "You need 'member' role or higher."
+
+#: core/permissions.py:82
+msgid "Necesitas rol 'admin' en el proyecto."
+msgstr "You need 'admin' role in the project."
+
+#: issues/models.py:187
+msgid "bloquea"
+msgstr "blocks"
+
+#: issues/models.py:188
+msgid "bloqueado por"
+msgstr "blocked by"
+
+#: issues/models.py:189
+msgid "relacionado con"
+msgstr "relates to"
+
+#: issues/models.py:190
+msgid "duplica"
+msgstr "duplicates"
+
+#: issues/models.py:191
+msgid "duplicado por"
+msgstr "duplicated by"
+
+#: projects/models.py:62 templates/base.html:20
+msgid "Admin"
+msgstr "Admin"
+
+#: projects/models.py:63
+msgid "Member"
+msgstr "Member"
+
+#: projects/models.py:64
+msgid "Viewer"
+msgstr "Viewer"
+
+#: projects/models.py:80 templates/search/search.html:21
+msgid "Privado"
+msgstr "Private"
+
+#: projects/models.py:80 templates/search/search.html:21
+msgid "Compartido"
+msgstr "Shared"
+
+#: projects/models.py:126
+msgid "Texto corto"
+msgstr "Short text"
+
+#: projects/models.py:127
+msgid "Texto largo"
+msgstr "Long text"
+
+#: projects/models.py:128
+msgid "Número"
+msgstr "Number"
+
+#: projects/models.py:129 templates/projects/detail.html:11
+msgid "Lista"
+msgstr "List"
+
+#: projects/models.py:130
+msgid "Fecha"
+msgstr "Date"
+
+#: projects/models.py:131
+msgid "Usuario"
+msgstr "User"
+
+#: projects/models.py:132
+msgid "Checkbox"
+msgstr "Checkbox"
+
+#: projects/models.py:176
+msgid "Future"
+msgstr "Future"
+
+#: projects/models.py:176
+msgid "Active"
+msgstr "Active"
+
+#: projects/models.py:176
+msgid "Closed"
+msgstr "Closed"
+
+#: search/views.py:72
+msgid "No puedes borrar este filtro."
+msgstr "You can't delete this filter."
+
+#: templates/accounts/login.html:7
+msgid "Entra a tu cuenta."
+msgstr "Sign in to your account."
+
+#: templates/accounts/login.html:18 templates/accounts/register.html:29
+msgid "Entrar"
+msgstr "Sign in"
+
+#: templates/accounts/login.html:21
+msgid "¿Olvidaste la contraseña?"
+msgstr "Forgot your password?"
+
+#: templates/accounts/login.html:24
+msgid "¿Sin cuenta?"
+msgstr "No account?"
+
+#: templates/accounts/login.html:24
+msgid "Regístrate"
+msgstr "Sign up"
+
+#: templates/accounts/profile.html:5
+msgid "Mi perfil"
+msgstr "My profile"
+
+#: templates/accounts/profile.html:10
+msgid "sin email"
+msgstr "no email"
+
+#: templates/accounts/profile.html:22
+msgid "Guardar"
+msgstr "Save"
+
+#: templates/accounts/register.html:6
+msgid "Crear cuenta"
+msgstr "Create account"
+
+#: templates/accounts/register.html:9
+msgid ""
+"El enlace de invitación es inválido, ha expirado o ya se usó. Pide uno nuevo "
+"a un admin."
+msgstr ""
+
+#: templates/accounts/register.html:13
+msgid "Registro autorizado por invitación."
+msgstr "Registration authorised by invitation."
+
+#: templates/accounts/register.html:26
+msgid "Registrarme"
+msgstr "Sign me up"
+
+#: templates/accounts/register.html:29
+msgid "¿Ya tienes cuenta?"
+msgstr "Already have an account?"
+
+#: templates/base.html:16
+msgid "Home"
+msgstr "Home"
+
+#: templates/base.html:17 templates/base.html:33 templates/projects/list.html:6
+msgid "Proyectos"
+msgstr "Projects"
+
+#: templates/base.html:18
+msgid "Usuarios"
+msgstr "Users"
+
+#: templates/base.html:19 templates/notifications/inbox.html:6
+msgid "Notificaciones"
+msgstr "Notifications"
+
+#: templates/base.html:24
+msgid "JQL-lite o texto..."
+msgstr "JQL-lite or text..."
+
+#: templates/base.html:27
+msgid "API keys"
+msgstr "API keys"
+
+#: templates/base.html:28
+msgid "Perfil"
+msgstr "Profile"
+
+#: templates/base.html:29
+msgid "Salir"
+msgstr "Sign out"
+
+#: templates/core/home.html:5
+#, python-format
+msgid "Hola, %(name)s"
+msgstr "Hi, %(name)s"
+
+#: templates/core/home.html:6
+msgid ""
+"Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en "
+"los que participas."
+msgstr ""
+
+#: templates/core/home.html:10
+msgid "Mis tareas abiertas"
+msgstr "My open tasks"
+
+#: templates/core/home.html:14 templates/core/home.html:38
+#: templates/projects/list.html:12 templates/search/_results.html:5
+msgid "Clave"
+msgstr "Key"
+
+#: templates/core/home.html:14 templates/search/_results.html:5
+msgid "Tipo"
+msgstr "Type"
+
+#: templates/core/home.html:14 templates/projects/detail.html:36
+#: templates/search/_results.html:5
+msgid "Resumen"
+msgstr "Summary"
+
+#: templates/core/home.html:15 templates/projects/detail.html:54
+#: templates/search/_results.html:6
+msgid "Estado"
+msgstr "Status"
+
+#: templates/core/home.html:15 templates/search/_results.html:6
+msgid "Prioridad"
+msgstr "Priority"
+
+#: templates/core/home.html:15
+msgid "Proyecto"
+msgstr "Project"
+
+#: templates/core/home.html:30
+msgid "Sin tareas asignadas."
+msgstr "No assigned tasks."
+
+#: templates/core/home.html:34
+msgid "Mis proyectos"
+msgstr "My projects"
+
+#: templates/core/home.html:38 templates/projects/detail.html:36
+#: templates/projects/detail.html:54 templates/projects/list.html:12
+msgid "Nombre"
+msgstr "Name"
+
+#: templates/core/home.html:39 templates/projects/detail.html:21
+#: templates/projects/list.html:13
+msgid "Lead"
+msgstr "Lead"
+
+#: templates/core/home.html:39
+msgid "Abiertas"
+msgstr "Open"
+
+#: templates/core/home.html:52
+msgid "No participas en ningún proyecto."
+msgstr "You don't belong to any project."
+
+#: templates/core/home.html:52
+msgid "Crea uno"
+msgstr "Create one"
+
+#: templates/notifications/_list.html:8
+msgid "Sistema"
+msgstr "System"
+
+#: templates/notifications/_list.html:17
+msgid "Marcar leído"
+msgstr "Mark read"
+
+#: templates/notifications/_list.html:22
+msgid "Bandeja vacía."
+msgstr "Inbox empty."
+
+#: templates/notifications/inbox.html:11
+msgid "Marcar todas como leídas"
+msgstr "Mark all as read"
+
+#: templates/projects/detail.html:8
+msgid "Crear tarea"
+msgstr "Create issue"
+
+#: templates/projects/detail.html:9
+msgid "Tablero"
+msgstr "Board"
+
+#: templates/projects/detail.html:10
+msgid "Backlog"
+msgstr "Backlog"
+
+#: templates/projects/detail.html:12
+msgid "Actividad"
+msgstr "Activity"
+
+#: templates/projects/detail.html:13
+msgid "Burndown"
+msgstr "Burndown"
+
+#: templates/projects/detail.html:14 templates/projects/detail.html:22
+#: templates/projects/list.html:13
+msgid "Miembros"
+msgstr "Members"
+
+#: templates/projects/detail.html:15
+msgid "Campos"
+msgstr "Fields"
+
+#: templates/projects/detail.html:16
+msgid "Webhooks"
+msgstr "Webhooks"
+
+#: templates/projects/detail.html:17
+msgid "Editar"
+msgstr "Edit"
+
+#: templates/projects/detail.html:36
+msgid "Color"
+msgstr "Color"
+
+#: templates/projects/detail.html:39
+msgid "Sin epics."
+msgstr "No epics."
+
+#: templates/projects/detail.html:54
+msgid "Meta"
+msgstr "Goal"
+
+#: templates/projects/detail.html:55
+msgid "Inicio"
+msgstr "Start"
+
+#: templates/projects/detail.html:55
+msgid "Fin"
+msgstr "End"
+
+#: templates/projects/detail.html:59
+msgid "Sin sprints."
+msgstr "No sprints."
+
+#: templates/projects/list.html:8
+msgid "Nuevo proyecto"
+msgstr "New project"
+
+#: templates/projects/list.html:24
+msgid "Sin proyectos todavía."
+msgstr "No projects yet."
+
+#: templates/search/_results.html:6
+msgid "Asignado"
+msgstr "Assignee"
+
+#: templates/search/_results.html:19
+msgid "Sin resultados."
+msgstr "No results."
+
+#: templates/search/search.html:5
+msgid "Búsqueda"
+msgstr "Search"
+
+#: templates/search/search.html:7
+msgid "JQL-lite:"
+msgstr "JQL-lite:"
+
+#: templates/search/search.html:8
+msgid "Operadores:"
+msgstr "Operators:"
+
+#: templates/search/search.html:8
+msgid "Texto libre también funciona."
+msgstr "Free text also works."
+
+#: templates/search/search.html:20
+msgid "nombre del filtro"
+msgstr "filter name"
+
+#: templates/search/search.html:22
+msgid "Guardar filtro"
+msgstr "Save filter"
+
+#: templates/search/search.html:28
+msgid "Tuyos / compartidos:"
+msgstr "Yours / shared:"
+
+#: templates/search/search.html:33
+#, python-format
+msgid "¿Borrar filtro «%(name)s»?"
+msgstr "Delete filter «%(name)s»?"
+
+#: templates/search/search.html:35
+msgid "Borrar filtro"
+msgstr "Delete filter"

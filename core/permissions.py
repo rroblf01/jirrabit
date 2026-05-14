@@ -56,7 +56,8 @@ async def aassert_can_view(user, project):
     role = await aget_role(user, project)
     if not can_view(role):
         from django.core.exceptions import PermissionDenied
-        raise PermissionDenied("No tienes acceso a este proyecto.")
+        from django.utils.translation import gettext as _
+        raise PermissionDenied(_("No tienes acceso a este proyecto."))
     return role
 
 
@@ -66,7 +67,8 @@ async def aassert_can_edit(user, project):
     role = await aget_role(user, project)
     if not can_edit(role):
         from django.core.exceptions import PermissionDenied
-        raise PermissionDenied("Necesitas rol 'member' o superior.")
+        from django.utils.translation import gettext as _
+        raise PermissionDenied(_("Necesitas rol 'member' o superior."))
     return role
 
 
@@ -76,5 +78,6 @@ async def aassert_can_admin(user, project):
     role = await aget_role(user, project)
     if not can_admin(role):
         from django.core.exceptions import PermissionDenied
-        raise PermissionDenied("Necesitas rol 'admin' en el proyecto.")
+        from django.utils.translation import gettext as _
+        raise PermissionDenied(_("Necesitas rol 'admin' en el proyecto."))
     return role

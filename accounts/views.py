@@ -90,7 +90,8 @@ class RegisterView(AsyncFormView):
         invite = await self._aget_valid_invite()
         if invite is None:
             from django.core.exceptions import PermissionDenied
-            raise PermissionDenied("Necesitas una invitación válida para registrarte.")
+            from django.utils.translation import gettext as _
+            raise PermissionDenied(_("Necesitas una invitación válida para registrarte."))
         self._invite = invite
         return await super().post(request, *args, **kwargs)
 

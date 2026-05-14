@@ -1,10 +1,11 @@
+{% load i18n %}
 <div id="notif-list">
 {% for n in notifications %}
   <div style="display:flex; gap:10px; padding:10px; border-bottom:1px solid var(--ink-100); {% if not n.read %}background:var(--blue-50);{% endif %}">
     {% if n.actor %}{% include "_avatar.html" with u=n.actor %}{% else %}<span class="avatar">•</span>{% endif %}
     <div style="flex:1;">
       <div style="font-size:13px;">
-        <strong>{{ n.actor|default:"Sistema" }}</strong>
+        <strong>{{ n.actor|default:_("Sistema") }}</strong>
         <span style="color:var(--ink-500);"> · {{ n.created_at|date:"d M H:i" }} · {{ n.get_kind_display }}</span>
       </div>
       <div>{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
@@ -13,11 +14,11 @@
     <form hx-post="{% url 'accounts:notifications_mark_read' %}" hx-target="#notif-list" hx-swap="outerHTML" style="margin:0;">
       {% csrf_token %}
       <input type="hidden" name="id" value="{{ n.pk }}">
-      <button class="btn ghost small" type="submit" title="Marcar leído">✓</button>
+      <button class="btn ghost small" type="submit" title="{% trans 'Marcar leído' %}">✓</button>
     </form>
     {% endif %}
   </div>
 {% empty %}
-  <div class="empty">Bandeja vacía.</div>
+  <div class="empty">{% trans "Bandeja vacía." %}</div>
 {% endfor %}
 </div>

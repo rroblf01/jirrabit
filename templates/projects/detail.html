@@ -1,24 +1,25 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
     <h1 style="margin:0">{{ project.key }} · {{ project.name }}</h1>
     <div class="spacer"></div>
-    <a class="btn" href="{% url 'issues:create' project.key %}">+ Crear tarea</a>
-    <a class="btn ghost" href="{% url 'board:board' project.key %}">Tablero</a>
-    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">Backlog</a>
-    <a class="btn ghost" href="{% url 'issues:list' project.key %}">Lista</a>
-    <a class="btn ghost" href="{% url 'projects:activity' project.key %}">Actividad</a>
-    <a class="btn ghost" href="{% url 'projects:burndown' project.key %}">Burndown</a>
-    <a class="btn ghost" href="{% url 'projects:members' project.key %}">Miembros</a>
-    <a class="btn ghost" href="{% url 'projects:custom_fields' project.key %}">Campos</a>
-    <a class="btn ghost" href="{% url 'projects:webhooks' project.key %}">Webhooks</a>
-    <a class="btn ghost" href="{% url 'projects:edit' project.key %}">Editar</a>
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Crear tarea" %}</a>
+    <a class="btn ghost" href="{% url 'board:board' project.key %}">{% trans "Tablero" %}</a>
+    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">{% trans "Backlog" %}</a>
+    <a class="btn ghost" href="{% url 'issues:list' project.key %}">{% trans "Lista" %}</a>
+    <a class="btn ghost" href="{% url 'projects:activity' project.key %}">{% trans "Actividad" %}</a>
+    <a class="btn ghost" href="{% url 'projects:burndown' project.key %}">{% trans "Burndown" %}</a>
+    <a class="btn ghost" href="{% url 'projects:members' project.key %}">{% trans "Miembros" %}</a>
+    <a class="btn ghost" href="{% url 'projects:custom_fields' project.key %}">{% trans "Campos" %}</a>
+    <a class="btn ghost" href="{% url 'projects:webhooks' project.key %}">{% trans "Webhooks" %}</a>
+    <a class="btn ghost" href="{% url 'projects:edit' project.key %}">{% trans "Editar" %}</a>
   </div>
   <p style="color:var(--ink-500); margin-top:10px;">{{ project.description|linebreaksbr }}</p>
   <div class="row" style="margin-top:8px;">
-    <span><strong>Lead:</strong> {{ project.lead }}</span>
-    <span><strong>Miembros:</strong>
+    <span><strong>{% trans "Lead" %}:</strong> {{ project.lead }}</span>
+    <span><strong>{% trans "Miembros" %}:</strong>
       {% for m in project.members.all %}<span class="badge">{{ m }}</span>{% endfor %}
     </span>
   </div>
@@ -32,10 +33,10 @@
   </div>
   <div id="epic-form"></div>
   <table id="epic-table" style="margin-top:10px;">
-    <thead><tr><th>Nombre</th><th>Resumen</th><th>Color</th></tr></thead>
+    <thead><tr><th>{% trans "Nombre" %}</th><th>{% trans "Resumen" %}</th><th>{% trans "Color" %}</th></tr></thead>
     <tbody>
     {% for e in epics %}{% include "projects/_epic_row.html" with epic=e %}{% empty %}
-      <tr><td colspan="3" class="empty">Sin epics.</td></tr>
+      <tr><td colspan="3" class="empty">{% trans "Sin epics." %}</td></tr>
     {% endfor %}
     </tbody>
   </table>
@@ -49,10 +50,13 @@
   </div>
   <div id="sprint-form"></div>
   <table id="sprint-table" style="margin-top:10px;">
-    <thead><tr><th>Nombre</th><th>Meta</th><th>Estado</th><th>Inicio</th><th>Fin</th><th></th></tr></thead>
+    <thead><tr>
+      <th>{% trans "Nombre" %}</th><th>{% trans "Meta" %}</th><th>{% trans "Estado" %}</th>
+      <th>{% trans "Inicio" %}</th><th>{% trans "Fin" %}</th><th></th>
+    </tr></thead>
     <tbody>
     {% for s in sprints %}{% include "projects/_sprint_row.html" with sprint=s %}{% empty %}
-      <tr><td colspan="6" class="empty">Sin sprints.</td></tr>
+      <tr><td colspan="6" class="empty">{% trans "Sin sprints." %}</td></tr>
     {% endfor %}
     </tbody>
   </table>

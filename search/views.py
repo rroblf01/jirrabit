@@ -68,7 +68,8 @@ class SavedFilterDeleteView(AsyncLoginRequiredMixin, View):
         f = await qs.afirst()
         if f is None:
             from django.core.exceptions import PermissionDenied
-            raise PermissionDenied("No puedes borrar este filtro.")
+            from django.utils.translation import gettext as _
+            raise PermissionDenied(_("No puedes borrar este filtro."))
         await f.adelete()
         if request.htmx:
             from django.http import HttpResponse

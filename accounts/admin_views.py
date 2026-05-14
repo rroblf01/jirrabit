@@ -22,7 +22,8 @@ class AsyncSuperuserRequiredMixin(AsyncLoginRequiredMixin):
     async def dispatch(self, request, *args, **kwargs):
         user = await request.auser()
         if not (user.is_authenticated and user.is_superuser):
-            raise PermissionDenied("Solo administradores.")
+            from django.utils.translation import gettext as _
+            raise PermissionDenied(_("Solo administradores."))
         request.user = user
         # bypass AsyncLoginRequiredMixin (already validated)
         from django.views import View
