@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{% static 'css/jirrabit.css' %}">
   {% if palette_css %}<style id="palette-{{ palette_slug }}">{{ palette_css|safe }}</style>{% endif %}
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="{% static 'js/ux.js' %}" defer></script>
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 {% if user.is_authenticated %}
@@ -18,7 +19,7 @@
     <a href="{% url 'projects:list' %}">{% trans "Proyectos" %}</a>
     <a href="{% url 'accounts:user_list' %}">{% trans "Usuarios" %}</a>
     <a href="{% url 'core:help' %}" title="{% trans 'Ayuda' %}">{% trans "Ayuda" %}</a>
-    <a href="{% url 'accounts:notifications' %}" title="{% trans 'Notificaciones' %}">🔔</a>
+    {% include "_notif_badge.html" %}
     {% if user.is_superuser %}<a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>{% endif %}
   </nav>
   <div class="spacer"></div>

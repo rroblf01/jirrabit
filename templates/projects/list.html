@@ -21,7 +21,10 @@
         <td>{{ p.members.count }}</td>
       </tr>
     {% empty %}
-      <tr><td colspan="4" class="empty">{% trans "Sin proyectos todavía." %}</td></tr>
+      <tr><td colspan="4" class="empty">
+        {% trans "Aún no hay proyectos." %}<br>
+        <a class="btn small" href="{% url 'projects:create' %}" style="margin-top:8px;">+ {% trans "Crear el primero" %}</a>
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>

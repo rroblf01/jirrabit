@@ -54,6 +54,8 @@ urlpatterns = [
     path("api-keys/new/", views.APIKeyCreateView.as_view(), name="api_key_create"),
     path("api-keys/<int:pk>/revoke/", views.APIKeyRevokeView.as_view(), name="api_key_revoke"),
     path("notifications/", views.NotificationInboxView.as_view(), name="notifications"),
+    path("notifications/count/", views.NotificationCountView.as_view(), name="notifications_count"),
     path("notifications/mark-read/", views.NotificationMarkReadView.as_view(), name="notifications_mark_read"),
     path("mentions/search/", views.UserMentionSearchView.as_view(), name="mention_search"),
+    path("palette-preview/", views.PalettePreviewView.as_view(), name="palette_preview"),
 ]

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
@@ -40,21 +41,27 @@
 </div>
 
 <div class="card" id="bulk-bar" style="display:none; padding:10px 14px;">
-  <form hx-post="{% url 'board:bulk_update' project.key %}" hx-include="#bulk-bar input[name='keys']" id="bulk-form">
+  <form hx-post="{% url 'board:bulk_update' project.key %}" hx-include="#bulk-bar input[name='keys']" id="bulk-form"
+        data-toast="{% trans 'Cambios aplicados' %}">
     {% csrf_token %}
-    <span><strong id="bulk-count">0</strong> seleccionadas</span>
-    <select name="action">
-      <option value="status">Cambiar estado</option>
-      <option value="assignee">Cambiar asignado</option>
-      <option value="sprint">Cambiar sprint</option>
-      <option value="priority">Cambiar prioridad</option>
-      <option value="delete">Borrar</option>
+    <span><strong id="bulk-count">0</strong> {% trans "seleccionadas" %}</span>
+    <select name="action" id="bulk-action" onchange="updateBulkValue()">
+      <option value="status">{% trans "Cambiar estado" %}</option>
+      <option value="assignee">{% trans "Cambiar asignado" %}</option>
+      <option value="sprint">{% trans "Cambiar sprint" %}</option>
+      <option value="priority">{% trans "Cambiar prioridad" %}</option>
+      <option value="delete">{% trans "Borrar" %}</option>
     </select>
-    <input type="text" name="value" placeholder="id objetivo" style="width:120px;">
-    <button class="btn small" type="submit">Aplicar</button>
-    <button class="btn ghost small" type="button" onclick="document.querySelectorAll('.card-select').forEach(c=>{c.checked=false;updateBulk();})">Limpiar</button>
+    <span id="bulk-value-wrap" style="display:inline-block; width:200px;"></span>
+    <button class="btn small" type="submit">{% trans "Aplicar" %}</button>
+    <button class="btn ghost small" type="button" onclick="document.querySelectorAll('.card-select').forEach(c=>{c.checked=false;updateBulk();})">{% trans "Limpiar" %}</button>
   </form>
 </div>
+
+<datalist id="bulk-statuses">{% for c in columns %}<option value="{{ c.status.pk }}">{{ c.status.name }}</option>{% endfor %}</datalist>
+<datalist id="bulk-assignees">{% for m in members %}<option value="{{ m.pk }}">{{ m }}</option>{% endfor %}</datalist>
+<datalist id="bulk-sprints">{% for s in sprints %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</datalist>
+<datalist id="bulk-priorities">{% for p in priorities %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</datalist>
 
 <div class="kanban">
   {% for col in columns %}
@@ -66,6 +73,23 @@
 </div>
 
 <script>
+function updateBulkValue() {
+  const action = document.getElementById('bulk-action').value;
+  const wrap = document.getElementById('bulk-value-wrap');
+  if (action === 'delete') { wrap.innerHTML = ''; return; }
+  let html = '';
+  if (action === 'status') {
+    html = '<select name="value">' + [...document.querySelectorAll('#bulk-statuses option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  } else if (action === 'assignee') {
+    html = '<select name="value"><option value="">— sin asignar —</option>' + [...document.querySelectorAll('#bulk-assignees option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  } else if (action === 'sprint') {
+    html = '<select name="value"><option value="">— backlog —</option>' + [...document.querySelectorAll('#bulk-sprints option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  } else if (action === 'priority') {
+    html = '<select name="value">' + [...document.querySelectorAll('#bulk-priorities option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  }
+  wrap.innerHTML = html;
+}
+document.addEventListener('DOMContentLoaded', updateBulkValue);
 function updateBulk() {
   const checked = document.querySelectorAll('.card-select:checked');
   const bar = document.getElementById('bulk-bar');

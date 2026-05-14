@@ -1,4 +1,9 @@
-<div style="font-size:13px; padding:4px 0;">
-  📎 <a href="{{ a.data_url }}" download="{{ a.filename }}">{{ a.filename }}</a>
-  <span style="color:var(--ink-500);">— {{ a.uploaded_by }} · {{ a.uploaded_at|date:"d M H:i" }} · {{ a.size_human }}</span>
+<div class="attachment-thumb">
+  {% if a.content_type and a.content_type|slice:":6" == "image/" %}
+    <a href="{{ a.data_url }}" target="_blank"><img src="{{ a.data_url }}" alt="{{ a.filename }}"></a>
+  {% else %}
+    📎
+  {% endif %}
+  <a href="{{ a.data_url }}" download="{{ a.filename }}">{{ a.filename }}</a>
+  <span style="color:var(--ink-500);">— {{ a.uploaded_by }} · {{ a.uploaded_at|date:"DATETIME_FORMAT" }} · {{ a.size_human }}</span>
 </div>

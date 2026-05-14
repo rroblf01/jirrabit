@@ -8,7 +8,7 @@ from core.mixins import AsyncLoginRequiredMixin
 from issues.models import Issue
 from projects.models import SavedFilter
 
-from .jql import parse_jql
+from .jql import VALID_FIELDS, parse_jql
 
 
 class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
@@ -22,6 +22,7 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         query = self.request.GET.get("q", "").strip()
         issues = []
         error = None
+        suggestions: list[str] = []
         if query:
             try:
                 q, order = parse_jql(query)
@@ -33,10 +34,21 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
                 )
                 issues = [i async for i in qs]
             except Exception as e:
+                import difflib
                 error = str(e)
+                # When the parser complains about a field, surface the closest
+                # known fields so the user can fix the typo without re-reading docs.
+                if "Campo desconocido:" in error:
+                    bad = error.split("'")[1] if "'" in error else ""
+                    if bad:
+                        suggestions = difflib.get_close_matches(
+                            bad, list(VALID_FIELDS), n=3, cutoff=0.5
+                        )
         ctx["query"] = query
         ctx["issues"] = issues
         ctx["error"] = error
+        ctx["suggestions"] = suggestions
+        ctx["valid_fields"] = sorted(VALID_FIELDS)
         from django.db.models import Q
         ctx["saved_filters"] = [
             f async for f in SavedFilter.objects.filter(

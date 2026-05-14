@@ -21,7 +21,7 @@ class IssueForm(forms.ModelForm):
             "due_date",
         )
         widgets = {
-            "description": forms.Textarea(attrs={"rows": 6}),
+            "description": forms.Textarea(attrs={"rows": 6, "data-mentions": "1"}),
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "labels": forms.SelectMultiple(attrs={"size": 4}),
         }
@@ -38,7 +38,7 @@ class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
         fields = ("body",)
-        widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": "Escribe un comentario..."})}
+        widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": "Escribe un comentario...", "data-mentions": "1"})}
 
 
 class QuickStatusForm(forms.Form):

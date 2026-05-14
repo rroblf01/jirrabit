@@ -206,3 +206,104 @@ img.avatar { display: inline-block; object-fit: cover; }
   .issue-detail { grid-template-columns: 1fr; }
   .topbar .search input { width: 160px; }
 }
+
+/* ---------- UX layer ---------- */
+
+/* Inline-edit affordance: faint dotted underline on hover + pencil hint. */
+.inline-edit { position: relative; border-radius: 4px; padding: 1px 4px; margin: -1px -4px; transition: background .12s; }
+.inline-edit:hover { background: var(--blue-50); cursor: pointer; }
+.inline-edit:hover::after {
+  content: "✎"; position: absolute; right: -16px; top: 0; font-size: 11px; color: var(--blue-600); opacity: .7;
+}
+
+/* HTMX global spinner. Activated automatically when .htmx-request class
+   appears on the body (htmx adds htmx-request to triggering elements;
+   we mirror it via the htmx:beforeRequest listener). */
+#htmx-spinner {
+  position: fixed; top: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent 0%, var(--blue-500) 50%, transparent 100%);
+  background-size: 50% 100%; background-repeat: no-repeat;
+  animation: htmx-bar 1s linear infinite;
+  z-index: 9999; display: none; pointer-events: none;
+}
+body.htmx-busy #htmx-spinner { display: block; }
+@keyframes htmx-bar { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+
+/* Element-level spinner: HTMX adds .htmx-request to the triggering node. */
+.htmx-request[hx-post], .htmx-request[hx-get], .htmx-request[hx-put], .htmx-request[hx-delete] {
+  opacity: .6; pointer-events: none;
+}
+
+/* Toast stack. JS in main.js inserts <div class="toast"> children. */
+#toast-stack {
+  position: fixed; bottom: 20px; right: 20px; z-index: 10000;
+  display: flex; flex-direction: column-reverse; gap: 8px; max-width: 360px;
+}
+.toast {
+  background: var(--ink-900); color: white; padding: 10px 14px; border-radius: 8px;
+  box-shadow: var(--shadow); font-size: 14px;
+  animation: toast-in .2s ease-out;
+  display: flex; align-items: center; gap: 10px;
+}
+.toast.ok { background: #16a34a; }
+.toast.err { background: #dc2626; }
+.toast.info { background: var(--blue-700); }
+.toast button { background: transparent; border: 0; color: inherit; cursor: pointer; font-size: 16px; padding: 0; opacity: .7; }
+.toast button:hover { opacity: 1; }
+@keyframes toast-in { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Modal scaffolding for confirm dialogs. */
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(15,23,42,.5); z-index: 9998;
+  display: flex; align-items: center; justify-content: center;
+  animation: fade-in .12s ease-out;
+}
+.modal {
+  background: white; border-radius: var(--radius); padding: 20px; min-width: 320px;
+  max-width: 480px; box-shadow: var(--shadow);
+}
+.modal h3 { margin: 0 0 10px 0; }
+.modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Tabs (issue detail). */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ink-100); margin: 14px 0; }
+.tabs a {
+  padding: 8px 14px; border-radius: 6px 6px 0 0; font-size: 14px; color: var(--ink-700);
+  text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tabs a:hover { background: var(--blue-50); }
+.tabs a.active { color: var(--blue-700); border-bottom-color: var(--blue-600); font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* Notification badge in topbar bell icon. */
+.notif-link { position: relative; }
+.notif-badge {
+  position: absolute; top: -6px; right: -6px; background: #dc2626; color: white;
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 999px;
+  min-width: 16px; text-align: center; line-height: 14px;
+  display: none;
+}
+.notif-link[data-count]:not([data-count="0"]) .notif-badge { display: inline-block; }
+
+/* Mention autocomplete dropdown anchored to a wrapper. */
+.mention-wrap { position: relative; }
+.mention-suggestions { background: white; border: 1px solid var(--ink-300); border-radius: 6px;
+  box-shadow: var(--shadow); list-style: none; margin: 4px 0 0; padding: 4px 0;
+  position: absolute; z-index: 100; max-height: 220px; overflow: auto; min-width: 220px; }
+.mention-suggestions li { padding: 4px 10px; cursor: pointer; font-size: 13px; }
+.mention-suggestions li:hover, .mention-suggestions li.active { background: var(--blue-50); }
+
+/* Attachment image thumbnails. */
+.attachment-thumb {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 0;
+  font-size: 13px;
+}
+.attachment-thumb img { max-width: 48px; max-height: 48px; border-radius: 4px; object-fit: cover; border: 1px solid var(--ink-300); }
+
+/* Copy-to-clipboard button. */
+.copy-btn { background: transparent; border: 1px solid var(--ink-300); border-radius: 4px;
+  padding: 2px 8px; font-size: 12px; cursor: pointer; }
+.copy-btn:hover { background: var(--blue-50); border-color: var(--blue-400); }
+.copy-btn.copied { background: #dcfce7; color: #166534; border-color: #86efac; }

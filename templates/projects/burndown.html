@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
@@ -11,24 +12,62 @@
     </form>
   </div>
   {% if sprint and points %}
-    <p>Sprint <strong>{{ sprint.name }}</strong> — {{ sprint.start_date }} a {{ sprint.end_date }}.
-    Total: <strong>{{ total_sp }}</strong> SP. Hecho: <strong>{{ done_sp }}</strong> SP ({{ percent_done }}%).</p>
-    <svg viewBox="0 0 800 300" style="width:100%; max-width:900px; background:white; border:1px solid var(--ink-100); border-radius:8px;">
-      {% with width=760 height=240 origin_x=30 origin_y=20 %}
-      {# axes #}
-      <line x1="{{ origin_x }}" y1="{{ origin_y }}" x2="{{ origin_x }}" y2="260" stroke="#94a3b8"/>
-      <line x1="{{ origin_x }}" y1="260" x2="790" y2="260" stroke="#94a3b8"/>
-      {# ideal #}
-      <polyline fill="none" stroke="#1e6fff" stroke-width="2" stroke-dasharray="4 4" points="{% for p in points %}{% widthratio forloop.counter0 points|length|add:'-1' width %}{% widthratio p.ideal total_sp height %}{% if not forloop.last %}{% endif %} {% endfor %}"
-       transform="translate({{ origin_x }},{{ origin_y }})"/>
-      {# actual #}
+    <p>Sprint <strong>{{ sprint.name }}</strong> — {{ sprint.start_date }} {% trans "a" %} {{ sprint.end_date }}.
+    {% trans "Total" %}: <strong>{{ total_sp }}</strong> SP. {% trans "Hecho" %}: <strong>{{ done_sp }}</strong> SP ({{ percent_done }}%).</p>
+
+    <svg id="burndown-svg" viewBox="0 0 800 320" style="width:100%; max-width:900px; background:white; border:1px solid var(--ink-100); border-radius:8px;">
+      {% with width=720 height=240 origin_x=50 origin_y=20 %}
+      <!-- gridlines + Y axis labels (4 ticks) -->
+      {% for tick in "0123" %}
+        <line x1="{{ origin_x }}" y1="{% widthratio forloop.counter0 3 height %}" x2="{{ width|add:origin_x }}" y2="{% widthratio forloop.counter0 3 height %}"
+              transform="translate(0,{{ origin_y }})" stroke="#e2e8f0" stroke-dasharray="2 2"/>
+        <text x="{{ origin_x|add:-6 }}" y="{% widthratio forloop.counter0 3 height %}"
+              transform="translate(0,{{ origin_y|add:4 }})" font-size="10" fill="#64748b" text-anchor="end">
+          {% widthratio forloop.counter0 3 total_sp %}{% if forloop.last %}{% endif %}
+        </text>
+      {% endfor %}
+
+      <!-- axes -->
+      <line x1="{{ origin_x }}" y1="{{ origin_y }}" x2="{{ origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
+      <line x1="{{ origin_x }}" y1="{{ origin_y|add:height }}" x2="{{ width|add:origin_x }}" y2="{{ origin_y|add:height }}" stroke="#94a3b8"/>
+      <text x="{{ origin_x|add:-30 }}" y="{{ origin_y|add:-6 }}" font-size="11" fill="#334155">SP</text>
+      <text x="{{ width|add:origin_x }}" y="{{ origin_y|add:height|add:20 }}" font-size="11" fill="#334155" text-anchor="end">{% trans "días" %}</text>
+
+      <!-- ideal line (dashed blue) -->
+      <polyline fill="none" stroke="var(--blue-600)" stroke-width="2" stroke-dasharray="4 4"
+        points="{% for p in points %}{% widthratio forloop.counter0 points|length|add:'-1' width %},{% widthratio p.ideal total_sp height %} {% endfor %}"
+        transform="translate({{ origin_x }},{{ origin_y }})"/>
+
+      <!-- actual line (solid red where data exists) -->
+      <polyline fill="none" stroke="#dc2626" stroke-width="2"
+        points="{% for p in points %}{% if p.actual is not None %}{% widthratio forloop.counter0 points|length|add:'-1' width %},{% widthratio p.actual total_sp height %} {% endif %}{% endfor %}"
+        transform="translate({{ origin_x }},{{ origin_y }})"/>
+
+      <!-- data points with tooltips -->
       {% for p in points %}{% if p.actual is not None %}
-        <circle cx="{% widthratio forloop.counter0 points|length|add:'-1' width %}" cy="{% widthratio p.actual total_sp height %}" r="4" fill="#dc2626" transform="translate({{ origin_x }},{{ origin_y }})"/>
+        <g transform="translate({{ origin_x }},{{ origin_y }})">
+          <circle cx="{% widthratio forloop.counter0 points|length|add:'-1' width %}" cy="{% widthratio p.actual total_sp height %}" r="4" fill="#dc2626">
+            <title>{{ p.date }} — {{ p.actual }} SP restantes (ideal: {{ p.ideal }})</title>
+          </circle>
+        </g>
       {% endif %}{% endfor %}
+
+      <!-- legend -->
+      <g transform="translate({{ width|add:origin_x|add:-160 }},{{ origin_y|add:8 }})">
+        <line x1="0" y1="6" x2="20" y2="6" stroke="var(--blue-600)" stroke-width="2" stroke-dasharray="4 4"/>
+        <text x="26" y="10" font-size="11" fill="#334155">{% trans "ideal" %}</text>
+        <line x1="70" y1="6" x2="90" y2="6" stroke="#dc2626" stroke-width="2"/>
+        <text x="96" y="10" font-size="11" fill="#334155">{% trans "real" %}</text>
+      </g>
       {% endwith %}
     </svg>
+
     <table style="margin-top:14px;">
-      <thead><tr><th>Día</th><th>Ideal SP restante</th><th>Real SP restante</th></tr></thead>
+      <thead><tr>
+        <th>{% trans "Día" %}</th>
+        <th>{% trans "Ideal SP restante" %}</th>
+        <th>{% trans "Real SP restante" %}</th>
+      </tr></thead>
       <tbody>
       {% for p in points %}
         <tr><td>{{ p.date }}</td><td>{{ p.ideal }}</td><td>{% if p.actual is not None %}{{ p.actual }}{% else %}—{% endif %}</td></tr>
@@ -36,7 +75,7 @@
       </tbody>
     </table>
   {% else %}
-    <p class="empty">Sin sprint válido o sin fechas configuradas.</p>
+    <p class="empty">{% trans "Sin sprint válido o sin fechas configuradas." %}</p>
   {% endif %}
 </div>
 {% endblock %}

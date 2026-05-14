@@ -29,20 +29,30 @@ def nav_context_middleware(get_response):
         async def middleware(request):
             user = await request.auser()
             if user.is_authenticated:
+                from accounts.models import Notification
                 request.nav_projects = [
                     p async for p in Project.objects.filter_visible(user)[:8]
                 ]
+                request.unread_notifications = await Notification.objects.filter(
+                    recipient=user, read=False
+                ).acount()
             else:
                 request.nav_projects = []
+                request.unread_notifications = 0
             return await get_response(request)
 
         return middleware
 
     def middleware(request):
         if request.user.is_authenticated:
+            from accounts.models import Notification
             request.nav_projects = list(Project.objects.filter_visible(request.user)[:8])
+            request.unread_notifications = Notification.objects.filter(
+                recipient=request.user, read=False
+            ).count()
         else:
             request.nav_projects = []
+            request.unread_notifications = 0
         return get_response(request)
 
     return middleware

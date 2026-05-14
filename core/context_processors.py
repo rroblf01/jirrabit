@@ -17,3 +17,12 @@ def palette(request):
     if user is not None and user.is_authenticated:
         slug = getattr(user, "palette", "blue") or "blue"
     return {"palette_slug": slug, "palette_css": palette_css(slug)}
+
+
+def notifications_count(request):
+    """Expose unread notification count for the topbar badge.
+
+    Populated by ``core.middleware.nav_context_middleware`` (which
+    already runs async) on ``request.unread_notifications``.
+    """
+    return {"unread_notifications": getattr(request, "unread_notifications", 0)}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
@@ -8,94 +9,117 @@
     {% include "issues/_inline/issue_type_display.html" %}
     <div class="spacer"></div>
     {% include "issues/_watch_button.html" %}
-    <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">Editar todo</a>
+    <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">{% trans "Editar todo" %}</a>
   </div>
 
   {% include "issues/_inline/summary_display.html" %}
 
   <div class="issue-detail" style="margin-top:14px;">
     <div>
-      <h3>Descripción</h3>
-      {% include "issues/_inline/description_display.html" %}
+      <nav class="tabs" id="issue-tabs">
+        <a href="#tab-desc" class="active" data-tab="tab-desc">{% trans "Descripción" %}</a>
+        <a href="#tab-comments" data-tab="tab-comments">{% trans "Comentarios" %} <span class="badge">{{ comments|length }}</span></a>
+        <a href="#tab-links" data-tab="tab-links">{% trans "Vínculos" %} <span class="badge">{{ links|length }}</span></a>
+        <a href="#tab-attach" data-tab="tab-attach">{% trans "Adjuntos" %} <span class="badge">{{ attachments|length }}</span></a>
+        <a href="#tab-history" data-tab="tab-history">{% trans "Historial" %}</a>
+      </nav>
 
-      <h3 style="margin-top:18px;">Issue links</h3>
-      <div id="links">{% include "issues/_links.html" %}</div>
-      <form hx-post="{% url 'issues:link_create' issue.key %}" hx-target="#links" hx-swap="outerHTML" style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-        {% csrf_token %}
-        <select name="type" style="width:160px;">
-          <option value="blocks">bloquea</option>
-          <option value="blocked_by">bloqueado por</option>
-          <option value="relates_to" selected>relacionado con</option>
-          <option value="duplicates">duplica</option>
-          <option value="duplicated_by">duplicado por</option>
-        </select>
-        <input type="text" name="target" placeholder="Ej. WEB-12" style="width:140px;">
-        <button class="btn small" type="submit">Vincular</button>
-      </form>
+      <section class="tab-panel active" id="tab-desc">
+        {% include "issues/_inline/description_display.html" %}
+      </section>
 
-      <h3 style="margin-top:18px;">Adjuntos</h3>
-      <div id="attachments">
-        {% for a in attachments %}{% include "issues/_attachment.html" with a=a %}{% empty %}
-          <div style="color:var(--ink-500); font-size:13px;">Sin adjuntos.</div>
-        {% endfor %}
-      </div>
-      <form hx-post="{% url 'issues:upload' issue.key %}" hx-target="#attachments" hx-swap="beforeend" enctype="multipart/form-data" style="margin-top:8px;">
-        {% csrf_token %}
-        <input type="file" name="file" required>
-        <button class="btn small" type="submit">Subir</button>
-      </form>
-
-      <h3 style="margin-top:18px;">Comentarios</h3>
-      <div class="comments" id="comments">
-        {% for c in comments %}{% include "issues/_comment.html" with c=c %}{% endfor %}
-      </div>
-      <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend" style="margin-top:10px;">
-        {% csrf_token %}
-        {{ comment_form.body }}
-        <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
-          <button class="btn small" type="submit">Comentar</button>
-          <span style="color:var(--ink-500); font-size:12px;">Markdown + @menciones</span>
+      <section class="tab-panel" id="tab-comments">
+        <div class="comments" id="comments">
+          {% for c in comments %}{% include "issues/_comment.html" with c=c %}{% empty %}
+            <div class="empty" style="padding:24px;">{% trans "Sé el primero en comentar." %}</div>
+          {% endfor %}
         </div>
-      </form>
+        <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend"
+              data-toast="{% trans 'Comentario añadido' %}" style="margin-top:10px;">
+          {% csrf_token %}
+          {{ comment_form.body }}
+          <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+            <button class="btn small" type="submit">{% trans "Comentar" %}</button>
+            <span style="color:var(--ink-500); font-size:12px;">{% trans "Markdown + @menciones" %}</span>
+          </div>
+        </form>
+      </section>
 
-      <h3 style="margin-top:18px;">Historial</h3>
-      <ul style="font-size:13px; color:var(--ink-700);">
-        {% for h in history %}
-          <li>{{ h.created_at|date:"d M H:i" }} — <strong>{{ h.actor|default:"sistema" }}</strong> cambió <em>{{ h.field }}</em>: <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code></li>
-        {% empty %}
-          <li style="color:var(--ink-500);">Sin cambios registrados.</li>
-        {% endfor %}
-      </ul>
+      <section class="tab-panel" id="tab-links">
+        <div id="links">{% include "issues/_links.html" %}</div>
+        <form hx-post="{% url 'issues:link_create' issue.key %}" hx-target="#links" hx-swap="outerHTML"
+              data-toast="{% trans 'Vínculo creado' %}"
+              style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+          {% csrf_token %}
+          <select name="type" style="width:160px;">
+            <option value="blocks">{% trans "bloquea" %}</option>
+            <option value="blocked_by">{% trans "bloqueado por" %}</option>
+            <option value="relates_to" selected>{% trans "relacionado con" %}</option>
+            <option value="duplicates">{% trans "duplica" %}</option>
+            <option value="duplicated_by">{% trans "duplicado por" %}</option>
+          </select>
+          <input type="text" name="target" placeholder="{% trans 'Ej. WEB-12' %}" style="width:140px;">
+          <button class="btn small" type="submit">{% trans "Vincular" %}</button>
+        </form>
+      </section>
+
+      <section class="tab-panel" id="tab-attach">
+        <div id="attachments">
+          {% for a in attachments %}{% include "issues/_attachment.html" with a=a %}{% empty %}
+            <div class="empty" style="padding:24px;">{% trans "Sin adjuntos." %}</div>
+          {% endfor %}
+        </div>
+        <form hx-post="{% url 'issues:upload' issue.key %}" hx-target="#attachments" hx-swap="beforeend"
+              enctype="multipart/form-data" data-toast="{% trans 'Adjunto subido' %}" style="margin-top:8px;">
+          {% csrf_token %}
+          <input type="file" name="file" required>
+          <button class="btn small" type="submit">{% trans "Subir" %}</button>
+        </form>
+      </section>
+
+      <section class="tab-panel" id="tab-history">
+        <ul style="font-size:13px; color:var(--ink-700); list-style:none; padding:0;">
+          {% for h in history %}
+            <li style="padding:6px 0; border-bottom:1px solid var(--ink-100);">
+              {{ h.created_at|date:"d M H:i" }} — <strong>{{ h.actor|default:_("sistema") }}</strong>
+              {% trans "cambió" %} <em>{{ h.field }}</em>:
+              <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code>
+            </li>
+          {% empty %}
+            <li class="empty">{% trans "Sin cambios registrados." %}</li>
+          {% endfor %}
+        </ul>
+      </section>
     </div>
 
     <aside class="sidebar-info">
       <div id="status-badge">{% include "issues/_status_badge.html" %}</div>
-      <dt>Tipo</dt>
+      <dt>{% trans "Tipo" %}</dt>
       <dd>{% include "issues/_inline/issue_type_display.html" %}</dd>
-      <dt>Asignado</dt>
+      <dt>{% trans "Asignado" %}</dt>
       <dd>{% include "issues/_inline/assignee_display.html" %}</dd>
-      <dt>Reporter</dt>
+      <dt>{% trans "Reporter" %}</dt>
       <dd>{% include "_avatar.html" with u=issue.reporter %} {{ issue.reporter }}</dd>
-      <dt>Prioridad</dt>
+      <dt>{% trans "Prioridad" %}</dt>
       <dd>{% include "issues/_inline/priority_display.html" %}</dd>
       <dt>Epic</dt>
       <dd>{% include "issues/_inline/epic_display.html" %}</dd>
       <dt>Sprint</dt>
       <dd>{% include "issues/_inline/sprint_display.html" %}</dd>
-      <dt>Story points</dt>
+      <dt>{% trans "Story points" %}</dt>
       <dd>{% include "issues/_inline/story_points_display.html" %}</dd>
-      <dt>Vencimiento</dt>
+      <dt>{% trans "Vencimiento" %}</dt>
       <dd>{% include "issues/_inline/due_date_display.html" %}</dd>
-      <dt>Estimación</dt>
+      <dt>{% trans "Estimación" %}</dt>
       <dd>{% include "issues/_inline/estimate_display.html" %}</dd>
-      <dt>Tiempo registrado</dt>
+      <dt>{% trans "Tiempo registrado" %}</dt>
       <dd>{{ issue.time_spent_minutes }} min</dd>
-      <dt>Etiquetas</dt>
+      <dt>{% trans "Etiquetas" %}</dt>
       <dd>{% for l in labels %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
 
       {% if custom_fields %}
         <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">
-        <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">Campos personalizados</h4>
+        <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">{% trans "Campos personalizados" %}</h4>
         {% for cf in custom_fields %}
           <dt>{{ cf.name }}</dt>
           <dd>
@@ -122,22 +146,40 @@
       {% endif %}
 
       <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">
-      <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">Log work</h4>
-      <form hx-post="{% url 'issues:log_work' issue.key %}" hx-target="#time-panel" hx-swap="outerHTML">
+      <h4 style="margin:0 0 8px; font-size:12px; text-transform:uppercase; color:var(--ink-500);">{% trans "Log work" %}</h4>
+      <form hx-post="{% url 'issues:log_work' issue.key %}" hx-target="#time-panel" hx-swap="outerHTML"
+            data-toast="{% trans 'Tiempo registrado' %}">
         {% csrf_token %}
-        <input type="number" name="minutes" placeholder="minutos" style="margin-bottom:6px;">
-        <input type="text" name="comment" placeholder="opcional" style="margin-bottom:6px;">
-        <button class="btn small" type="submit" style="width:100%;">Registrar tiempo</button>
+        <input type="number" name="minutes" placeholder="{% trans 'minutos' %}" style="margin-bottom:6px;">
+        <input type="text" name="comment" placeholder="{% trans 'opcional' %}" style="margin-bottom:6px;">
+        <button class="btn small" type="submit" style="width:100%;">{% trans "Registrar tiempo" %}</button>
       </form>
       <div id="time-panel" style="margin-top:8px;">
         {% include "issues/_time_panel.html" %}
       </div>
 
-      <dt>Creado</dt>
-      <dd>{{ issue.created_at|date:"d M Y H:i" }}</dd>
-      <dt>Actualizado</dt>
-      <dd>{{ issue.updated_at|date:"d M Y H:i" }}</dd>
+      <dt>{% trans "Creado" %}</dt>
+      <dd>{{ issue.created_at|date:"DATETIME_FORMAT" }}</dd>
+      <dt>{% trans "Actualizado" %}</dt>
+      <dd>{{ issue.updated_at|date:"DATETIME_FORMAT" }}</dd>
     </aside>
   </div>
 </div>
+
+<script>
+(function () {
+  const tabs = document.querySelectorAll("#issue-tabs a[data-tab]");
+  const panels = document.querySelectorAll(".tab-panel");
+  function activate(id, push) {
+    tabs.forEach(t => t.classList.toggle("active", t.dataset.tab === id));
+    panels.forEach(p => p.classList.toggle("active", p.id === id));
+    if (push) history.replaceState(null, "", "#" + id);
+  }
+  tabs.forEach(t => t.addEventListener("click", e => { e.preventDefault(); activate(t.dataset.tab, true); }));
+  // Activate from URL hash on load.
+  if (location.hash && document.getElementById(location.hash.slice(1))) {
+    activate(location.hash.slice(1), false);
+  }
+})();
+</script>
 {% endblock %}

@@ -1,0 +1,7 @@
+{% load i18n %}
+<a class="notif-link" href="{% url 'accounts:notifications' %}" title="{% trans 'Notificaciones' %}"
+   data-count="{{ unread_notifications|default:0 }}"
+   hx-get="{% url 'accounts:notifications_count' %}" hx-trigger="every 30s"
+   hx-target="this" hx-swap="outerHTML">
+  🔔<span class="notif-badge">{{ unread_notifications|default:0 }}</span>
+</a>

@@ -40,7 +40,21 @@
   </div>
   {% endif %}
 
-  {% if error %}<div class="errors" style="margin-top:10px;">{{ error }}</div>{% endif %}
+  {% if error %}
+    <div class="errors" style="margin-top:10px;">
+      {{ error }}
+      {% if suggestions %}
+        <div style="margin-top:6px; color:var(--ink-700); font-size:13px;">
+          {% trans "¿Quisiste decir" %}
+          {% for s in suggestions %}<a href="?q={{ query|urlencode }}" style="margin-right:6px;"><code>{{ s }}</code></a>{% endfor %}?
+        </div>
+      {% endif %}
+      <div style="margin-top:6px; font-size:12px; color:var(--ink-500);">
+        {% trans "Campos válidos:" %}
+        {% for f in valid_fields %}<code style="margin-right:6px;">{{ f }}</code>{% endfor %}
+      </div>
+    </div>
+  {% endif %}
   <div id="results" style="margin-top:14px;">
     {% include "search/_results.html" %}
   </div>

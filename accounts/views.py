@@ -36,6 +36,12 @@ class JirrabitLoginView(AsyncFormView):
             form.add_error(None, "Credenciales inválidas.")
             return await self.aform_invalid(form)
         await alogin(self.request, user)
+        # ``remember_me`` keeps the session for 30 days; otherwise it
+        # expires when the browser closes.
+        if self.request.POST.get("remember_me"):
+            self.request.session.set_expiry(60 * 60 * 24 * 30)
+        else:
+            self.request.session.set_expiry(0)
         next_url = (
             self.request.POST.get("next")
             or self.request.GET.get("next")
@@ -240,3 +246,34 @@ class APIKeyRevokeView(AsyncLoginRequiredMixin, View):
             k.revoked_at = timezone.now()
             await k.asave(update_fields=["revoked_at"])
         return redirect("accounts:api_keys")
+
+
+class NotificationCountView(AsyncLoginRequiredMixin, View):
+    """Poll target for the topbar bell badge."""
+
+    async def get(self, request):
+        from django.http import HttpResponse
+        from django.template.loader import render_to_string
+        count = await Notification.objects.filter(
+            recipient=request.user, read=False
+        ).acount()
+        request.unread_notifications = count
+        # Reuse the same fragment as the topbar so HTMX can swap it.
+        return HttpResponse(
+            render_to_string(
+                "_notif_badge.html",
+                {"unread_notifications": count, "request": request},
+                request=request,
+            )
+        )
+
+
+class PalettePreviewView(View):
+    """Return the CSS body for the requested palette slug. Used by the
+    profile form to preview the change before the user saves."""
+
+    async def get(self, request):
+        from django.http import HttpResponse
+        from core.palettes import palette_css
+        slug = request.GET.get("p", "blue")
+        return HttpResponse(palette_css(slug), content_type="text/css")

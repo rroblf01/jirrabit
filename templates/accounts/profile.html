@@ -18,16 +18,46 @@
       {% if field.help_text %}<div style="font-size:12px;color:var(--ink-500)">{{ field.help_text|safe }}</div>{% endif %}
       {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
       {% if field.name == "palette" %}
-      <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+      <div id="palette-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
         {% for slug, label, swatch in palette_chips %}
-          <label style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:2px solid {% if slug == user.palette %}{{ swatch }}{% else %}var(--ink-300){% endif %}; border-radius:999px; font-size:12px;">
-            <input type="radio" name="palette" value="{{ slug }}" {% if slug == user.palette %}checked{% endif %} style="display:none;"
-                   onchange="this.form.querySelector('[name=palette]:not([type=radio])').value=this.value">
+          <label data-palette="{{ slug }}" data-swatch="{{ swatch }}"
+                 style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:2px solid {% if slug == user.palette %}{{ swatch }}{% else %}var(--ink-300){% endif %}; border-radius:999px; font-size:12px;">
+            <input type="radio" name="palette" value="{{ slug }}" {% if slug == user.palette %}checked{% endif %} style="display:none;">
             <span style="width:14px; height:14px; border-radius:999px; background:{{ swatch }};"></span>
             {{ label }}
           </label>
         {% endfor %}
       </div>
+      <script>
+      (function () {
+        const select = document.querySelector('select[name="palette"]');
+        if (select) select.style.display = 'none';
+        const chips = document.querySelectorAll('#palette-chips label');
+        chips.forEach(chip => {
+          chip.addEventListener('click', async () => {
+            const slug = chip.dataset.palette;
+            const swatch = chip.dataset.swatch;
+            // visual selection
+            chips.forEach(c => c.style.borderColor = c === chip ? swatch : 'var(--ink-300)');
+            if (select) select.value = slug;
+            // live preview: fetch CSS for this palette and swap the <style> tag
+            try {
+              const res = await fetch(`/accounts/palette-preview/?p=${encodeURIComponent(slug)}`);
+              if (res.ok) {
+                const css = await res.text();
+                let style = document.getElementById('palette-preview-live');
+                if (!style) {
+                  style = document.createElement('style');
+                  style.id = 'palette-preview-live';
+                  document.head.appendChild(style);
+                }
+                style.textContent = css;
+              }
+            } catch (e) { /* ignore */ }
+          });
+        });
+      })();
+      </script>
       {% endif %}
     </div>
     {% endfor %}

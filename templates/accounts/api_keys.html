@@ -10,8 +10,9 @@
   {% if fresh_token %}
   <div class="flash" style="background:#fef3c7; color:#92400e;">
     <strong>Token «{{ fresh_name }}»:</strong>
-    <code style="word-break:break-all; user-select:all;">{{ fresh_token }}</code><br>
-    <small>Cópialo ahora. No volverás a verlo.</small>
+    <code style="word-break:break-all; user-select:all;">{{ fresh_token }}</code>
+    <button type="button" class="copy-btn" data-copy="{{ fresh_token }}">Copiar</button>
+    <br><small>Cópialo ahora. No volverás a verlo.</small>
   </div>
   {% endif %}
 

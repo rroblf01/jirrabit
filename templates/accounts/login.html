@@ -15,6 +15,10 @@
       </div>
       {% endfor %}
       {% if form.non_field_errors %}<div class="errors">{{ form.non_field_errors|join:", " }}</div>{% endif %}
+      <label style="display:flex; gap:6px; align-items:center; margin:8px 0; font-size:13px; color:var(--ink-700);">
+        <input type="checkbox" name="remember_me" value="1" style="width:auto;">
+        {% trans "Recuérdame en este dispositivo" %}
+      </label>
       <button class="btn" style="width:100%;" type="submit">{% trans "Entrar" %}</button>
     </form>
     <p style="margin-top:14px; font-size:13px; text-align:center;">

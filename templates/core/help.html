@@ -4,8 +4,15 @@
 <div class="card" style="max-width:880px;">
   <h1>{% trans "Ayuda" %} — jirrabit</h1>
   <p style="color:var(--ink-500);">{% trans "Guía rápida para entender los conceptos y empezar a trabajar." %}</p>
+  <nav style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
+    <a class="badge" href="#intro">{% trans "Intro" %}</a>
+    <a class="badge" href="#glossary">{% trans "Glosario" %}</a>
+    <a class="badge" href="#flows">{% trans "Flujos típicos" %}</a>
+    <a class="badge" href="#shortcuts">{% trans "Atajos" %}</a>
+  </nav>
 </div>
 
+<div id="intro" style="position:relative; top:-60px;"></div>
 <div class="card" style="max-width:880px;">
   <h2>{% trans "¿Qué es Jira (y qué es jirrabit)?" %}</h2>
   <p>{% blocktrans %}
@@ -15,6 +22,7 @@
   {% endblocktrans %}</p>
 </div>
 
+<div id="glossary" style="position:relative; top:-60px;"></div>
 <div class="card" style="max-width:880px;">
   <h2>{% trans "Glosario" %}</h2>
 
@@ -112,6 +120,7 @@
   {% endblocktrans %}</p>
 </div>
 
+<div id="flows" style="position:relative; top:-60px;"></div>
 <div class="card" style="max-width:880px;">
   <h2>{% trans "Flujos típicos" %}</h2>
 
@@ -157,6 +166,7 @@
   {% endblocktrans %}</p>
 </div>
 
+<div id="shortcuts" style="position:relative; top:-60px;"></div>
 <div class="card" style="max-width:880px;">
   <h2>{% trans "Atajos y opciones" %}</h2>
   <ul>
