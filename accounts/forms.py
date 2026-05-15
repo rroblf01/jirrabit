@@ -66,11 +66,6 @@ class ProfileForm(forms.ModelForm):
             instance.save()
         return instance
 
-
-def _timezone_choices():
-    import zoneinfo
-    return [(t, t) for t in sorted(zoneinfo.available_timezones())]
-
     def clean_avatar_file(self):
         f = self.cleaned_data.get("avatar_file")
         if not f:
@@ -102,3 +97,8 @@ def _timezone_choices():
         except binascii.Error as exc:
             raise forms.ValidationError(str(exc)) from exc
         return f"data:{f.content_type};base64,{encoded}"
+
+
+def _timezone_choices():
+    import zoneinfo
+    return [(t, t) for t in sorted(zoneinfo.available_timezones())]
