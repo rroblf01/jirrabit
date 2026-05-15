@@ -17,6 +17,7 @@
     {% for field in form %}
     <div class="form-row">
       <label>{{ field.label }}</label>{{ field }}
+      {% if field.help_text %}<div class="help-text">{{ field.help_text }}</div>{% endif %}
       {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
     </div>
     {% endfor %}

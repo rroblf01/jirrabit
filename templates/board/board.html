@@ -158,21 +158,34 @@ document.addEventListener('change', e => {
   let badge;
   ws.onopen = () => console.debug('WS live: {{ project.key }}');
   let dismissTimer;
+  function refreshKanban() {
+    if (!window.htmx) { location.reload(); return; }
+    htmx.ajax('GET', location.pathname + location.search, {
+      target: '.kanban', swap: 'outerHTML',
+    });
+    if (badge) { badge.remove(); badge = null; }
+  }
+  let pendingCount = 0;
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
     if (msg.type !== 'issue') return;
-    // Soft-refresh: show a dismissible banner with reload link.
+    pendingCount += 1;
     if (!badge) {
       badge = document.createElement('div');
-      badge.className = 'flash';
-      badge.style.position = 'fixed'; badge.style.bottom = '20px'; badge.style.right = '20px';
-      badge.style.cursor = 'pointer';
-      badge.innerHTML = '🔄 Cambios en vivo. <a href="javascript:location.reload()">refrescar</a> <button style="background:transparent;border:0;color:inherit;cursor:pointer;font-size:14px;" aria-label="cerrar">×</button>';
-      badge.querySelector('button').onclick = e => { e.stopPropagation(); badge.remove(); badge = null; };
+      badge.className = 'flash live-banner';
+      badge.innerHTML = `
+        <span class="live-banner-text">🔄 <strong>${pendingCount}</strong> cambio${pendingCount > 1 ? 's' : ''} en vivo</span>
+        <button type="button" class="btn small live-refresh">Refrescar tablero</button>
+        <button type="button" class="live-dismiss" aria-label="cerrar">×</button>`;
+      badge.querySelector('.live-refresh').onclick = () => refreshKanban();
+      badge.querySelector('.live-dismiss').onclick = () => { badge.remove(); badge = null; pendingCount = 0; };
       document.body.appendChild(badge);
+    } else {
+      badge.querySelector('.live-banner-text').innerHTML =
+        `🔄 <strong>${pendingCount}</strong> cambio${pendingCount > 1 ? 's' : ''} en vivo`;
     }
     clearTimeout(dismissTimer);
-    dismissTimer = setTimeout(() => { if (badge) { badge.remove(); badge = null; } }, 15000);
+    dismissTimer = setTimeout(() => { if (badge) { badge.remove(); badge = null; pendingCount = 0; } }, 30000);
   };
 })();
 </script>

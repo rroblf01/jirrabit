@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n jirrabit_extras %}
 <div id="notif-list">
 {% for n in notifications %}
   <div style="display:flex; gap:10px; padding:10px; border-bottom:1px solid var(--ink-100); {% if not n.read %}background:var(--blue-50);{% endif %}">
@@ -6,7 +6,7 @@
     <div style="flex:1;">
       <div style="font-size:13px;">
         <strong>{{ n.actor|default:_("Sistema") }}</strong>
-        <span style="color:var(--ink-500);"> · {{ n.created_at|date:"d M H:i" }} · {{ n.get_kind_display }}</span>
+        <span style="color:var(--ink-500);"> · {{ n.created_at|rel_time }} · {{ n.get_kind_display }}</span>
       </div>
       <div>{% if n.url %}<a href="{{ n.url }}">{{ n.text }}</a>{% else %}{{ n.text }}{% endif %}</div>
     </div>

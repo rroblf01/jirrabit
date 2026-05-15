@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n jirrabit_extras %}
 {% block content %}
 <div class="card">
   <div class="row">
@@ -55,6 +55,10 @@
           {{ comment_form.body }}
           <div style="display:flex; gap:12px; align-items:center; margin-top:6px; flex-wrap:wrap;">
             <button class="btn small" type="submit">{% trans "Comentar" %}</button>
+            <button class="btn ghost small" type="submit" name="and_close" value="1"
+                    title="{% trans 'Crea el comentario y mueve la tarea a estado Hecho' %}">
+              {% trans "Comentar y cerrar" %}
+            </button>
             {% if user.is_staff or user.is_superuser %}
               <label style="font-size:12px; color:var(--ink-700); display:inline-flex; align-items:center; gap:4px;">
                 {{ comment_form.is_internal }} {% trans "Nota interna (solo staff)" %}
@@ -106,7 +110,7 @@
         <ul style="font-size:13px; color:var(--ink-700); list-style:none; padding:0;">
           {% for h in history %}
             <li style="padding:6px 0; border-bottom:1px solid var(--ink-100);">
-              {{ h.created_at|date:"d M H:i" }} — <strong>{{ h.actor|default:_("sistema") }}</strong>
+              {{ h.created_at|rel_time }} — <strong>{{ h.actor|default:_("sistema") }}</strong>
               {% trans "cambió" %} <em>{{ h.field }}</em>:
               <code>{{ h.old_value|default:"—" }}</code> → <code>{{ h.new_value }}</code>
             </li>

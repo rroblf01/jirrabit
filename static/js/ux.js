@@ -23,14 +23,27 @@
     }
     return s;
   }
-  jirrabit.toast = function (text, kind) {
+  jirrabit.toast = function (text, kind, opts) {
     const stack = ensureStack();
     const node = document.createElement("div");
     node.className = "toast " + (kind || "info");
-    node.innerHTML = `<span>${text}</span><button aria-label="cerrar">×</button>`;
-    node.querySelector("button").onclick = () => node.remove();
+    const ttl = (opts && opts.ttl) || 4000;
+    let inner = `<span>${text}</span>`;
+    if (opts && opts.action && opts.actionLabel) {
+      inner += `<button class="toast-action" type="button">${opts.actionLabel}</button>`;
+    }
+    inner += `<button class="toast-close" aria-label="cerrar">×</button>`;
+    node.innerHTML = inner;
+    node.querySelector(".toast-close").onclick = () => node.remove();
+    if (opts && opts.action) {
+      node.querySelector(".toast-action").onclick = () => {
+        try { opts.action(); } catch (_e) {}
+        node.remove();
+      };
+    }
     stack.appendChild(node);
-    setTimeout(() => node.remove(), 4000);
+    setTimeout(() => { if (node.isConnected) node.remove(); }, ttl);
+    return node;
   };
 
   // --- Global spinner ----------------------------------------------------
@@ -48,16 +61,177 @@
     const trigger = e.detail.elt;
     const flash = trigger && trigger.dataset && trigger.dataset.toast;
     if (status >= 400) {
-      jirrabit.toast(`Error ${status}: ${e.detail.xhr.statusText || ""}`, "err");
-    } else if (flash) {
-      jirrabit.toast(flash, "ok");
+      jirrabit.toast(prettyError(e.detail.xhr, status), "err");
+    } else {
+      // Undo support: server sets X-Undo-URL + X-Undo-Message to surface a
+      // 6-second toast with an "Undo" button that POSTs to the given URL.
+      const undoUrl = e.detail.xhr.getResponseHeader("X-Undo-URL");
+      const undoMsg = e.detail.xhr.getResponseHeader("X-Undo-Message");
+      if (undoUrl && undoMsg) {
+        const csrf = document.querySelector("input[name=csrfmiddlewaretoken]");
+        jirrabit.toast(undoMsg, "info", {
+          ttl: 6000,
+          actionLabel: "Deshacer",
+          action: () => {
+            fetch(undoUrl, {
+              method: "POST",
+              headers: csrf ? { "X-CSRFToken": csrf.value, "HX-Request": "true" } : { "HX-Request": "true" },
+            }).then(r => {
+              if (r.ok) {
+                jirrabit.toast("Restaurado", "ok");
+                setTimeout(() => location.reload(), 300);
+              } else {
+                jirrabit.toast("No se pudo deshacer", "err");
+              }
+            });
+          },
+        });
+      } else if (flash) {
+        jirrabit.toast(flash, "ok");
+      }
     }
   });
   document.body.addEventListener("htmx:responseError", (e) => {
-    jirrabit.toast(`Error ${e.detail.xhr.status}`, "err");
+    jirrabit.toast(prettyError(e.detail.xhr, e.detail.xhr.status), "err");
   });
+  function prettyError(xhr, status) {
+    const txt = (xhr.responseText || "").trim();
+    if (txt) {
+      // Try JSON {"error": "..."} or {"detail": "..."}.
+      try {
+        const j = JSON.parse(txt);
+        if (j && typeof j === "object") {
+          if (j.error) return j.error;
+          if (j.detail) return j.detail;
+          if (Array.isArray(j.messages) && j.messages.length) return j.messages.join(" · ");
+        }
+      } catch (_e) { /* not JSON */ }
+      // Plain text body, truncate to a sensible length and strip HTML/whitespace.
+      const plain = txt.replace(/<[^>]+>/g, "").trim();
+      if (plain && plain.length < 240) return plain;
+    }
+    const map = {
+      400: "Datos inválidos. Revisa el formulario.",
+      401: "Sesión expirada. Vuelve a iniciar sesión.",
+      403: "No tienes permiso para hacer eso.",
+      404: "No encontrado.",
+      409: "Conflicto: el recurso ha cambiado, recarga.",
+      413: "Archivo demasiado grande.",
+      422: "Datos no válidos.",
+      429: "Demasiadas peticiones, espera un momento.",
+      500: "Error interno del servidor.",
+      503: "Servicio no disponible.",
+    };
+    return map[status] || `Error ${status}`;
+  }
   document.body.addEventListener("htmx:sendError", () => {
     jirrabit.toast("Sin conexión con el servidor", "err");
+  });
+
+  // --- Optimistic UI helper --------------------------------------------
+  // Any element with ``data-optimistic="<selector>"`` (or just ``data-optimistic``)
+  // triggers a class swap on the closest ``.card-issue``/``.comment`` while
+  // the request is in flight. Reverts automatically on response.
+  document.body.addEventListener("htmx:beforeRequest", (e) => {
+    const el = e.detail && e.detail.elt;
+    if (!el) return;
+    const trigger = el.closest("[data-optimistic]");
+    if (!trigger) return;
+    const sel = trigger.dataset.optimistic;
+    const target = sel
+      ? trigger.closest(sel)
+      : (trigger.closest(".card-issue, .comment, .issue-detail") || trigger);
+    if (!target) return;
+    target.classList.add("optimistic");
+    e.detail.optimisticTarget = target;
+  });
+  document.body.addEventListener("htmx:afterRequest", (e) => {
+    document.querySelectorAll(".optimistic").forEach(el => el.classList.remove("optimistic"));
+  });
+
+  // --- Online / offline indicator --------------------------------------
+  function setOnlineState(online) {
+    const old = document.getElementById("net-status");
+    if (online) { if (old) old.remove(); return; }
+    if (old) return;
+    const bar = document.createElement("div");
+    bar.id = "net-status";
+    bar.textContent = "⚠ Sin conexión — los cambios se guardarán al recuperar la red";
+    document.body.appendChild(bar);
+  }
+  window.addEventListener("online", () => {
+    setOnlineState(true);
+    jirrabit.toast("Conexión restablecida", "ok");
+  });
+  window.addEventListener("offline", () => setOnlineState(false));
+  if (!navigator.onLine) setOnlineState(false);
+
+  // --- Desktop notifications (opt-in) ----------------------------------
+  jirrabit.enableDesktopNotifications = async function () {
+    if (!("Notification" in window)) {
+      jirrabit.toast("Tu navegador no soporta notificaciones de escritorio", "err");
+      return;
+    }
+    if (Notification.permission === "granted") {
+      jirrabit.toast("Notificaciones ya activadas", "ok");
+      return;
+    }
+    const p = await Notification.requestPermission();
+    if (p === "granted") {
+      jirrabit.toast("Notificaciones activadas", "ok");
+      new Notification("Jirrabit", { body: "Te avisaremos cuando haya novedades." });
+    } else {
+      jirrabit.toast("Permiso denegado", "err");
+    }
+  };
+
+  // After a bell-badge swap, fire a Notification if count went up.
+  let _lastUnread = parseInt(document.querySelector(".notif-link")?.dataset.count || "0", 10);
+  document.body.addEventListener("htmx:afterSwap", (e) => {
+    const link = e.target && e.target.classList && e.target.classList.contains("notif-link")
+      ? e.target
+      : (e.target.querySelector ? e.target.querySelector(".notif-link") : null);
+    if (!link) return;
+    const n = parseInt(link.dataset.count || "0", 10);
+    if (n > _lastUnread && Notification.permission === "granted") {
+      try {
+        new Notification("Jirrabit", {
+          body: `Tienes ${n} notificaciones sin leer`,
+          tag: "jirrabit-unread",
+        });
+      } catch (_e) { /* ignore */ }
+    }
+    _lastUnread = n;
+  });
+
+  // --- Topbar user-menu dropdown --------------------------------------
+  document.addEventListener("click", (e) => {
+    const menu = document.getElementById("user-menu");
+    if (!menu) return;
+    const btn = document.getElementById("user-menu-btn");
+    if (btn && btn.contains(e.target)) {
+      const open = menu.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      const pop = menu.querySelector(".user-menu-pop");
+      if (pop) pop.hidden = !open;
+      return;
+    }
+    if (!menu.contains(e.target)) {
+      menu.classList.remove("open");
+      const pop = menu.querySelector(".user-menu-pop");
+      if (pop) pop.hidden = true;
+      if (btn) btn.setAttribute("aria-expanded", "false");
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const menu = document.getElementById("user-menu");
+      if (menu && menu.classList.contains("open")) {
+        menu.classList.remove("open");
+        const pop = menu.querySelector(".user-menu-pop");
+        if (pop) pop.hidden = true;
+      }
+    }
   });
 
   // --- Confirm modal -----------------------------------------------------
@@ -196,12 +370,15 @@
   // ``c`` opens "create issue" on the current project, ``/`` focuses the
   // global search. Disabled while typing in an input.
   const shortcutHelp = [
+    ["Ctrl/⌘ K", "Paleta de comandos"],
     ["g h", "Home"],
     ["g p", "Proyectos"],
     ["g b", "Board del proyecto actual"],
     ["g i", "Lista de issues del proyecto actual"],
-    ["g a", "Ayuda"],
     ["c",   "Crear tarea en el proyecto actual"],
+    ["e",   "(en una tarea) Avanzar estado"],
+    ["a",   "(en una tarea) Asignar a mí"],
+    ["s",   "(en una tarea) Empezar trabajo (asignar + iniciar timer)"],
     ["/",   "Foco en la búsqueda"],
     ["?",   "Mostrar esta ayuda"],
   ];
@@ -236,6 +413,44 @@
       const key = projectKeyFromUrl();
       if (key) { e.preventDefault(); go(`/issues/projects/${key}/new/`); }
       return;
+    }
+    // Issue-level shortcuts: only when viewing an issue detail page.
+    const issueMatch = location.pathname.match(/^\/issues\/([A-Z0-9_-]+-\d+)\//i);
+    if (issueMatch) {
+      const issueKey = issueMatch[1];
+      const csrf = document.querySelector("input[name=csrfmiddlewaretoken]");
+      const csrfVal = csrf ? csrf.value : "";
+      if (e.key === "e") {
+        e.preventDefault();
+        fetch(`/issues/${issueKey}/advance/`, {
+          method: "POST", headers: { "X-CSRFToken": csrfVal, "HX-Request": "true" },
+        }).then(r => { if (r.ok) location.reload(); else jirrabit.toast("No se pudo avanzar", "err"); });
+        return;
+      }
+      if (e.key === "a") {
+        e.preventDefault();
+        const uid = document.body.dataset.userId;
+        if (!uid) return;
+        const fd = new FormData();
+        fd.append("value", uid);
+        fetch(`/issues/${issueKey}/inline/assignee/`, {
+          method: "POST", body: fd, headers: { "X-CSRFToken": csrfVal, "HX-Request": "true" },
+        }).then(r => {
+          if (r.ok) { jirrabit.toast("Asignado a ti", "ok"); setTimeout(() => location.reload(), 400); }
+          else jirrabit.toast("No se pudo asignar", "err");
+        });
+        return;
+      }
+      if (e.key === "s") {
+        e.preventDefault();
+        fetch(`/issues/${issueKey}/start-work/`, {
+          method: "POST", headers: { "X-CSRFToken": csrfVal, "HX-Request": "true" },
+        }).then(r => {
+          if (r.ok) { jirrabit.toast("Comenzando trabajo", "ok"); setTimeout(() => location.reload(), 400); }
+          else jirrabit.toast("No se pudo iniciar", "err");
+        });
+        return;
+      }
     }
     if (gPending) {
       gPending = false; clearTimeout(gTimeout);
@@ -606,6 +821,26 @@
       setTimeout(() => { btn.textContent = orig; btn.classList.remove("copied"); }, 1500);
     } catch (err) {
       jirrabit.toast("No se pudo copiar al portapapeles", "err");
+    }
+  });
+})();
+
+// --- Inline edit save indicator ------------------------------------------
+// Flash a small ✓ next to any ``.inline-edit`` that was just swapped in by
+// a successful inline-edit response.
+(function () {
+  function flashSaved(el) {
+    el.classList.add("just-saved");
+    setTimeout(() => el.classList.remove("just-saved"), 1100);
+  }
+  document.body.addEventListener("htmx:afterSwap", (e) => {
+    const t = e.detail && e.detail.target;
+    if (!t) return;
+    if (t.classList && t.classList.contains("inline-edit")) {
+      flashSaved(t);
+    } else if (t.querySelector) {
+      const ie = t.querySelector(".inline-edit");
+      if (ie) flashSaved(ie);
     }
   });
 })();

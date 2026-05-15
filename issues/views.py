@@ -218,7 +218,7 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
             f async for f in self.object.project.custom_fields.all()
         ]
         # N+1 fix: pre-evaluate related collections.
-        comments_qs = self.object.comments.select_related("author").all()
+        comments_qs = self.object.comments.select_related("author").filter(deleted_at__isnull=True)
         if not (self.request.user.is_staff or self.request.user.is_superuser):
             comments_qs = comments_qs.filter(is_internal=False)
         ctx["comments"] = [c async for c in comments_qs]
@@ -342,6 +342,17 @@ class AddCommentView(AsyncLoginRequiredMixin, View):
         await comment.asave()
         # Auto-watch: anyone who comments starts following the issue.
         await issue.watchers.aadd(request.user)
+        # ``and_close`` checkbox triggers a status advance to first ``done``
+        # category status in one shot ("Comentar y cerrar").
+        if request.POST.get("and_close"):
+            done = await Status.objects.filter(category="done").order_by("order").afirst()
+            if done and issue.status_id != done.pk:
+                await sync_to_async(
+                    _change_status_atomic, thread_sensitive=True,
+                )(issue.pk, done.pk, request.user.pk)
+            resp = HttpResponse(status=204)
+            resp["HX-Refresh"] = "true"
+            return resp
         if request.htmx:
             return await arender(request, "issues/_comment.html", {"c": comment})
         return redirect(issue.get_absolute_url())
@@ -466,11 +477,32 @@ class CommentEditView(AsyncLoginRequiredMixin, View):
 
 class CommentDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, pk):
+        from django.urls import reverse
+
         comment = await _aget_comment(pk)
         if comment.author_id != request.user.pk and not request.user.is_superuser:
             raise PermissionDenied
-        await comment.adelete()
-        return HttpResponse("")
+        comment.deleted_at = timezone.now()
+        await comment.asave(update_fields=["deleted_at", "updated_at"])
+        resp = HttpResponse("")
+        resp["HX-Trigger"] = "commentDeleted"
+        resp["X-Undo-URL"] = reverse("issues:comment_restore", args=[pk])
+        resp["X-Undo-Message"] = "Comentario borrado"
+        return resp
+
+
+class CommentRestoreView(AsyncLoginRequiredMixin, View):
+    """Undo target for a recently soft-deleted comment."""
+
+    async def post(self, request, pk):
+        comment = await _aget_comment(pk)
+        if comment.author_id != request.user.pk and not request.user.is_superuser:
+            raise PermissionDenied
+        if not comment.deleted_at:
+            return HttpResponse("ya restaurado", status=200)
+        comment.deleted_at = None
+        await comment.asave(update_fields=["deleted_at", "updated_at"])
+        return await arender(request, "issues/_comment.html", {"c": comment})
 
 
 class LogWorkView(AsyncLoginRequiredMixin, View):
@@ -642,6 +674,52 @@ class UnsnoozeView(AsyncLoginRequiredMixin, View):
                 {"issue": issue, "snoozed_until": None},
             )
         return redirect(issue.get_absolute_url())
+
+
+class StartWorkView(AsyncLoginRequiredMixin, View):
+    """One-click ``Start work`` combo.
+
+    - Self-assigns the issue to ``request.user`` (if member of the project).
+    - Moves status to the first ``in_progress`` category status (if not yet).
+    - Starts a timer (auto-stops any previously running one).
+
+    Returns JSON so the client can refresh the relevant chunks via HX-Trigger.
+    """
+
+    async def post(self, request, key):
+        import json
+        from .models import Timer
+
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+
+        # 1. Self-assign (skip if already assignee).
+        if issue.assignee_id != request.user.pk:
+            issue.assignee = request.user
+            await issue.asave(update_fields=["assignee", "updated_at"])
+
+        # 2. Move to in_progress (first one in workflow).
+        target = await Status.objects.filter(category="in_progress").order_by("order").afirst()
+        moved = False
+        if target and issue.status_id != target.pk:
+            _, _, ok = await sync_to_async(
+                _change_status_atomic, thread_sensitive=True,
+            )(issue.pk, target.pk, request.user.pk)
+            moved = bool(ok)
+
+        # 3. Start timer.
+        prev = await Timer.objects.filter(user=request.user).select_related("issue").afirst()
+        if prev and prev.issue_id != issue.pk:
+            await _astop_timer(prev)
+        if not await Timer.objects.filter(user=request.user, issue=issue).aexists():
+            await Timer.objects.acreate(user=request.user, issue=issue)
+
+        resp = HttpResponse(
+            json.dumps({"ok": True, "assigned": True, "moved": moved}),
+            content_type="application/json",
+        )
+        resp["HX-Refresh"] = "true"
+        return resp
 
 
 class TimerStartView(AsyncLoginRequiredMixin, View):

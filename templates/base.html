@@ -12,8 +12,9 @@
   <script src="{% static 'js/ux.js' %}" defer></script>
   <script src="{% static 'js/shortcuts.js' %}" defer></script>
   <script src="{% static 'js/md-toolbar.js' %}" defer></script>
+  <script src="{% static 'js/reltime.js' %}" defer></script>
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
 {% if user.is_authenticated %}
 <header class="topbar">
   <div class="brand">jirra<span>bit</span></div>
@@ -39,15 +40,26 @@
            hx-target="#topbar-typeahead" hx-swap="innerHTML">
     <div id="topbar-typeahead" class="typeahead-wrap"></div>
   </form>
-  <span class="user-chip">{{ user }}</span>
-  <a href="{% url 'accounts:api_keys' %}" title="{% trans 'API keys' %}"
-     aria-label="{% trans 'API keys' %}"><span aria-hidden="true">🔑</span></a>
-  <a href="#" title="{% trans 'Atajos de teclado (?)' %}"
-     aria-label="{% trans 'Atajos de teclado' %}"
-     onclick="event.preventDefault(); document.dispatchEvent(new KeyboardEvent('keydown', {key: '?'}));"><span aria-hidden="true">⌨</span></a>
-  <a href="{% url 'accounts:profile' %}" title="{% trans 'Perfil' %}"
-     aria-label="{% trans 'Perfil' %}"><span aria-hidden="true">⚙</span></a>
-  <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">{% trans "Salir" %}</button></form>
+  <div class="user-menu" id="user-menu">
+    <button type="button" class="user-chip" id="user-menu-btn" aria-haspopup="true" aria-expanded="false">
+      {{ user }} <span aria-hidden="true">▾</span>
+    </button>
+    <div class="user-menu-pop" role="menu" hidden>
+      <a role="menuitem" href="{% url 'accounts:profile' %}"><span aria-hidden="true">⚙</span> {% trans "Perfil" %}</a>
+      <a role="menuitem" href="{% url 'accounts:api_keys' %}"><span aria-hidden="true">🔑</span> {% trans "API keys" %}</a>
+      <a role="menuitem" href="#" onclick="event.preventDefault(); document.dispatchEvent(new KeyboardEvent('keydown', {key: '?'})); document.getElementById('user-menu').classList.remove('open');">
+        <span aria-hidden="true">⌨</span> {% trans "Atajos de teclado" %}
+      </a>
+      <a role="menuitem" href="#" id="enable-desktop-notif" onclick="event.preventDefault(); window.jirrabit && window.jirrabit.enableDesktopNotifications && window.jirrabit.enableDesktopNotifications();">
+        <span aria-hidden="true">🔔</span> {% trans "Activar notificaciones de escritorio" %}
+      </a>
+      <div class="user-menu-sep"></div>
+      <form method="post" action="{% url 'accounts:logout' %}" role="none">
+        {% csrf_token %}
+        <button role="menuitem" type="submit" class="user-menu-logout">{% trans "Cerrar sesión" %}</button>
+      </form>
+    </div>
+  </div>
 </header>
 <div class="layout">
   <aside class="sidebar">

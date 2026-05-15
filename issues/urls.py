@@ -21,6 +21,7 @@ urlpatterns = [
     path("<str:key>/clone/", views.IssueCloneView.as_view(), name="clone"),
     path("<str:key>/snooze/", views.SnoozeView.as_view(), name="snooze"),
     path("<str:key>/unsnooze/", views.UnsnoozeView.as_view(), name="unsnooze"),
+    path("<str:key>/start-work/", views.StartWorkView.as_view(), name="start_work"),
     path("<str:key>/timer/start/", views.TimerStartView.as_view(), name="timer_start"),
     path("<str:key>/timer/stop/", views.TimerStopView.as_view(), name="timer_stop"),
     path("pin/<str:kind>/<int:pk>/", views.PinToggleView.as_view(), name="pin_toggle"),
@@ -40,4 +41,5 @@ urlpatterns = [
     path("<str:key>/link/<int:link_id>/delete/", views.IssueLinkDeleteView.as_view(), name="link_delete"),
     path("comment/<int:pk>/edit/", views.CommentEditView.as_view(), name="comment_edit"),
     path("comment/<int:pk>/delete/", views.CommentDeleteView.as_view(), name="comment_delete"),
+    path("comment/<int:pk>/restore/", views.CommentRestoreView.as_view(), name="comment_restore"),
 ]

@@ -13,11 +13,22 @@
          — {{ issue.summary }}
       </div>
       <div class="meta">
-        <span><span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span></span>
+        <span class="meta-left">
+          <span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span>
+          <span class="card-priority" title="{% trans 'Prioridad' %}">
+            {% include "issues/_inline/priority_display.html" with issue=issue %}
+          </span>
+          {% if issue.due_date %}
+          <span class="card-due" title="{% trans 'Vence' %}">
+            📅 {% include "issues/_inline/due_date_display.html" with issue=issue %}
+          </span>
+          {% endif %}
+        </span>
         <span>
           <form hx-post="{% url 'issues:advance_status' issue.key %}"
                 hx-target="closest .card-issue" hx-swap="delete"
                 hx-headers='{"X-Source": "board"}'
+                data-optimistic=".card-issue"
                 style="display:inline;" onclick="event.stopPropagation()">
             {% csrf_token %}
             <button class="btn ghost small" type="submit"

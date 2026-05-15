@@ -1,11 +1,11 @@
-{% load i18n %}
+{% load i18n jirrabit_extras %}
 <div class="comment{% if c.parent_id %} reply{% endif %}{% if c.is_internal %} internal{% endif %}" id="comment-{{ c.pk }}">
   {% include "_avatar.html" with u=c.author %}
   <div class="body">
     <div class="meta">
       <strong>{{ c.author }}</strong> ·
       <a href="#comment-{{ c.pk }}" class="comment-anchor" data-comment-id="{{ c.pk }}"
-         title="{% trans 'Copiar enlace al comentario' %}">{{ c.created_at|date:"d M H:i" }}</a>
+         title="{% trans 'Copiar enlace al comentario' %}">{{ c.created_at|rel_time }}</a>
       {% if c.edited %} · <a href="#" hx-get="{% url 'issues:comment_history' c.pk %}" hx-target="closest .comment" hx-swap="beforeend"><em>{% trans "editado" %}</em></a>{% endif %}
       {% if c.author_id == request.user.pk %}
         {% with receipts=c.mention_receipts.all %}

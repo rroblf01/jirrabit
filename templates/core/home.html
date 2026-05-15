@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n jirrabit_extras %}
 {% block content %}
 <div class="card onboarding-card" id="onboarding-card" style="display:none;">
   <div style="display:flex; gap:16px; align-items:flex-start;">
@@ -89,7 +89,7 @@
       {% for n in mentions %}
         <li style="padding:6px 0; border-bottom:1px solid var(--ink-100); font-size:13px;">
           <a href="{{ n.url }}">{{ n.text|truncatechars:80 }}</a>
-          <div style="color:var(--ink-500); font-size:11px;">{{ n.created_at|date:"d M H:i" }}</div>
+          <div style="color:var(--ink-500); font-size:11px;">{{ n.created_at|rel_time }}</div>
         </li>
       {% endfor %}
       </ul>
