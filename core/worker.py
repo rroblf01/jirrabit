@@ -6,9 +6,11 @@ request. There is no persistence: queued tasks are lost on process
 restart. Good enough for emails and webhook delivery in a single-process
 daphne setup; swap for Celery/RQ when you outgrow it.
 """
+
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 logger = logging.getLogger("jirrabit.worker")
 
