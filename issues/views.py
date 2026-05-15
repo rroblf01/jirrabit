@@ -190,12 +190,6 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["branches"] = [
             b async for b in self.object.branches.all().order_by("-created_at")
         ]
-        # Pre-aggregate reactions for each comment to avoid N+1 in the template.
-        from asgiref.sync import sync_to_async as _sta
-        for c in ctx["comments"]:
-            c.reactions_agg = await _sta(_aggregate_reactions, thread_sensitive=True)(
-                c.pk, self.request.user.pk,
-            )
         ctx["statuses"] = [s async for s in Status.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
         ctx["is_watching"] = await self.object.watchers.filter(
@@ -208,6 +202,12 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["comments"] = [
             c async for c in self.object.comments.select_related("author").all()
         ]
+        # Pre-aggregate reactions for each comment to avoid N+1 in the template.
+        from asgiref.sync import sync_to_async as _sta
+        for c in ctx["comments"]:
+            c.reactions_agg = await _sta(_aggregate_reactions, thread_sensitive=True)(
+                c.pk, self.request.user.pk,
+            )
         ctx["labels"] = [l async for l in self.object.labels.all()]
         ctx["attachments"] = [
             a async for a in self.object.attachments.select_related("uploaded_by").all()

@@ -232,6 +232,9 @@ class Command(BaseCommand):
             user.display_name = display
             user.job_title = job
             user.avatar = _svg_avatar(user.initials, color)
+            if username == "alice_pm":
+                user.is_staff = True
+                user.is_superuser = True
             user.save()
             created.append(user)
         return created
