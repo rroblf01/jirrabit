@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Tipos de tarea" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Tipos de tarea" %}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'workflow:type_create' %}">+ {% trans "Nuevo tipo" %}</a>
+  </div>
+  {% include "workflow/_nav.html" with active="types" %}
+
+  <div class="table-scroll" style="margin-top:14px;">
+  <table>
+    <thead><tr>
+      <th></th>
+      <th>{% trans "Nombre" %}</th>
+      <th>{% trans "Categoría" %}</th>
+      <th>{% trans "Color" %}</th>
+      <th>{% trans "Uso" %}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for t in types %}
+      <tr>
+        <td style="font-size:18px;" aria-hidden="true">{{ t.icon }}</td>
+        <td><span class="badge {{ t.category }}">{{ t.name }}</span></td>
+        <td>{{ t.get_category_display }}</td>
+        <td><code>{{ t.color }}</code></td>
+        <td>{{ t.usage_count|default:0 }}</td>
+        <td>
+          <a class="btn ghost small" href="{% url 'workflow:type_edit' t.pk %}">{% trans "Editar" %}</a>
+          <form method="post" action="{% url 'workflow:type_delete' t.pk %}" style="display:inline;"
+                hx-confirm="{% trans '¿Borrar tipo?' %} «{{ t.name }}»">
+            {% csrf_token %}
+            <button class="btn danger small" type="submit"
+                    {% if t.usage_count %}disabled title="{% trans 'En uso' %}"{% endif %}>{% trans "Borrar" %}</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="empty">{% trans "Sin tipos. Crea el primero." %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Workflow editor" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 8px;">{% trans "Workflow editor" %}</h1>
+  <p style="color:var(--ink-500); margin:0 0 14px;">
+    {% blocktrans %}
+    Configura los catálogos globales que comparten todos los proyectos:
+    estados (con sus transiciones), prioridades, tipos de tarea y etiquetas.
+    {% endblocktrans %}
+  </p>
+  {% include "workflow/_nav.html" with active="overview" %}
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-top:14px;">
+    <a href="{% url 'workflow:status_list' %}" class="card" style="margin:0; text-decoration:none; color:inherit; border:1px solid var(--ink-100);">
+      <strong style="font-size:18px;">{% trans "Estados" %}</strong>
+      <p style="margin:6px 0 0; color:var(--ink-500);">{{ status_count }} {% trans "definidos" %} · {% trans "controlan columnas del board" %}</p>
+    </a>
+    <a href="{% url 'workflow:matrix' %}" class="card" style="margin:0; text-decoration:none; color:inherit; border:1px solid var(--ink-100);">
+      <strong style="font-size:18px;">{% trans "Transiciones" %}</strong>
+      <p style="margin:6px 0 0; color:var(--ink-500);">{% trans "Define qué estado puede ir a cuál (workflow)" %}</p>
+    </a>
+    <a href="{% url 'workflow:priority_list' %}" class="card" style="margin:0; text-decoration:none; color:inherit; border:1px solid var(--ink-100);">
+      <strong style="font-size:18px;">{% trans "Prioridades" %}</strong>
+      <p style="margin:6px 0 0; color:var(--ink-500);">{{ priority_count }} {% trans "definidas" %}</p>
+    </a>
+    <a href="{% url 'workflow:type_list' %}" class="card" style="margin:0; text-decoration:none; color:inherit; border:1px solid var(--ink-100);">
+      <strong style="font-size:18px;">{% trans "Tipos de tarea" %}</strong>
+      <p style="margin:6px 0 0; color:var(--ink-500);">{{ type_count }} {% trans "definidos" %}</p>
+    </a>
+    <a href="{% url 'workflow:label_list' %}" class="card" style="margin:0; text-decoration:none; color:inherit; border:1px solid var(--ink-100);">
+      <strong style="font-size:18px;">{% trans "Etiquetas" %}</strong>
+      <p style="margin:6px 0 0; color:var(--ink-500);">{{ label_count }} {% trans "definidas" %}</p>
+    </a>
+  </div>
+</div>
+{% endblock %}

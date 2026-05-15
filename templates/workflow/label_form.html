@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% if object %}{% trans "Editar etiqueta" %}{% else %}{% trans "Nueva etiqueta" %}{% endif %}{% endblock %}
+{% block content %}
+{% include "workflow/_form.html" with title=_("Etiqueta") form=form back_url="/workflow/labels/" %}
+{% endblock %}

@@ -20,7 +20,10 @@
     <a href="{% url 'accounts:user_list' %}">{% trans "Usuarios" %}</a>
     <a href="{% url 'core:help' %}" title="{% trans 'Ayuda' %}">{% trans "Ayuda" %}</a>
     {% include "_notif_badge.html" %}
-    {% if user.is_superuser %}<a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>{% endif %}
+    {% if user.is_superuser %}
+      <a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>
+      <a href="{% url 'workflow:overview' %}" title="{% trans 'Workflow editor' %}">{% trans "Workflow" %}</a>
+    {% endif %}
   </nav>
   <div class="spacer"></div>
   <form class="search" method="get" action="{% url 'search:search' %}" autocomplete="off"

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Transiciones de" %} {{ status.name }}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px;">
+  <h1 style="margin-top:0;">{% trans "Transiciones desde" %} «{{ status.name }}»</h1>
+  <p style="color:var(--ink-500);">
+    {% trans "Marca los estados a los que se puede pasar desde aquí. Si no marcas ninguno, se permitirá cualquier transición." %}
+  </p>
+  <form method="post">
+    {% csrf_token %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px;">
+      {% for s in all_statuses %}
+      <label style="display:flex; gap:8px; align-items:center; padding:8px; border:1px solid var(--ink-100); border-radius:6px; cursor:pointer;">
+        <input type="checkbox" name="allowed_next" value="{{ s.pk }}"
+               {% if s.pk in current_ids %}checked{% endif %} style="width:auto;">
+        <span class="badge {{ s.category }}">{{ s.name }}</span>
+      </label>
+      {% endfor %}
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn" type="submit">{% trans "Guardar" %}</button>
+      <a class="btn ghost" href="{% url 'workflow:status_list' %}">{% trans "Cancelar" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

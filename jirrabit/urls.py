@@ -11,5 +11,6 @@ urlpatterns = [
     path("issues/", include("issues.urls", namespace="issues")),
     path("board/", include("board.urls", namespace="board")),
     path("search/", include("search.urls", namespace="search")),
+    path("workflow/", include("issues.workflow_urls", namespace="workflow")),
     path("", include("core.urls", namespace="core")),
 ]

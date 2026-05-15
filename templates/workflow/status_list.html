@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Estados" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Estados" %}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'workflow:status_create' %}">+ {% trans "Nuevo estado" %}</a>
+  </div>
+  {% include "workflow/_nav.html" with active="statuses" %}
+
+  <form method="post" action="{% url 'workflow:status_reorder' %}" id="status-reorder">
+    {% csrf_token %}
+    <div class="table-scroll" style="margin-top:14px;">
+    <table>
+      <thead><tr>
+        <th></th>
+        <th>{% trans "Nombre" %}</th>
+        <th>{% trans "Categoría" %}</th>
+        <th>{% trans "Orden" %}</th>
+        <th>{% trans "Transiciones a" %}</th>
+        <th>{% trans "Uso" %}</th>
+        <th></th>
+      </tr></thead>
+      <tbody id="status-rows">
+      {% for s in statuses %}
+        <tr draggable="true" data-pk="{{ s.pk }}" class="status-row">
+          <td style="cursor:grab; color:var(--ink-500); user-select:none;" aria-label="{% trans 'Arrastrar para reordenar' %}">⋮⋮</td>
+          <td><span class="badge {{ s.category }}">{{ s.name }}</span></td>
+          <td>{{ s.get_category_display }}</td>
+          <td class="status-order">{{ s.order }}</td>
+          <td style="font-size:12px;">
+            {% for t in s.allowed_next.all %}<span class="badge {{ t.category }}" style="font-size:10px;">{{ t.name }}</span> {% empty %}<span style="color:var(--ink-500);">{% trans "cualquiera" %}</span>{% endfor %}
+          </td>
+          <td>{{ s.usage_count|default:0 }}</td>
+          <td>
+            <a class="btn ghost small" href="{% url 'workflow:status_transitions' s.pk %}">{% trans "Transiciones" %}</a>
+            <a class="btn ghost small" href="{% url 'workflow:status_edit' s.pk %}">{% trans "Editar" %}</a>
+            <form method="post" action="{% url 'workflow:status_delete' s.pk %}" style="display:inline;"
+                  hx-confirm="{% trans '¿Borrar estado?' %} «{{ s.name }}»">
+              {% csrf_token %}
+              <button class="btn danger small" type="submit"
+                      {% if s.usage_count %}disabled title="{% trans 'En uso' %}"{% endif %}>{% trans "Borrar" %}</button>
+            </form>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="7" class="empty">{% trans "Sin estados. Crea el primero." %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <input type="hidden" name="order" id="reorder-payload" value="">
+    <button class="btn small" type="submit" id="reorder-save" style="display:none; margin-top:8px;">
+      {% trans "Guardar nuevo orden" %}
+    </button>
+  </form>
+</div>
+
+<script>
+(function () {
+  const tbody = document.getElementById("status-rows");
+  if (!tbody) return;
+  let dragged = null;
+  tbody.addEventListener("dragstart", (e) => {
+    const row = e.target.closest(".status-row");
+    if (!row) return;
+    dragged = row;
+    row.style.opacity = ".4";
+  });
+  tbody.addEventListener("dragend", () => {
+    if (dragged) dragged.style.opacity = "";
+    dragged = null;
+    syncOrderPayload();
+  });
+  tbody.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const target = e.target.closest(".status-row");
+    if (!target || target === dragged) return;
+    const rect = target.getBoundingClientRect();
+    const after = (e.clientY - rect.top) > rect.height / 2;
+    tbody.insertBefore(dragged, after ? target.nextSibling : target);
+  });
+  function syncOrderPayload() {
+    const ids = [...tbody.querySelectorAll(".status-row")].map(r => r.dataset.pk);
+    document.getElementById("reorder-payload").value = ids.join(",");
+    document.getElementById("reorder-save").style.display = "inline-block";
+  }
+  // The hidden input is a CSV; the view accepts ``order[]=pk`` too but
+  // here we replace it with one row per pk on submit.
+  document.getElementById("status-reorder").addEventListener("submit", function (e) {
+    const csv = document.getElementById("reorder-payload").value;
+    if (!csv) return;
+    const ids = csv.split(",");
+    // Strip the CSV input; append one hidden ``order`` input per pk.
+    document.getElementById("reorder-payload").remove();
+    for (const pk of ids) {
+      const inp = document.createElement("input");
+      inp.type = "hidden"; inp.name = "order"; inp.value = pk;
+      this.appendChild(inp);
+    }
+  });
+})();
+</script>
+{% endblock %}

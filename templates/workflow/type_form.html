@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% if object %}{% trans "Editar tipo" %}{% else %}{% trans "Nuevo tipo" %}{% endif %}{% endblock %}
+{% block content %}
+{% include "workflow/_form.html" with title=_("Tipo de tarea") form=form back_url="/workflow/types/" %}
+{% endblock %}

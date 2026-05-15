@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Matriz de transiciones" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 8px;">{% trans "Matriz de transiciones" %}</h1>
+  <p style="color:var(--ink-500); margin:0 0 14px;">
+    {% blocktrans %}
+    Filas = estado origen, columnas = estado destino. Marca la celda para permitir la transición.
+    Una fila completamente vacía significa "cualquier transición permitida".
+    {% endblocktrans %}
+  </p>
+  {% include "workflow/_nav.html" with active="matrix" %}
+
+  <form method="post" style="margin-top:14px;">
+    {% csrf_token %}
+    <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th style="position:sticky; left:0; background:white;">{% trans "Desde \\ A" %}</th>
+          {% for t in statuses %}
+            <th title="{{ t.name }}"><span class="badge {{ t.category }}" style="font-size:10px;">{{ t.name }}</span></th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for src in statuses %}
+        <tr>
+          <th style="position:sticky; left:0; background:white;">
+            <span class="badge {{ src.category }}">{{ src.name }}</span>
+          </th>
+          {% for tgt in statuses %}
+            <td style="text-align:center;">
+              {% if src.pk == tgt.pk %}
+                <span style="color:var(--ink-300);">—</span>
+              {% else %}
+                <input type="checkbox" name="allowed_{{ src.pk }}" value="{{ tgt.pk }}"
+                       style="width:auto;">
+              {% endif %}
+            </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <button class="btn" type="submit" style="margin-top:14px;">{% trans "Guardar matriz" %}</button>
+    <a class="btn ghost" href="{% url 'workflow:overview' %}">{% trans "Cancelar" %}</a>
+  </form>
+</div>
+
+<script>
+// Pre-tick the cells based on JSON map served inline.
+(function() {
+  const allowed = {{ allowed_json|safe|default:"null" }};
+  if (!allowed) return;
+  for (const src in allowed) {
+    const targets = new Set(allowed[src]);
+    document.querySelectorAll(`input[name="allowed_${src}"]`).forEach(cb => {
+      if (targets.has(parseInt(cb.value))) cb.checked = true;
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -209,3 +209,82 @@ class APITests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.summary, "via API")
+
+
+class WorkflowEditorTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.admin = User.objects.create_superuser(
+            username="root", password="pw", email="root@x.com",
+        )
+        self.regular = _make_user("alice")
+        self.c_admin = Client()
+        self.c_admin.login(username="root", password="pw")
+        self.c_user = Client()
+        self.c_user.login(username="alice", password="pw")
+
+    def test_non_superuser_denied(self):
+        r = self.c_user.get(reverse("workflow:overview"))
+        self.assertEqual(r.status_code, 403)
+
+    def test_overview_renders(self):
+        r = self.c_admin.get(reverse("workflow:overview"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Workflow editor")
+
+    def test_status_list_renders(self):
+        r = self.c_admin.get(reverse("workflow:status_list"))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "To Do")
+
+    def test_status_create(self):
+        r = self.c_admin.post(
+            reverse("workflow:status_create"),
+            data={"name": "Review", "category": "in_progress", "order": "25"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Status.objects.filter(name="Review").exists())
+
+    def test_status_delete_in_use_blocked(self):
+        s = Status.objects.get(name="To Do")
+        Issue.objects.create(
+            project=_make_project(_make_user("bob", is_superuser=False)),
+            reporter=self.admin, summary="x", status=s,
+            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+        )
+        r = self.c_admin.post(reverse("workflow:status_delete", args=[s.pk]))
+        self.assertEqual(r.status_code, 302)
+        # Still exists because PROTECT FK fired.
+        self.assertTrue(Status.objects.filter(pk=s.pk).exists())
+
+    def test_status_transitions_save(self):
+        a = Status.objects.get(name="To Do")
+        b = Status.objects.get(name="In Progress")
+        r = self.c_admin.post(
+            reverse("workflow:status_transitions", args=[a.pk]),
+            data={"allowed_next": [str(b.pk)]},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertIn(b, list(a.allowed_next.all()))
+
+    def test_priority_create(self):
+        r = self.c_admin.post(
+            reverse("workflow:priority_create"),
+            data={"name": "Critical", "weight": "50", "color": "#dc2626"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Priority.objects.filter(name="Critical").exists())
+
+    def test_status_reorder(self):
+        s1 = Status.objects.get(name="To Do")
+        s2 = Status.objects.get(name="In Progress")
+        s3 = Status.objects.get(name="Done")
+        r = self.c_admin.post(
+            reverse("workflow:status_reorder"),
+            data={"order": [str(s3.pk), str(s1.pk), str(s2.pk)]},
+        )
+        self.assertEqual(r.status_code, 302)
+        s1.refresh_from_db(); s2.refresh_from_db(); s3.refresh_from_db()
+        self.assertEqual(s3.order, 0)
+        self.assertEqual(s1.order, 1)
+        self.assertEqual(s2.order, 2)

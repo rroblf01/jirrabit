@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% if object %}{% trans "Editar prioridad" %}{% else %}{% trans "Nueva prioridad" %}{% endif %}{% endblock %}
+{% block content %}
+{% include "workflow/_form.html" with title=_("Prioridad") form=form back_url="/workflow/priorities/" %}
+{% endblock %}

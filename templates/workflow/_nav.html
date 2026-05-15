@@ -1,0 +1,9 @@
+{% load i18n %}
+<nav class="tabs">
+  <a href="{% url 'workflow:overview' %}" {% if active == 'overview' %}class="active"{% endif %}>{% trans "Resumen" %}</a>
+  <a href="{% url 'workflow:status_list' %}" {% if active == 'statuses' %}class="active"{% endif %}>{% trans "Estados" %}</a>
+  <a href="{% url 'workflow:matrix' %}" {% if active == 'matrix' %}class="active"{% endif %}>{% trans "Transiciones" %}</a>
+  <a href="{% url 'workflow:priority_list' %}" {% if active == 'priorities' %}class="active"{% endif %}>{% trans "Prioridades" %}</a>
+  <a href="{% url 'workflow:type_list' %}" {% if active == 'types' %}class="active"{% endif %}>{% trans "Tipos" %}</a>
+  <a href="{% url 'workflow:label_list' %}" {% if active == 'labels' %}class="active"{% endif %}>{% trans "Etiquetas" %}</a>
+</nav>

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Prioridades" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Prioridades" %}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'workflow:priority_create' %}">+ {% trans "Nueva prioridad" %}</a>
+  </div>
+  {% include "workflow/_nav.html" with active="priorities" %}
+
+  <div class="table-scroll" style="margin-top:14px;">
+  <table>
+    <thead><tr>
+      <th></th>
+      <th>{% trans "Nombre" %}</th>
+      <th>{% trans "Peso" %}</th>
+      <th>{% trans "Color" %}</th>
+      <th>{% trans "Uso" %}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for p in priorities %}
+      <tr>
+        <td><span class="priority-dot" style="background:{{ p.color }}"></span></td>
+        <td>{{ p.name }}</td>
+        <td>{{ p.weight }}</td>
+        <td><code>{{ p.color }}</code></td>
+        <td>{{ p.usage_count|default:0 }}</td>
+        <td>
+          <a class="btn ghost small" href="{% url 'workflow:priority_edit' p.pk %}">{% trans "Editar" %}</a>
+          <form method="post" action="{% url 'workflow:priority_delete' p.pk %}" style="display:inline;"
+                hx-confirm="{% trans '¿Borrar prioridad?' %} «{{ p.name }}»">
+            {% csrf_token %}
+            <button class="btn danger small" type="submit"
+                    {% if p.usage_count %}disabled title="{% trans 'En uso' %}"{% endif %}>{% trans "Borrar" %}</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="empty">{% trans "Sin prioridades. Crea la primera." %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

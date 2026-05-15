@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Etiquetas" %}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Etiquetas" %}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'workflow:label_create' %}">+ {% trans "Nueva etiqueta" %}</a>
+  </div>
+  {% include "workflow/_nav.html" with active="labels" %}
+
+  <div class="table-scroll" style="margin-top:14px;">
+  <table>
+    <thead><tr>
+      <th>{% trans "Nombre" %}</th>
+      <th>{% trans "Color" %}</th>
+      <th>{% trans "Uso" %}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>
+    {% for l in labels %}
+      <tr>
+        <td><span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span></td>
+        <td><code>{{ l.color }}</code></td>
+        <td>{{ l.usage_count|default:0 }}</td>
+        <td>
+          <a class="btn ghost small" href="{% url 'workflow:label_edit' l.pk %}">{% trans "Editar" %}</a>
+          <form method="post" action="{% url 'workflow:label_delete' l.pk %}" style="display:inline;"
+                hx-confirm="{% trans '¿Borrar etiqueta? Se desasignará de las tareas que la tengan.' %}">
+            {% csrf_token %}
+            <button class="btn danger small" type="submit">{% trans "Borrar" %}</button>
+          </form>
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="4" class="empty">{% trans "Sin etiquetas. Crea la primera." %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}
