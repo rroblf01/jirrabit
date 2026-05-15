@@ -1,5 +1,5 @@
 {% load i18n %}
-<div class="card-issue" data-key="{{ issue.key }}" style="border-left-color:{{ issue.priority.color }};">
+<div class="card-issue" id="card-{{ issue.key }}" data-key="{{ issue.key }}" style="border-left-color:{{ issue.priority.color }};">
   <div style="display:flex; gap:6px; align-items:flex-start;">
     <input type="checkbox" class="card-select" value="{{ issue.key }}" onclick="event.stopPropagation()">
     <div style="flex:1;">
@@ -16,7 +16,8 @@
         <span><span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span></span>
         <span>
           <form hx-post="{% url 'issues:advance_status' issue.key %}"
-                hx-target="closest .card-issue" hx-swap="outerHTML"
+                hx-target="closest .card-issue" hx-swap="delete"
+                hx-headers='{"X-Source": "board"}'
                 style="display:inline;" onclick="event.stopPropagation()">
             {% csrf_token %}
             <button class="btn ghost small" type="submit"

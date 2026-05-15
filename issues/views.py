@@ -540,6 +540,10 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
         if not ok:
             return HttpResponseBadRequest("transición no permitida")
         if request.htmx:
+            if request.headers.get("X-Source") == "board":
+                return await arender(
+                    request, "board/_card_advance.html", {"issue": issue},
+                )
             statuses = [s async for s in Status.objects.all()]
             return await arender(
                 request, "issues/_status_badge.html",

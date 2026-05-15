@@ -5,6 +5,7 @@ variables defined in [static/css/jirrabit.css](../static/css/jirrabit.css).
 Only the keys listed in a palette override the defaults, so adding a new
 palette is just a matter of supplying the swatch.
 """
+
 from django.utils.translation import gettext_lazy as _
 
 # (slug, label, swatch) — swatch is the dominant accent color, used to
@@ -104,19 +105,21 @@ PALETTES: dict[str, dict[str, str]] = {
         "--ink-700": "#000000",
         "--ink-900": "#000000",
     },
-    # Dark mode: flips the ink palette and overrides the body gradient
-    # plus card backgrounds (handled by base.html via extra rules).
+    # Dark mode: muted slate surfaces + indigo accent. The extras block
+    # below overrides individual components (topbar, buttons, chips) where
+    # the default light-theme variable mapping would produce glaring
+    # pale-blue surfaces on a dark body.
     "midnight": {
         "--blue-50": "#1e293b",
-        "--blue-100": "#1e3a8a",
-        "--blue-200": "#1e40af",
-        "--blue-300": "#2563eb",
-        "--blue-400": "#3b82f6",
-        "--blue-500": "#60a5fa",
-        "--blue-600": "#93c5fd",
-        "--blue-700": "#bfdbfe",
-        "--blue-800": "#dbeafe",
-        "--blue-900": "#eff6ff",
+        "--blue-100": "#334155",
+        "--blue-200": "#475569",
+        "--blue-300": "#64748b",
+        "--blue-400": "#94a3b8",
+        "--blue-500": "#a5b4fc",
+        "--blue-600": "#6366f1",
+        "--blue-700": "#818cf8",
+        "--blue-800": "#c7d2fe",
+        "--blue-900": "#e0e7ff",
         "--ink-50": "#0f172a",
         "--ink-100": "#1e293b",
         "--ink-300": "#475569",
@@ -147,8 +150,27 @@ PALETTE_EXTRAS: dict[str, str] = {
         .kanban .column { background: #0f172a !important; }
         input, textarea, select { background: #1e293b !important; color: #f1f5f9; border-color: #334155; }
         th, td { color: #cbd5e1; border-color: #334155; }
-        tr:hover td { background: #1e3a8a !important; }
+        tr:hover td { background: #1e293b !important; }
         .comment .body, .issue-detail .sidebar-info { background: #0f172a !important; }
+
+        /* Topbar: dark slate instead of pale blue. */
+        .topbar { background: #1e293b !important; border-bottom: 1px solid #334155; }
+        .topbar a { color: #e2e8f0 !important; }
+        .topbar .search input { background: #0f172a !important; color: #f1f5f9; border-color: #334155; }
+        .topbar .search input::placeholder { color: #94a3b8 !important; }
+        .brand span { color: #a5b4fc !important; }
+        .user-chip { background: #334155 !important; color: #f1f5f9 !important; }
+
+        /* Buttons & active chips: muted indigo, not glaring sky blue. */
+        .btn { background: #4f46e5 !important; color: #ffffff !important; }
+        .btn:hover { background: #4338ca !important; }
+        .btn.ghost { background: transparent !important; color: #a5b4fc !important; border-color: #334155 !important; }
+        .btn.ghost:hover { background: #1e293b !important; }
+        .chip { background: #334155 !important; color: #e2e8f0 !important; border-color: #334155 !important; }
+        .chip:hover { background: #475569 !important; border-color: #475569 !important; }
+        .chip.active { background: #4f46e5 !important; color: #ffffff !important; border-color: #4f46e5 !important; }
+        .badge.priority { background: #4f46e5 !important; color: #ffffff !important; }
+        .tabs a.active { border-bottom-color: #818cf8 !important; }
     """,
 }
 

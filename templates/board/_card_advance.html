@@ -1,0 +1,4 @@
+{% load i18n %}
+<div hx-swap-oob="beforeend:#col-{{ issue.status.pk }}">
+  {% include "board/_card.html" with issue=issue %}
+</div>

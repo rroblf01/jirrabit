@@ -114,7 +114,8 @@ a:hover { text-decoration: underline; }
 .btn.danger { background: var(--red); }
 .btn.small { padding: 4px 10px; font-size: 12px; }
 
-input, textarea, select {
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+textarea, select {
   font: inherit;
   padding: 8px 10px;
   border: 1px solid var(--ink-300);
@@ -122,10 +123,16 @@ input, textarea, select {
   background: white;
   width: 100%;
 }
-input:focus, textarea:focus, select:focus {
+input:not([type="checkbox"]):not([type="radio"]):focus,
+textarea:focus, select:focus {
   outline: none;
   border-color: var(--blue-500);
   box-shadow: 0 0 0 3px var(--blue-100);
+}
+input[type="checkbox"], input[type="radio"] {
+  width: auto;
+  margin: 0;
+  flex: 0 0 auto;
 }
 
 .form-row { margin-bottom: 14px; }
