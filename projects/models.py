@@ -182,6 +182,10 @@ class Sprint(models.Model):
     status = models.CharField(max_length=10, choices=STATUS, default="future")
     started_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
+    retro_notes = models.TextField(
+        blank=True, default="",
+        help_text=_("Notas de retrospectiva: qué fue bien, qué mejorar."),
+    )
 
     class Meta:
         ordering = ("-start_date", "-id")
@@ -204,7 +208,13 @@ class Sprint(models.Model):
         self.closed_at = timezone.now()
         self.save()
 
-    async def aclose(self):
+    async def aclose(self, carry_to=None):
+        """Close the sprint. If ``carry_to`` is given, move incomplete (non-done)
+        issues to that sprint; otherwise send them back to backlog."""
+        from issues.models import Issue
         self.status = "closed"
         self.closed_at = timezone.now()
         await self.asave()
+        incomplete = Issue.objects.filter(sprint=self).exclude(status__category="done")
+        new_sprint_id = carry_to.pk if carry_to is not None else None
+        await incomplete.aupdate(sprint_id=new_sprint_id)

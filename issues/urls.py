@@ -7,6 +7,7 @@ app_name = "issues"
 urlpatterns = [
     path("projects/<str:key>/new/", views.IssueCreateView.as_view(), name="create"),
     path("projects/<str:key>/list/", views.IssueListView.as_view(), name="list"),
+    path("projects/<str:key>/export.csv", views.IssueCsvExportView.as_view(), name="export_csv"),
     path("<str:key>/", views.IssueDetailView.as_view(), name="detail"),
     path("<str:key>/edit/", views.IssueUpdateView.as_view(), name="edit"),
     path("<str:key>/status/", views.ChangeStatusView.as_view(), name="change_status"),

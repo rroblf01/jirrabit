@@ -1,0 +1,18 @@
+{% load i18n %}
+{% if items %}
+<ul class="typeahead-list" role="listbox">
+  {% for i in items %}
+    <li role="option">
+      <a href="{{ i.get_absolute_url }}">
+        <strong>{{ i.key }}</strong>
+        <span class="badge {{ i.status.category }}" style="font-size:9px;">{{ i.status.name }}</span>
+        <span style="color:var(--ink-700);">{{ i.summary|truncatechars:60 }}</span>
+      </a>
+    </li>
+  {% endfor %}
+</ul>
+{% elif q %}
+<ul class="typeahead-list">
+  <li class="empty" style="font-size:12px; padding:8px 10px;">{% trans "Sin coincidencias para" %} "{{ q }}".</li>
+</ul>
+{% endif %}

@@ -79,7 +79,9 @@ class BoardView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["types"] = [t async for t in IssueType.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
         ctx["epics"] = [e async for e in project.epics.filter(done=False)]
-        ctx["members"] = [m async for m in project.members.all()]
+        ctx["members"] = [m async for m in project.members.defer("avatar").all()]
+        from issues.models import Label
+        ctx["labels"] = [lab async for lab in Label.objects.all().order_by("name")]
         return ctx
 
 
@@ -116,11 +118,15 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
 
     Form fields:
       - ``keys[]``: list of issue keys
-      - ``action``: ``status``/``assignee``/``sprint``/``priority``/``delete``
-      - ``value``: target id (or empty for delete)
+      - ``action``: status|assignee|sprint|priority|epic|label_add|label_remove|delete
+      - ``value``: target id (or empty)
     """
 
     async def post(self, request, key):
+        from issues.models import Label
+        from projects.models import Epic, Sprint
+        from issues.models import Priority, Status
+
         project = await _aget_project(key)
         await aassert_can_edit(request.user, project)
         keys = request.POST.getlist("keys")
@@ -132,13 +138,43 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
         if action == "delete":
             await qs.adelete()
         elif action == "status":
+            if not await Status.objects.filter(pk=value).aexists():
+                return HttpResponseBadRequest("status inválido")
             await qs.aupdate(status_id=int(value))
         elif action == "assignee":
+            if value:
+                from accounts.models import User
+                from django.db.models import Q as _Q
+                ok = await User.objects.filter(pk=value).filter(
+                    _Q(memberships__project=project) | _Q(led_projects=project)
+                ).aexists()
+                if not ok:
+                    return HttpResponseBadRequest("usuario no en proyecto")
             await qs.aupdate(assignee_id=int(value) if value else None)
         elif action == "sprint":
+            if value and not await Sprint.objects.filter(pk=value, project=project).aexists():
+                return HttpResponseBadRequest("sprint no en proyecto")
             await qs.aupdate(sprint_id=int(value) if value else None)
         elif action == "priority":
+            if not await Priority.objects.filter(pk=value).aexists():
+                return HttpResponseBadRequest("priority inválido")
             await qs.aupdate(priority_id=int(value))
+        elif action == "epic":
+            if value and not await Epic.objects.filter(pk=value, project=project).aexists():
+                return HttpResponseBadRequest("epic no en proyecto")
+            await qs.aupdate(epic_id=int(value) if value else None)
+        elif action == "label_add":
+            if not value or not await Label.objects.filter(pk=value).aexists():
+                return HttpResponseBadRequest("label inválido")
+            label_id = int(value)
+            async for issue in qs:
+                await issue.labels.aadd(label_id)
+        elif action == "label_remove":
+            if not value or not await Label.objects.filter(pk=value).aexists():
+                return HttpResponseBadRequest("label inválido")
+            label_id = int(value)
+            async for issue in qs:
+                await issue.labels.aremove(label_id)
         else:
             return HttpResponseBadRequest("action desconocida")
         return HttpResponse(status=204, headers={"HX-Redirect": f"/board/{project.key}/"})

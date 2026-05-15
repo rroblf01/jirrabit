@@ -22,7 +22,7 @@ from ninja import ModelSchema, NinjaAPI, Schema
 from ninja.security import HttpBearer, django_auth
 
 from accounts.models import APIKey, User
-from issues.models import Comment, Issue, IssueType, Priority, Status
+from issues.models import Comment, Issue, IssueType, Priority, Status, WorkLog
 from projects.models import Project, Sprint
 
 
@@ -136,7 +136,42 @@ class ProjectOut(ModelSchema):
 class SprintOut(ModelSchema):
     class Meta:
         model = Sprint
-        fields = ["id", "name", "goal", "status", "start_date", "end_date"]
+        fields = ["id", "name", "goal", "status", "start_date", "end_date", "retro_notes"]
+
+
+class SprintIn(Schema):
+    name: Optional[str] = None
+    goal: Optional[str] = None
+    start_date: Optional[_date] = None
+    end_date: Optional[_date] = None
+    retro_notes: Optional[str] = None
+
+
+class ProjectIn(Schema):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    archived: Optional[bool] = None
+
+
+class WorkLogOut(Schema):
+    id: int
+    issue: str
+    author: str
+    minutes: int
+    comment: str
+    logged_at: str
+
+    @staticmethod
+    def from_log(w: WorkLog) -> "WorkLogOut":
+        return WorkLogOut(
+            id=w.pk, issue=w.issue.key, author=str(w.author),
+            minutes=w.minutes, comment=w.comment, logged_at=w.logged_at.isoformat(),
+        )
+
+
+class WorkLogIn(Schema):
+    minutes: int
+    comment: str = ""
 
 
 class IssueOut(Schema):
@@ -362,3 +397,116 @@ def add_comment(request, key: str, payload: CommentIn):
 @api.get("/me/", response=UserOut)
 def me(request):
     return request.user
+
+
+# --- project mgmt ---
+
+_PROJECT_PATCHABLE = {"name", "description", "archived"}
+
+
+def _assert_project_admin(request, project: Project) -> None:
+    """Raise ninja HttpError(403) if the user isn't admin/lead on the project."""
+    from ninja.errors import HttpError
+    if request.user.is_superuser or project.lead_id == request.user.pk:
+        return
+    from projects.models import ProjectMembership
+    is_admin = ProjectMembership.objects.filter(
+        project=project, user=request.user, role="admin",
+    ).exists()
+    if not is_admin:
+        raise HttpError(403, "Requiere rol admin en el proyecto")
+
+
+@api.patch("/projects/{key}/", response=ProjectOut)
+def patch_project(request, key: str, payload: ProjectIn):
+    project = _visible_project(request, key)
+    _assert_project_admin(request, project)
+    data = payload.dict(exclude_unset=True)
+    for field, value in data.items():
+        if field in _PROJECT_PATCHABLE:
+            setattr(project, field, value)
+    project.save()
+    return project
+
+
+@api.delete("/projects/{key}/")
+def delete_project(request, key: str):
+    project = _visible_project(request, key)
+    _assert_project_admin(request, project)
+    project.delete()
+    return {"deleted": key}
+
+
+# --- sprint mgmt ---
+
+@api.get("/sprints/{sprint_id}/", response=SprintOut)
+def get_sprint(request, sprint_id: int):
+    from django.http import Http404
+    visible = Project.objects.filter_visible(request.user)
+    try:
+        return Sprint.objects.select_related("project").get(
+            pk=sprint_id, project__in=visible,
+        )
+    except Sprint.DoesNotExist as exc:
+        raise Http404 from exc
+
+
+@api.patch("/sprints/{sprint_id}/", response=SprintOut)
+def patch_sprint(request, sprint_id: int, payload: SprintIn):
+    from django.http import Http404
+    try:
+        sprint = Sprint.objects.select_related("project").get(pk=sprint_id)
+    except Sprint.DoesNotExist as exc:
+        raise Http404 from exc
+    if not Project.objects.filter_visible(request.user).filter(pk=sprint.project_id).exists():
+        raise Http404
+    _assert_project_admin(request, sprint.project)
+    for field, value in payload.dict(exclude_unset=True).items():
+        setattr(sprint, field, value)
+    sprint.save()
+    return sprint
+
+
+@api.delete("/sprints/{sprint_id}/")
+def delete_sprint(request, sprint_id: int):
+    from django.http import Http404
+    try:
+        sprint = Sprint.objects.select_related("project").get(pk=sprint_id)
+    except Sprint.DoesNotExist as exc:
+        raise Http404 from exc
+    _assert_project_admin(request, sprint.project)
+    sprint.delete()
+    return {"deleted": sprint_id}
+
+
+# --- worklogs ---
+
+@api.get("/issues/{key}/worklogs/", response=Page[WorkLogOut])
+def list_worklogs(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+    issue = _visible_issue(request, key)
+    qs = issue.worklogs.select_related("author").order_by("-logged_at")
+    return paginate(qs, WorkLogOut.from_log, page, size)
+
+
+@api.post("/issues/{key}/worklogs/", response=WorkLogOut)
+def add_worklog(request, key: str, payload: WorkLogIn):
+    from ninja.errors import HttpError
+    issue = _visible_issue(request, key)
+    if payload.minutes <= 0:
+        raise HttpError(400, "minutes debe ser > 0")
+    from django.db import transaction
+    with transaction.atomic():
+        locked = Issue.objects.select_for_update().get(pk=issue.pk)
+        log = WorkLog.objects.create(
+            issue=locked, author=request.user,
+            minutes=payload.minutes, comment=payload.comment[:255],
+        )
+        locked.time_spent_minutes = (locked.time_spent_minutes or 0) + payload.minutes
+        if locked.time_remaining_minutes:
+            locked.time_remaining_minutes = max(
+                0, locked.time_remaining_minutes - payload.minutes,
+            )
+        locked.save(update_fields=[
+            "time_spent_minutes", "time_remaining_minutes", "updated_at",
+        ])
+    return WorkLogOut.from_log(log)

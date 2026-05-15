@@ -1,0 +1,27 @@
+{% load i18n %}<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE|default:'es' }}">
+<head>
+  <meta charset="utf-8">
+  <title>500 — {% trans "Error del servidor" %}</title>
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color:#0f172a;
+           background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%); margin:0;
+           min-height:100vh; display:flex; align-items:center; justify-content:center; }
+    .box { background:white; padding:40px 32px; border-radius:10px; max-width:480px;
+           box-shadow:0 8px 24px rgba(15,23,42,.06); text-align:center; }
+    h1 { font-size:64px; margin:0; color:#dc2626; }
+    a.btn { display:inline-block; padding:8px 14px; border-radius:8px; background:#2563eb;
+            color:white; text-decoration:none; font-weight:500; margin-top:14px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>500</h1>
+    <h2>{% trans "Algo se rompió en el servidor" %}</h2>
+    <p style="color:#64748b;">
+      {% trans "Hemos registrado el error. Vuelve a intentarlo en un momento." %}
+    </p>
+    <a class="btn" href="/">{% trans "Ir a inicio" %}</a>
+  </div>
+</body>
+</html>

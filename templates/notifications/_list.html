@@ -19,6 +19,11 @@
     {% endif %}
   </div>
 {% empty %}
-  <div class="empty">{% trans "Bandeja vacía." %}</div>
+  <div class="empty" style="padding:32px 12px;">
+    <p style="margin:0 0 6px;">{% trans "Bandeja vacía." %}</p>
+    <p style="font-size:12px; margin:0;">
+      {% trans "Recibirás avisos cuando te asignen tareas, te mencionen con @ o comenten en tareas que sigues." %}
+    </p>
+  </div>
 {% endfor %}
 </div>

@@ -5,6 +5,14 @@ from django.utils.translation import gettext_lazy as _
 
 
 class User(AbstractUser):
+    NOTIFY_KINDS = (
+        ("assigned", _("Asignaciones")),
+        ("mention", _("Menciones @")),
+        ("comment", _("Comentarios")),
+        ("status", _("Cambios de estado")),
+        ("watch", _("Cambios en seguidos")),
+    )
+
     display_name = models.CharField(max_length=120, blank=True)
     avatar = models.TextField(
         blank=True,
@@ -17,6 +25,16 @@ class User(AbstractUser):
         max_length=20,
         default="blue",
         help_text=_("Paleta de colores aplicada al renderizar la UI."),
+    )
+    notify_email = models.BooleanField(
+        default=True,
+        help_text=_("Recibir correos. Si está desactivado, sólo verás avisos en la app."),
+    )
+    muted_kinds = models.CharField(
+        max_length=120,
+        blank=True,
+        default="",
+        help_text=_("Tipos de notificación silenciados (separados por comas)."),
     )
 
     def __str__(self):

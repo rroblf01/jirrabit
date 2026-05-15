@@ -11,6 +11,26 @@ from projects.models import SavedFilter
 from .jql import VALID_FIELDS, parse_jql
 
 
+class SearchSuggestView(AsyncLoginRequiredMixin, View):
+    """Lightweight typeahead: top 5 issues by key/summary match, scoped to visible projects."""
+
+    async def get(self, request):
+        from django.db.models import Q
+        from projects.models import Project
+        q = request.GET.get("q", "").strip()
+        if len(q) < 2:
+            return await arender(request, "search/_typeahead.html", {"items": [], "q": q})
+        visible = Project.objects.filter_visible(request.user)
+        qs = (
+            Issue.objects.filter(project__in=visible)
+            .filter(Q(key__icontains=q) | Q(summary__icontains=q))
+            .select_related("status", "project")
+            .order_by("-updated_at")[:6]
+        )
+        items = [i async for i in qs]
+        return await arender(request, "search/_typeahead.html", {"items": items, "q": q})
+
+
 class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
     def get_template_names(self):
         if self.request.htmx:

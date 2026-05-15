@@ -15,6 +15,7 @@ urlpatterns = [
     path("sprints/<int:sprint_id>/close/", views.SprintCloseView.as_view(), name="close_sprint"),
     path("<str:key>/activity/", views.ProjectActivityView.as_view(), name="activity"),
     path("<str:key>/burndown/", views.ProjectBurndownView.as_view(), name="burndown"),
+    path("<str:key>/reports/", views.ProjectReportsView.as_view(), name="reports"),
     path("<str:key>/members/", views.ProjectMembersView.as_view(), name="members"),
     path("<str:key>/members/add/", views.ProjectMembershipAddView.as_view(), name="member_add"),
     path("<str:key>/members/<int:pk>/", views.ProjectMembershipUpdateView.as_view(), name="member_update"),

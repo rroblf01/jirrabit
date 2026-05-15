@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Reportes" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Reportes" %} · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <a class="btn ghost" href="{% url 'projects:burndown' project.key %}">{% trans "Burndown" %}</a>
+    <a class="btn ghost" href="{% url 'projects:activity' project.key %}">{% trans "Actividad" %}</a>
+  </div>
+
+  <h2 style="margin-top:24px;">{% trans "Throughput" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 8px; font-size:13px;">
+    {% trans "Tareas resueltas por semana (últimas 8)." %}
+  </p>
+  <div style="display:flex; gap:8px; align-items:flex-end; height:180px;
+              background:var(--ink-50); border-radius:6px; padding:14px;">
+    {% for t in throughput %}
+    {% widthratio t.count throughput_max 150 as h %}
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:4px;">
+      <div style="font-size:11px; font-weight:600; color:var(--ink-700);">{{ t.count }}</div>
+      <div title="{{ t.week }}: {{ t.count }}"
+           style="width:80%; background:var(--blue-500); border-radius:4px 4px 0 0;
+                  height:{{ h }}px; min-height:2px;"></div>
+      <div style="font-size:10px; color:var(--ink-500);">{{ t.week }}</div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 style="margin-top:24px;">{% trans "Cycle time" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 8px; font-size:13px;">
+    {% trans "Horas entre la primera transición y la resolución, últimos 90 días." %}
+  </p>
+  {% if cycle.count %}
+  <div class="row" style="gap:24px;">
+    <div><strong style="font-size:24px;">{{ cycle.median_h }}h</strong>
+      <div style="color:var(--ink-500); font-size:12px;">{% trans "Mediana" %}</div></div>
+    <div><strong style="font-size:24px;">{{ cycle.avg_h }}h</strong>
+      <div style="color:var(--ink-500); font-size:12px;">{% trans "Media" %}</div></div>
+    <div><strong style="font-size:24px;">{{ cycle.p90_h }}h</strong>
+      <div style="color:var(--ink-500); font-size:12px;">P90</div></div>
+    <div><strong style="font-size:24px;">{{ cycle.count }}</strong>
+      <div style="color:var(--ink-500); font-size:12px;">{% trans "Issues" %}</div></div>
+  </div>
+  {% else %}
+  <p class="empty">{% trans "Sin datos suficientes." %}</p>
+  {% endif %}
+
+  <h2 style="margin-top:24px;">{% trans "WIP por estado" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 8px; font-size:13px;">
+    {% trans "Tareas actualmente en cada estado." %}
+  </p>
+  <table>
+    <thead><tr><th>{% trans "Estado" %}</th><th>{% trans "Tareas" %}</th><th></th></tr></thead>
+    <tbody>
+    {% for w in wip %}
+      <tr>
+        <td><span class="badge {{ w.category }}">{{ w.name }}</span></td>
+        <td><strong>{{ w.count }}</strong></td>
+        <td style="width:60%;">
+          {% widthratio w.count wip_max 100 as pct %}
+          <div style="height:10px; background:var(--ink-100); border-radius:6px; overflow:hidden;">
+            <div style="height:100%; width:{{ pct }}%; background:var(--blue-500);"></div>
+          </div>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

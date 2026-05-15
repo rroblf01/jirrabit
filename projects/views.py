@@ -194,11 +194,118 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
     async def post(self, request, sprint_id):
         sprint = await _aget_sprint(sprint_id)
         await aassert_can_admin(request.user, sprint.project)
-        await sprint.aclose()
+        retro = request.POST.get("retro_notes", "").strip()
+        if retro:
+            sprint.retro_notes = retro
+            await sprint.asave(update_fields=["retro_notes"])
+        carry_id = request.POST.get("carry_to", "").strip()
+        carry = None
+        if carry_id:
+            carry = await Sprint.objects.filter(
+                pk=carry_id, project=sprint.project,
+            ).exclude(status="closed").afirst()
+        await sprint.aclose(carry_to=carry)
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
 
 
 # --- activity feed, burndown, custom fields, webhooks UI, members admin ---
+
+class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """Throughput, cycle time, and WIP-by-status snapshot."""
+
+    template_name = "projects/reports.html"
+
+    async def aget_context_data(self, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+        from issues.models import HistoryEntry, Issue, Status
+
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        from core.permissions import aassert_can_view
+        await aassert_can_view(self.request.user, project)
+        ctx["project"] = project
+
+        # --- Throughput: issues resolved per ISO-week, last 8 weeks.
+        now = timezone.now()
+        weeks_back = 8
+        week_start = (now - timedelta(days=now.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0,
+        )
+        first_week = week_start - timedelta(weeks=weeks_back - 1)
+        resolved = [
+            i async for i in
+            Issue.objects.filter(
+                project=project, resolved_at__gte=first_week,
+            ).only("resolved_at")
+        ]
+        buckets = {first_week + timedelta(weeks=w): 0 for w in range(weeks_back)}
+        for i in resolved:
+            b = (i.resolved_at - timedelta(days=i.resolved_at.weekday())).replace(
+                hour=0, minute=0, second=0, microsecond=0,
+            )
+            if b in buckets:
+                buckets[b] += 1
+        throughput = [
+            {"week": b.strftime("%Y-W%V"), "count": c}
+            for b, c in sorted(buckets.items())
+        ]
+        ctx["throughput"] = throughput
+        ctx["throughput_max"] = max((t["count"] for t in throughput), default=0) or 1
+
+        # --- Cycle time: hours between first in_progress-category transition
+        # and resolved_at, for issues resolved in the last 90 days.
+        cycle_since = now - timedelta(days=90)
+        recent_resolved = [
+            i async for i in
+            Issue.objects.filter(
+                project=project, resolved_at__gte=cycle_since,
+            ).only("id", "key", "resolved_at", "created_at")
+        ]
+        recent_ids = [i.pk for i in recent_resolved]
+        starts = {}
+        if recent_ids:
+            async for h in HistoryEntry.objects.filter(
+                issue_id__in=recent_ids, field="status",
+            ).order_by("issue_id", "created_at").only(
+                "issue_id", "new_value", "created_at",
+            ):
+                if h.issue_id in starts:
+                    continue
+                starts[h.issue_id] = h.created_at
+        durations = []
+        for i in recent_resolved:
+            start = starts.get(i.pk, i.created_at)
+            if i.resolved_at and start and i.resolved_at > start:
+                durations.append((i.resolved_at - start).total_seconds() / 3600.0)
+        if durations:
+            durations.sort()
+            mid = len(durations) // 2
+            median_h = (
+                durations[mid] if len(durations) % 2
+                else (durations[mid - 1] + durations[mid]) / 2
+            )
+            avg_h = sum(durations) / len(durations)
+            p90_h = durations[int(0.9 * (len(durations) - 1))]
+        else:
+            median_h = avg_h = p90_h = 0
+        ctx["cycle"] = {
+            "count": len(durations),
+            "median_h": round(median_h, 1),
+            "avg_h": round(avg_h, 1),
+            "p90_h": round(p90_h, 1),
+        }
+
+        # --- WIP: open issue count per status (snapshot).
+        statuses = [s async for s in Status.objects.order_by("order").all()]
+        wip = []
+        for s in statuses:
+            n = await Issue.objects.filter(project=project, status=s).acount()
+            wip.append({"name": s.name, "category": s.category, "count": n})
+        ctx["wip"] = wip
+        ctx["wip_max"] = max((w["count"] for w in wip), default=0) or 1
+        return ctx
+
 
 class ProjectActivityView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/activity.html"

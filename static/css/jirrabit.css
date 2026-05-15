@@ -200,11 +200,43 @@ img.avatar { display: inline-block; object-fit: cover; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .spacer { flex: 1; }
 
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.table-scroll table { min-width: 640px; }
+
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; padding: 14px; }
   .sidebar { position: static; }
   .issue-detail { grid-template-columns: 1fr; }
-  .topbar .search input { width: 160px; }
+  .topbar { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+  .topbar nav { gap: 8px; font-size: 13px; }
+  .topbar .search input { width: 100%; min-width: 120px; }
+  .topbar .search { flex: 1 1 100%; order: 5; }
+  .kanban { grid-template-columns: 1fr; }
+  table { font-size: 13px; }
+  th, td { padding: 8px 6px; }
+}
+
+@media (max-width: 480px) {
+  .topbar .brand { font-size: 16px; }
+  .user-chip { font-size: 11px; padding: 4px 8px; }
+  .btn { padding: 6px 10px; font-size: 13px; }
+  .card { padding: 14px; }
+}
+
+/* ---------- Print ---------- */
+@media print {
+  body { background: white; color: black; }
+  .topbar, .sidebar, .tabs, form, .btn, #htmx-spinner,
+  #toast-stack, .modal-backdrop, .flash, .notif-link,
+  #bulk-bar { display: none !important; }
+  .layout { display: block; padding: 0; max-width: 100%; }
+  .card { box-shadow: none; border: 1px solid #e2e8f0; page-break-inside: avoid; }
+  .issue-detail { grid-template-columns: 1fr; }
+  a { color: black; text-decoration: none; }
+  a[href]::after { content: " (" attr(href) ")"; font-size: 10px; color: #666; }
+  a[href^="#"]::after, a[href^="javascript:"]::after { content: ""; }
+  .kanban { display: block; }
+  .kanban .column { page-break-inside: avoid; margin-bottom: 14px; background: white; border: 1px solid #e2e8f0; }
 }
 
 /* ---------- UX layer ---------- */
@@ -286,6 +318,15 @@ body.htmx-busy #htmx-spinner { display: block; }
   display: none;
 }
 .notif-link[data-count]:not([data-count="0"]) .notif-badge { display: inline-block; }
+
+/* Topbar typeahead dropdown. */
+.typeahead-wrap { position: absolute; top: 100%; left: 0; right: 0; z-index: 60; }
+.typeahead-list {
+  background: white; color: var(--ink-900); list-style: none; margin: 4px 0 0; padding: 4px 0;
+  border-radius: 6px; box-shadow: var(--shadow); max-height: 320px; overflow: auto;
+}
+.typeahead-list li a { display: flex; gap: 8px; align-items: center; padding: 6px 10px; color: var(--ink-700); }
+.typeahead-list li a:hover, .typeahead-list li a:focus { background: var(--blue-50); text-decoration: none; }
 
 /* Mention autocomplete dropdown anchored to a wrapper. */
 .mention-wrap { position: relative; }

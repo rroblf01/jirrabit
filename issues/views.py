@@ -455,6 +455,69 @@ class IssueLinkDeleteView(AsyncLoginRequiredMixin, View):
         return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
 
 
+class IssueCsvExportView(AsyncLoginRequiredMixin, View):
+    """Stream issues of a project as CSV, honoring the same filters as the list view."""
+
+    COLUMNS = (
+        "key", "summary", "status", "priority", "type",
+        "assignee", "reporter", "sprint", "epic",
+        "story_points", "estimate_minutes", "time_spent_minutes",
+        "due_date", "resolved_at", "created_at", "updated_at",
+    )
+
+    async def get(self, request, key):
+        import csv
+        import io
+
+        project = await _aget_project(key)
+        await aassert_can_view(request.user, project)
+
+        qs = project.issues.select_related(
+            "status", "priority", "issue_type", "assignee", "reporter", "sprint", "epic",
+        ).order_by("key")
+
+        text = request.GET.get("text", "").strip()
+        status_id = request.GET.get("status")
+        assignee = request.GET.get("assignee")
+        if text:
+            from django.db.models import Q
+            qs = qs.filter(Q(summary__icontains=text) | Q(key__icontains=text))
+        if status_id and status_id.isdigit():
+            qs = qs.filter(status_id=int(status_id))
+        if assignee == "me":
+            qs = qs.filter(assignee=request.user)
+        elif assignee and assignee.isdigit():
+            qs = qs.filter(assignee_id=int(assignee))
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(self.COLUMNS)
+        async for i in qs:
+            writer.writerow([
+                i.key,
+                i.summary,
+                str(i.status),
+                str(i.priority),
+                str(i.issue_type),
+                getattr(i.assignee, "username", "") or "",
+                getattr(i.reporter, "username", "") or "",
+                getattr(i.sprint, "name", "") or "",
+                getattr(i.epic, "name", "") or "",
+                i.story_points if i.story_points is not None else "",
+                i.estimate_minutes if i.estimate_minutes is not None else "",
+                i.time_spent_minutes or 0,
+                i.due_date.isoformat() if i.due_date else "",
+                i.resolved_at.isoformat() if i.resolved_at else "",
+                i.created_at.isoformat(),
+                i.updated_at.isoformat(),
+            ])
+        resp = HttpResponse(buf.getvalue(), content_type="text/csv; charset=utf-8")
+        resp["Content-Disposition"] = (
+            f'attachment; filename="{project.key}-issues-{timezone.now():%Y%m%d}.csv"'
+        )
+        return resp
+
+
 class CustomFieldSetView(AsyncLoginRequiredMixin, View):
     """Persist a value into ``Issue.custom_fields[slug]`` (JSON)."""
 

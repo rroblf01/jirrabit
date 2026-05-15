@@ -1,14 +1,18 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <div class="row">
-    <h1 style="margin:0;">{{ project.key }} — Tareas</h1>
+    <h1 style="margin:0;">{{ project.key }} — {% trans "Tareas" %}</h1>
     <div class="spacer"></div>
-    <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
-    <a class="btn ghost" href="{% url 'board:board' project.key %}">Tablero</a>
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Tarea" %}</a>
+    <a class="btn ghost" href="{% url 'board:board' project.key %}">{% trans "Tablero" %}</a>
+    <a class="btn ghost" href="{% url 'issues:export_csv' project.key %}"
+       title="{% trans 'Exportar CSV' %}">⬇ CSV</a>
   </div>
-  <table style="margin-top:14px;">
-    <thead><tr><th>Clave</th><th>Tipo</th><th>Resumen</th><th>Estado</th><th>Prioridad</th><th>Asignado</th></tr></thead>
+  <div class="table-scroll" style="margin-top:14px;">
+  <table>
+    <thead><tr><th>{% trans "Clave" %}</th><th>{% trans "Tipo" %}</th><th>{% trans "Resumen" %}</th><th>{% trans "Estado" %}</th><th>{% trans "Prioridad" %}</th><th>{% trans "Asignado" %}</th></tr></thead>
     <tbody>
     {% for i in issues %}
       <tr>
@@ -17,12 +21,16 @@
         <td>{{ i.summary }}</td>
         <td><span class="badge {{ i.status.category }}">{{ i.status.name }}</span></td>
         <td><span class="priority-dot" style="background:{{ i.priority.color }}"></span>{{ i.priority.name }}</td>
-        <td>{% if i.assignee %}{% include "_avatar.html" with u=i.assignee %} {{ i.assignee }}{% else %}<span style="color:var(--ink-500);">Sin asignar</span>{% endif %}</td>
+        <td>{% if i.assignee %}{% include "_avatar.html" with u=i.assignee %} {{ i.assignee }}{% else %}<span style="color:var(--ink-500);">{% trans "Sin asignar" %}</span>{% endif %}</td>
       </tr>
     {% empty %}
-      <tr><td colspan="6" class="empty">Sin tareas.</td></tr>
+      <tr><td colspan="6" class="empty">
+        <p style="margin:0 0 10px;">{% trans "Aún no hay tareas en este proyecto." %}</p>
+        <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Crear primera tarea" %}</a>
+      </td></tr>
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}

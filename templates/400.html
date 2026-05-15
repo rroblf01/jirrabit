@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}400 — {% trans "Solicitud inválida" %}{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center; padding:40px 20px;">
+  <h1 style="font-size:64px; margin:0; color:var(--orange);">400</h1>
+  <h2 style="margin:10px 0;">{% trans "Solicitud inválida" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 20px;">
+    {% trans "La petición tiene datos malformados." %}
+  </p>
+  <a class="btn" href="{% url 'core:home' %}">{% trans "Ir a inicio" %}</a>
+</div>
+{% endblock %}
+{% block anon %}
+<div style="max-width:480px; margin:60px auto; text-align:center; font-family:sans-serif;">
+  <h1 style="font-size:64px; margin:0; color:#f97316;">400</h1>
+  <h2>{% trans "Solicitud inválida" %}</h2>
+</div>
+{% endblock %}

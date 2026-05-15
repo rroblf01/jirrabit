@@ -23,14 +23,23 @@
     {% if user.is_superuser %}<a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>{% endif %}
   </nav>
   <div class="spacer"></div>
-  <form class="search" method="get" action="{% url 'search:search' %}">
-    <input type="search" name="q" placeholder="{% trans 'JQL-lite o texto...' %}" value="{{ request.GET.q|default:'' }}">
+  <form class="search" method="get" action="{% url 'search:search' %}" autocomplete="off"
+        style="position:relative;">
+    <input type="search" name="q" placeholder="{% trans 'JQL-lite o texto...' %}"
+           value="{{ request.GET.q|default:'' }}"
+           hx-get="{% url 'search:suggest' %}"
+           hx-trigger="keyup changed delay:250ms, focus"
+           hx-target="#topbar-typeahead" hx-swap="innerHTML">
+    <div id="topbar-typeahead" class="typeahead-wrap"></div>
   </form>
   <span class="user-chip">{{ user }}</span>
-  <a href="{% url 'accounts:api_keys' %}" title="{% trans 'API keys' %}">🔑</a>
+  <a href="{% url 'accounts:api_keys' %}" title="{% trans 'API keys' %}"
+     aria-label="{% trans 'API keys' %}"><span aria-hidden="true">🔑</span></a>
   <a href="#" title="{% trans 'Atajos de teclado (?)' %}"
-     onclick="event.preventDefault(); document.dispatchEvent(new KeyboardEvent('keydown', {key: '?'}));">⌨</a>
-  <a href="{% url 'accounts:profile' %}" title="{% trans 'Perfil' %}">⚙</a>
+     aria-label="{% trans 'Atajos de teclado' %}"
+     onclick="event.preventDefault(); document.dispatchEvent(new KeyboardEvent('keydown', {key: '?'}));"><span aria-hidden="true">⌨</span></a>
+  <a href="{% url 'accounts:profile' %}" title="{% trans 'Perfil' %}"
+     aria-label="{% trans 'Perfil' %}"><span aria-hidden="true">⚙</span></a>
   <form method="post" action="{% url 'accounts:logout' %}" style="margin:0">{% csrf_token %}<button class="btn ghost small" style="background:transparent;color:white;border-color:rgba(255,255,255,.3)">{% trans "Salir" %}</button></form>
 </header>
 <div class="layout">

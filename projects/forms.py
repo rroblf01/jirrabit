@@ -26,8 +26,9 @@ class EpicForm(forms.ModelForm):
 class SprintForm(forms.ModelForm):
     class Meta:
         model = Sprint
-        fields = ("name", "goal", "start_date", "end_date")
+        fields = ("name", "goal", "start_date", "end_date", "retro_notes")
         widgets = {
             "start_date": forms.DateInput(attrs={"type": "date"}),
             "end_date": forms.DateInput(attrs={"type": "date"}),
+            "retro_notes": forms.Textarea(attrs={"rows": 4, "data-mentions": "1"}),
         }

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}403 — {% trans "Acceso denegado" %}{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center; padding:40px 20px;">
+  <h1 style="font-size:64px; margin:0; color:var(--red);">403</h1>
+  <h2 style="margin:10px 0;">{% trans "Acceso denegado" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 8px;">
+    {% trans "No tienes permisos para ver o modificar este recurso." %}
+  </p>
+  {% if exception %}<p style="color:var(--ink-500); font-size:13px;">{{ exception }}</p>{% endif %}
+  <div class="row" style="justify-content:center; margin-top:14px;">
+    <a class="btn" href="{% url 'core:home' %}">{% trans "Ir a inicio" %}</a>
+    <a class="btn ghost" href="javascript:history.back()">{% trans "Volver" %}</a>
+  </div>
+</div>
+{% endblock %}
+{% block anon %}
+<div style="max-width:480px; margin:60px auto; text-align:center; font-family:sans-serif;">
+  <h1 style="font-size:64px; margin:0; color:#dc2626;">403</h1>
+  <h2>{% trans "Acceso denegado" %}</h2>
+  <p><a href="{% url 'accounts:login' %}">{% trans "Iniciar sesión" %}</a></p>
+</div>
+{% endblock %}

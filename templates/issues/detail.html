@@ -40,7 +40,12 @@
           {{ comment_form.body }}
           <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
             <button class="btn small" type="submit">{% trans "Comentar" %}</button>
-            <span style="color:var(--ink-500); font-size:12px;">{% trans "Markdown + @menciones" %}</span>
+            <span style="color:var(--ink-500); font-size:12px;">
+              <a href="{% url 'core:help' %}#markdown" target="_blank" rel="noopener">
+                {% trans "Markdown" %}
+              </a>
+              + @{% trans "menciones" %}
+            </span>
           </div>
         </form>
       </section>

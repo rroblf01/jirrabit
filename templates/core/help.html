@@ -96,11 +96,26 @@
     <li><strong>{% trans "Watchers" %}</strong> — {% trans "gente suscrita a los cambios; reciben emails y notificaciones." %}</li>
   </ul>
 
-  <h3>{% trans "Comentarios y menciones" %}</h3>
+  <h3 id="markdown">{% trans "Comentarios, Markdown y menciones" %}</h3>
   <p>{% blocktrans %}
     Cualquier miembro del proyecto puede comentar en un issue. Soporta Markdown y permite mencionar a otros
     usuarios con <code>@usuario</code>; la persona mencionada recibe una notificación.
   {% endblocktrans %}</p>
+  <table style="margin-top:8px;">
+    <thead><tr><th>{% trans "Sintaxis" %}</th><th>{% trans "Resultado" %}</th></tr></thead>
+    <tbody>
+      <tr><td><code>**negrita**</code></td><td><strong>{% trans "negrita" %}</strong></td></tr>
+      <tr><td><code>*cursiva*</code></td><td><em>{% trans "cursiva" %}</em></td></tr>
+      <tr><td><code>`código`</code></td><td><code>{% trans "código" %}</code></td></tr>
+      <tr><td><code># Título</code></td><td>{% trans "Encabezado (1-6 niveles)" %}</td></tr>
+      <tr><td><code>- item</code></td><td>{% trans "Lista" %}</td></tr>
+      <tr><td><code>1. item</code></td><td>{% trans "Lista numerada" %}</td></tr>
+      <tr><td><code>[texto](url)</code></td><td>{% trans "Enlace" %}</td></tr>
+      <tr><td><code>&gt; cita</code></td><td>{% trans "Bloque de cita" %}</td></tr>
+      <tr><td><code>```\ncódigo\n```</code></td><td>{% trans "Bloque de código" %}</td></tr>
+      <tr><td><code>@usuario</code></td><td>{% trans "Mención (autocompleta al escribir)" %}</td></tr>
+    </tbody>
+  </table>
 
   <h3>{% trans "Adjuntos" %}</h3>
   <p>{% blocktrans %}

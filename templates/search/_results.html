@@ -16,7 +16,13 @@
       <td>{{ i.assignee|default:"—" }}</td>
     </tr>
   {% empty %}
-    <tr><td colspan="6" class="empty">{% trans "Sin resultados." %}</td></tr>
+    <tr><td colspan="6" class="empty">
+      <p style="margin:0 0 6px;">{% trans "Sin resultados." %}</p>
+      <p style="font-size:12px; margin:0;">
+        {% trans 'Prueba con texto sin filtros (ej. "login"), o JQL como ' %}
+        <code>project = WEB AND status != "Done"</code>.
+      </p>
+    </td></tr>
   {% endfor %}
   </tbody>
 </table>

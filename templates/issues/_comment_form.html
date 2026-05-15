@@ -3,7 +3,7 @@
   {% csrf_token %}
   {% include "_avatar.html" with u=c.author %}
   <div class="body" style="background:white; border:1px solid var(--blue-200);">
-    <textarea name="body" rows="3" autofocus>{{ c.body }}</textarea>
+    <textarea name="body" rows="3" autofocus data-mentions="1">{{ c.body }}</textarea>
     <div style="margin-top:6px;">
       <button class="btn small" type="submit">Guardar</button>
       <button class="btn ghost small" type="button"

@@ -274,6 +274,16 @@
     });
   }
 
+  // --- Topbar typeahead: close on outside click ---------------------------
+  document.addEventListener("click", (e) => {
+    const wrap = document.getElementById("topbar-typeahead");
+    if (!wrap) return;
+    const form = wrap.closest("form");
+    if (form && !form.contains(e.target)) {
+      wrap.innerHTML = "";
+    }
+  });
+
   // --- Copy to clipboard -------------------------------------------------
   document.body.addEventListener("click", async (e) => {
     const btn = e.target.closest(".copy-btn");

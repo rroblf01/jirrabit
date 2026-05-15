@@ -27,10 +27,19 @@ class ProfileForm(forms.ModelForm):
         help_text=_("PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos."),
     )
     clear_avatar = forms.BooleanField(required=False, label=_("Quitar avatar actual"))
+    muted_kinds_list = forms.MultipleChoiceField(
+        required=False,
+        widget=forms.CheckboxSelectMultiple,
+        label=_("Silenciar notificaciones por tipo"),
+        help_text=_("Los tipos marcados no generan correo (sí avisos en la app)."),
+    )
 
     class Meta:
         model = User
-        fields = ("display_name", "first_name", "last_name", "email", "job_title", "timezone", "palette")
+        fields = (
+            "display_name", "first_name", "last_name", "email",
+            "job_title", "timezone", "palette", "notify_email",
+        )
         widgets = {
             "palette": forms.Select(choices=()),  # populated in __init__
         }
@@ -40,6 +49,27 @@ class ProfileForm(forms.ModelForm):
         from core.palettes import palette_choices_simple
         self.fields["palette"].widget = forms.Select(choices=palette_choices_simple())
         self.fields["palette"].label = _("Paleta de colores")
+        self.fields["notify_email"].label = _("Recibir correos")
+        self.fields["timezone"] = forms.ChoiceField(
+            choices=_timezone_choices(), label=_("Zona horaria"),
+        )
+        self.fields["muted_kinds_list"].choices = User.NOTIFY_KINDS
+        if self.instance and self.instance.pk:
+            current = [m.strip() for m in (self.instance.muted_kinds or "").split(",") if m.strip()]
+            self.initial["muted_kinds_list"] = current
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        selected = self.cleaned_data.get("muted_kinds_list") or []
+        instance.muted_kinds = ",".join(selected)
+        if commit:
+            instance.save()
+        return instance
+
+
+def _timezone_choices():
+    import zoneinfo
+    return [(t, t) for t in sorted(zoneinfo.available_timezones())]
 
     def clean_avatar_file(self):
         f = self.cleaned_data.get("avatar_file")

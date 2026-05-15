@@ -50,6 +50,9 @@
       <option value="assignee">{% trans "Cambiar asignado" %}</option>
       <option value="sprint">{% trans "Cambiar sprint" %}</option>
       <option value="priority">{% trans "Cambiar prioridad" %}</option>
+      <option value="epic">{% trans "Cambiar epic" %}</option>
+      <option value="label_add">{% trans "Añadir etiqueta" %}</option>
+      <option value="label_remove">{% trans "Quitar etiqueta" %}</option>
       <option value="delete">{% trans "Borrar" %}</option>
     </select>
     <span id="bulk-value-wrap" style="display:inline-block; width:200px;"></span>
@@ -62,15 +65,33 @@
 <datalist id="bulk-assignees">{% for m in members %}<option value="{{ m.pk }}">{{ m }}</option>{% endfor %}</datalist>
 <datalist id="bulk-sprints">{% for s in sprints %}<option value="{{ s.pk }}">{{ s.name }}</option>{% endfor %}</datalist>
 <datalist id="bulk-priorities">{% for p in priorities %}<option value="{{ p.pk }}">{{ p.name }}</option>{% endfor %}</datalist>
+<datalist id="bulk-epics">{% for e in epics %}<option value="{{ e.pk }}">{{ e.name }}</option>{% endfor %}</datalist>
+<datalist id="bulk-labels">{% for l in labels %}<option value="{{ l.pk }}">{{ l.name }}</option>{% endfor %}</datalist>
 
 <div class="kanban">
   {% for col in columns %}
   <div class="column" data-status-id="{{ col.status.pk }}">
     <h3>{{ col.status.name }} <span class="count">{{ col.issues|length }}</span></h3>
-    {% for i in col.issues %}{% include "board/_card.html" with issue=i %}{% endfor %}
+    {% for i in col.issues %}{% include "board/_card.html" with issue=i %}{% empty %}
+      <div class="empty" style="font-size:12px; padding:16px 8px; border:1px dashed var(--ink-300); border-radius:8px;">
+        {% trans "Arrastra tareas aquí" %}
+      </div>
+    {% endfor %}
   </div>
   {% endfor %}
 </div>
+
+{% if not columns or not active_sprint and not request.GET.sprint %}
+<div class="card" style="text-align:center; margin-top:14px; padding:24px;">
+  <p style="color:var(--ink-500); margin:0 0 10px;">
+    {% trans "Tablero vacío. Sin sprint activo o sin tareas." %}
+  </p>
+  <div class="row" style="justify-content:center;">
+    <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Crear tarea" %}</a>
+    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">{% trans "Ir a backlog" %}</a>
+  </div>
+</div>
+{% endif %}
 
 <script>
 function updateBulkValue() {
@@ -86,6 +107,10 @@ function updateBulkValue() {
     html = '<select name="value"><option value="">— backlog —</option>' + [...document.querySelectorAll('#bulk-sprints option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
   } else if (action === 'priority') {
     html = '<select name="value">' + [...document.querySelectorAll('#bulk-priorities option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  } else if (action === 'epic') {
+    html = '<select name="value"><option value="">— sin epic —</option>' + [...document.querySelectorAll('#bulk-epics option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
+  } else if (action === 'label_add' || action === 'label_remove') {
+    html = '<select name="value">' + [...document.querySelectorAll('#bulk-labels option')].map(o => `<option value="${o.value}">${o.textContent}</option>`).join('') + '</select>';
   }
   wrap.innerHTML = html;
 }

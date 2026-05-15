@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}404 — {% trans "Página no encontrada" %}{% endblock %}
+{% block content %}
+<div class="card" style="text-align:center; padding:40px 20px;">
+  <h1 style="font-size:64px; margin:0; color:var(--blue-600);">404</h1>
+  <h2 style="margin:10px 0;">{% trans "Página no encontrada" %}</h2>
+  <p style="color:var(--ink-500); margin:0 0 20px;">
+    {% trans "El recurso que buscas no existe o ha sido movido." %}
+  </p>
+  <div class="row" style="justify-content:center;">
+    <a class="btn" href="{% url 'core:home' %}">{% trans "Ir a inicio" %}</a>
+    <a class="btn ghost" href="javascript:history.back()">{% trans "Volver" %}</a>
+  </div>
+</div>
+{% endblock %}
+{% block anon %}
+<div style="max-width:480px; margin:60px auto; text-align:center; font-family:sans-serif;">
+  <h1 style="font-size:64px; margin:0; color:#2563eb;">404</h1>
+  <h2>{% trans "Página no encontrada" %}</h2>
+  <p><a href="{% url 'core:home' %}">{% trans "Ir a inicio" %}</a></p>
+</div>
+{% endblock %}
