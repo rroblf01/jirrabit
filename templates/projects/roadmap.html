@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Roadmap" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 6px;">{% trans "Roadmap" %} · {{ project.key }}</h1>
+  <p style="color:var(--ink-500); margin:0 0 14px;">
+    {{ start }} → {{ end }} · {% trans "Cada barra es un epic; el progreso es % de tareas resueltas." %}
+  </p>
+  {% if bars %}
+  <div style="position:relative; padding:8px 0;">
+    {# Today marker #}
+    <div style="position:absolute; top:0; bottom:0; left:{{ today_pct }}%; width:2px; background:var(--red); z-index:5;" title="{% trans 'Hoy' %}"></div>
+    {% for b in bars %}
+    <div style="display:grid; grid-template-columns:200px 1fr; gap:10px; align-items:center; padding:6px 0;">
+      <a href="javascript:void(0)" style="font-weight:600; color:{{ b.epic.color }};">{{ b.epic.name }}</a>
+      <div style="position:relative; height:24px; background:var(--ink-50); border-radius:4px;">
+        <div title="{{ b.start }} → {{ b.end }} · {{ b.done }}/{{ b.count }}"
+             style="position:absolute; left:{{ b.left_pct }}%; width:{{ b.width_pct }}%; height:100%; background:{{ b.epic.color }}22; border:1px solid {{ b.epic.color }}; border-radius:4px; overflow:hidden;">
+          <div style="height:100%; width:{{ b.pct_done }}%; background:{{ b.epic.color }};"></div>
+          <span style="position:absolute; left:6px; top:3px; font-size:11px; color:var(--ink-700); white-space:nowrap;">
+            {{ b.done }}/{{ b.count }} · {{ b.pct_done }}%
+          </span>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty">{% trans "Sin epics con tareas. Crea epics y asígnales tareas para verlos aquí." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

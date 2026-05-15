@@ -17,6 +17,7 @@ PALETTE_CHOICES = [
     ("sunset", _("Atardecer"), "#ea580c"),
     ("rose", _("Rosa"), "#e11d48"),
     ("midnight", _("Medianoche"), "#0f172a"),
+    ("contrast", _("Alto contraste"), "#000000"),
 ]
 
 # Each palette maps CSS variable name → value. Missing keys keep the
@@ -83,6 +84,26 @@ PALETTES: dict[str, dict[str, str]] = {
         "--blue-800": "#9f1239",
         "--blue-900": "#881337",
     },
+    # WCAG-AAA contrast: pure black/white with no gradients. Targets users
+    # who need maximum contrast (vision impairment, glare, e-ink).
+    "contrast": {
+        "--blue-50": "#ffffff",
+        "--blue-100": "#ffffff",
+        "--blue-200": "#000000",
+        "--blue-300": "#000000",
+        "--blue-400": "#000000",
+        "--blue-500": "#000000",
+        "--blue-600": "#000000",
+        "--blue-700": "#000000",
+        "--blue-800": "#000000",
+        "--blue-900": "#000000",
+        "--ink-50": "#ffffff",
+        "--ink-100": "#ffffff",
+        "--ink-300": "#000000",
+        "--ink-500": "#000000",
+        "--ink-700": "#000000",
+        "--ink-900": "#000000",
+    },
     # Dark mode: flips the ink palette and overrides the body gradient
     # plus card backgrounds (handled by base.html via extra rules).
     "midnight": {
@@ -108,6 +129,18 @@ PALETTES: dict[str, dict[str, str]] = {
 # Extra ad-hoc CSS appended after the variable overrides. Used by the
 # dark palette to invert backgrounds without inventing new variables.
 PALETTE_EXTRAS: dict[str, str] = {
+    "contrast": """
+        body { background: white !important; color: black; }
+        a, a:visited { color: #000080; text-decoration: underline; }
+        a:hover { background: yellow; }
+        .card, .sidebar { background: white !important; border: 2px solid black; box-shadow: none !important; }
+        .btn { background: black !important; color: white !important; border: 2px solid black; }
+        .btn.ghost { background: white !important; color: black !important; }
+        .badge { background: white !important; color: black !important; border: 1px solid black; }
+        .topbar { background: black !important; color: white; }
+        .topbar a, .user-chip { color: white !important; background: black !important; }
+        :focus { outline: 3px solid #ffbf00 !important; outline-offset: 2px; }
+    """,
     "midnight": """
         body { background: linear-gradient(180deg, #0f172a 0%, #020617 220px) !important; color: #f1f5f9; }
         .card, .sidebar, .kanban .card-issue { background: #1e293b !important; color: #f1f5f9; }

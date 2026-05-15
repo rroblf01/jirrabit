@@ -31,6 +31,61 @@ class SearchSuggestView(AsyncLoginRequiredMixin, View):
         return await arender(request, "search/_typeahead.html", {"items": items, "q": q})
 
 
+class QuickSwitchView(AsyncLoginRequiredMixin, View):
+    """JSON endpoint for the Ctrl/Cmd+K quick switcher.
+
+    Returns a unified list of issues, projects and saved filters that match
+    the query. Each entry has a ``type``, ``label`` and ``url``.
+    """
+
+    async def get(self, request):
+        import json
+        from django.db.models import Q
+        from django.http import HttpResponse
+        from projects.models import Project
+        q = request.GET.get("q", "").strip()
+        items: list[dict] = []
+        if not q:
+            return HttpResponse(json.dumps({"items": []}), content_type="application/json")
+        visible = Project.objects.filter_visible(request.user)
+        # Issues
+        async for i in (
+            Issue.objects.filter(project__in=visible)
+            .filter(Q(key__icontains=q) | Q(summary__icontains=q))
+            .select_related("status", "project")
+            .order_by("-updated_at")[:8]
+        ):
+            items.append({
+                "type": "issue",
+                "label": f"{i.key} — {i.summary}",
+                "hint": str(i.status),
+                "url": i.get_absolute_url(),
+            })
+        # Projects
+        async for p in (
+            visible.filter(Q(key__icontains=q) | Q(name__icontains=q)).order_by("key")[:5]
+        ):
+            items.append({
+                "type": "project",
+                "label": f"{p.key} — {p.name}",
+                "hint": "Proyecto",
+                "url": p.get_absolute_url(),
+            })
+        # Saved filters
+        async for f in (
+            SavedFilter.objects.filter(
+                Q(owner=request.user) | Q(scope="shared"),
+            ).filter(name__icontains=q).order_by("name")[:5]
+        ):
+            items.append({
+                "type": "filter",
+                "label": f.name,
+                "hint": "Saved filter",
+                "url": f"/search/?q={f.query}",
+            })
+        return HttpResponse(json.dumps({"items": items}), content_type="application/json")
+
+
 class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
     def get_template_names(self):
         if self.request.htmx:

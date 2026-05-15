@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Importar CSV" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 8px;">{% trans "Importar tareas desde CSV" %} · {{ project.key }}</h1>
+  <p style="color:var(--ink-500); margin:0 0 14px;">
+    {% blocktrans %}
+    Pega filas CSV con las columnas: <code>summary</code> (obligatoria),
+    <code>description</code>, <code>type</code>, <code>priority</code>,
+    <code>assignee</code> (username), <code>story_points</code>, <code>due_date</code> (YYYY-MM-DD).
+    {% endblocktrans %}
+  </p>
+
+  {% if error %}<div class="errors" style="margin-bottom:8px;">{{ error }}</div>{% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <textarea name="csv" rows="10" placeholder="summary,type,priority,assignee&#10;Login broken,Bug,High,alice&#10;Add dark mode,Story,Medium,bob"
+              style="font-family:monospace; font-size:13px;">{{ csv_text }}</textarea>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn ghost" name="action" value="preview" type="submit">{% trans "Previsualizar" %}</button>
+      {% if preview %}
+      <button class="btn" name="action" value="import" type="submit"
+              hx-confirm="{% blocktrans %}¿Importar {{ total }} tareas? Esta acción no se puede deshacer.{% endblocktrans %}">
+        {% trans "Importar" %} {{ total }}
+      </button>
+      {% endif %}
+    </div>
+  </form>
+
+  {% if preview %}
+  <h2 style="margin-top:24px;">{% trans "Vista previa" %} ({% trans "primeras 50" %})</h2>
+  <div class="table-scroll">
+  <table>
+    <thead><tr>
+      <th>{% trans "Resumen" %}</th><th>{% trans "Tipo" %}</th><th>{% trans "Prioridad" %}</th>
+      <th>{% trans "Asignado" %}</th><th>SP</th><th>{% trans "Vence" %}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in preview %}
+      <tr>
+        <td>{{ r.summary|truncatechars:80 }}</td>
+        <td>{{ r.type|default:"—" }}</td>
+        <td>{{ r.priority|default:"—" }}</td>
+        <td>{{ r.assignee|default:"—" }}</td>
+        <td>{{ r.story_points|default:"—" }}</td>
+        <td>{{ r.due_date|default:"—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

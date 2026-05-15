@@ -1,0 +1,36 @@
+{% load i18n %}
+{% if snoozed_until %}
+<form hx-post="{% url 'issues:unsnooze' issue.key %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  <button class="btn ghost small" type="submit"
+          title="{% trans 'Silenciado hasta' %} {{ snoozed_until|date:'d M H:i' }}">
+    🔕 {% trans "Reactivar" %}
+  </button>
+</form>
+{% else %}
+<details style="display:inline-block; position:relative;">
+  <summary class="btn ghost small" style="list-style:none; cursor:pointer;">🔔 {% trans "Silenciar" %}</summary>
+  <div style="position:absolute; right:0; background:white; border:1px solid var(--ink-100); border-radius:6px; box-shadow:var(--shadow); padding:8px; z-index:30; display:flex; flex-direction:column; gap:4px; min-width:160px;">
+    <form hx-post="{% url 'issues:snooze' issue.key %}" hx-target="closest details" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="hours" value="1">
+      <button class="btn ghost small" type="submit" style="width:100%; text-align:left;">{% trans "1 hora" %}</button>
+    </form>
+    <form hx-post="{% url 'issues:snooze' issue.key %}" hx-target="closest details" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="hours" value="4">
+      <button class="btn ghost small" type="submit" style="width:100%; text-align:left;">{% trans "4 horas" %}</button>
+    </form>
+    <form hx-post="{% url 'issues:snooze' issue.key %}" hx-target="closest details" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="hours" value="24">
+      <button class="btn ghost small" type="submit" style="width:100%; text-align:left;">{% trans "1 día" %}</button>
+    </form>
+    <form hx-post="{% url 'issues:snooze' issue.key %}" hx-target="closest details" hx-swap="outerHTML">
+      {% csrf_token %}
+      <input type="hidden" name="hours" value="168">
+      <button class="btn ghost small" type="submit" style="width:100%; text-align:left;">{% trans "1 semana" %}</button>
+    </form>
+  </div>
+</details>
+{% endif %}

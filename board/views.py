@@ -39,6 +39,16 @@ async def _filtered_issues_qs(project, request):
     if text:
         from django.db.models import Q
         qs = qs.filter(Q(summary__icontains=text) | Q(key__icontains=text))
+    stale = request.GET.get("stale")
+    if stale and stale.isdigit():
+        from datetime import timedelta
+        from django.utils import timezone
+        cutoff = timezone.now() - timedelta(days=int(stale))
+        qs = qs.filter(updated_at__lt=cutoff).exclude(status__category="done")
+    due = request.GET.get("due")
+    if due == "overdue":
+        from django.utils import timezone
+        qs = qs.filter(due_date__lt=timezone.localdate()).exclude(status__category="done")
     return qs
 
 

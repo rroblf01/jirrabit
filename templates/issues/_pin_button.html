@@ -1,0 +1,7 @@
+{% load i18n %}
+<button class="btn ghost small"
+        hx-post="{% url 'issues:pin_toggle' kind pk %}"
+        hx-target="this" hx-swap="outerHTML"
+        title="{% if pinned %}{% trans 'Quitar pin' %}{% else %}{% trans 'Anclar' %}{% endif %}">
+  {% if pinned %}★ {% trans "Anclado" %}{% else %}☆ {% trans "Anclar" %}{% endif %}
+</button>

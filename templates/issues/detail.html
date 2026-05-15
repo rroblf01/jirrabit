@@ -8,9 +8,22 @@
     <strong>{{ issue.key }}</strong>
     {% include "issues/_inline/issue_type_display.html" %}
     <div class="spacer"></div>
+    {% include "issues/_pin_button.html" with kind="issue" pk=issue.pk pinned=is_pinned %}
+    {% include "issues/_snooze_button.html" with issue=issue snoozed_until=snoozed_until %}
+    {% include "issues/_timer_button.html" with issue=issue running=timer_running %}
     {% include "issues/_watch_button.html" %}
+    <form method="post" action="{% url 'issues:advance_status' issue.key %}" style="display:inline;">
+      {% csrf_token %}
+      <button class="btn small" type="submit" title="{% trans 'Avanzar al siguiente estado' %}">→</button>
+    </form>
+    <form method="post" action="{% url 'issues:clone' issue.key %}" style="display:inline;"
+          hx-confirm="{% trans '¿Crear copia de esta tarea?' %}">
+      {% csrf_token %}
+      <button class="btn ghost small" type="submit" title="{% trans 'Clonar' %}">⎘</button>
+    </form>
     <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">{% trans "Editar todo" %}</a>
   </div>
+  <div id="presence-viewers" style="margin-top:6px; font-size:11px; color:var(--ink-500);"></div>
 
   {% include "issues/_inline/summary_display.html" %}
 
@@ -172,6 +185,27 @@
 </div>
 
 <script>
+(function () {
+  // Presence WebSocket
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  try {
+    const ws = new WebSocket(`${proto}//${location.host}/ws/issues/{{ issue.key }}/presence/`);
+    const viewers = new Map();
+    const node = document.getElementById("presence-viewers");
+    function render() {
+      if (!node) return;
+      if (!viewers.size) { node.textContent = ""; return; }
+      const list = [...viewers.values()].join(", ");
+      node.textContent = "👀 " + list + " {% trans 'viendo ahora' %}";
+    }
+    ws.onmessage = (ev) => {
+      const m = JSON.parse(ev.data);
+      if (m.type === "join") viewers.set(m.username, m.display);
+      else if (m.type === "leave") viewers.delete(m.username);
+      render();
+    };
+  } catch (e) { /* channels not configured */ }
+})();
 (function () {
   const tabs = document.querySelectorAll("#issue-tabs a[data-tab]");
   const panels = document.querySelectorAll(".tab-panel");

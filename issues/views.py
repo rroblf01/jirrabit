@@ -109,10 +109,21 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
             return IssueForm(self.request.POST, project=self.project)
         status = await Status.objects.order_by("order").afirst()
         priority = await Priority.objects.afirst()
-        itype = await IssueType.objects.afirst()
+        # ``?type=<pk>`` lets the "create from template" buttons preselect the
+        # right type and bring its description scaffold along.
+        type_param = self.request.GET.get("type")
+        if type_param and type_param.isdigit():
+            itype = await IssueType.objects.filter(pk=type_param).afirst()
+        else:
+            itype = None
+        if itype is None:
+            itype = await IssueType.objects.afirst()
         return IssueForm(
             project=self.project,
-            initial={"status": status, "priority": priority, "issue_type": itype},
+            initial={
+                "status": status, "priority": priority, "issue_type": itype,
+                "description": itype.description_template if itype else "",
+            },
         )
 
     async def aget_context_data(self, **kwargs):
@@ -148,11 +159,30 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
     async def aget_object(self):
         issue = await _aget_issue(self.kwargs["key"])
         await aassert_can_view(self.request.user, issue.project)
+        # Track recently viewed for the home dashboard.
+        from .models import Visit
+        await Visit.objects.aupdate_or_create(user=self.request.user, issue=issue)
+        # Mark any pending mention receipts as seen.
+        from accounts.models import MentionReceipt
+        await MentionReceipt.objects.filter(
+            mentioned=self.request.user, comment__issue=issue, seen_at__isnull=True,
+        ).aupdate(seen_at=timezone.now())
         return issue
 
     async def aget_context_data(self, **kwargs):
+        from .models import NotificationSnooze, Pin, Timer
         ctx = await super().aget_context_data(**kwargs)
         ctx["comment_form"] = CommentForm()
+        ctx["is_pinned"] = await Pin.objects.filter(
+            user=self.request.user, issue=self.object,
+        ).aexists()
+        snooze = await NotificationSnooze.objects.filter(
+            user=self.request.user, issue=self.object, until__gt=timezone.now(),
+        ).afirst()
+        ctx["snoozed_until"] = snooze.until if snooze else None
+        ctx["timer_running"] = await Timer.objects.filter(
+            user=self.request.user, issue=self.object,
+        ).aexists()
         ctx["statuses"] = [s async for s in Status.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
         ctx["is_watching"] = await self.object.watchers.filter(
@@ -268,7 +298,14 @@ class AddCommentView(AsyncLoginRequiredMixin, View):
         comment = form.save(commit=False)
         comment.issue = issue
         comment.author = request.user
+        parent_id = request.POST.get("parent", "").strip()
+        if parent_id and parent_id.isdigit():
+            parent = await Comment.objects.filter(pk=int(parent_id), issue=issue).afirst()
+            if parent is not None:
+                comment.parent = parent
         await comment.asave()
+        # Auto-watch: anyone who comments starts following the issue.
+        await issue.watchers.aadd(request.user)
         if request.htmx:
             return await arender(request, "issues/_comment.html", {"c": comment})
         return redirect(issue.get_absolute_url())
@@ -453,6 +490,277 @@ class IssueLinkDeleteView(AsyncLoginRequiredMixin, View):
             await link.adelete()
         links = [l async for l in issue.links_out.select_related("target", "target__status")]
         return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
+
+
+class AdvanceStatusView(AsyncLoginRequiredMixin, View):
+    """Advance an issue to its next allowed status with one click.
+
+    If the current status has exactly one entry in ``allowed_next``, go there.
+    Otherwise pick the lowest-``order`` status from ``allowed_next``. If
+    ``allowed_next`` is empty (open workflow), pick the lowest-``order``
+    status whose ``order > current.order`` and category != current.category.
+    """
+
+    async def post(self, request, key):
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        current = issue.status
+        candidates = [s async for s in current.allowed_next.all().order_by("order", "id")]
+        if not candidates:
+            # Open workflow — pick next by global order.
+            candidates = [
+                s async for s in
+                Status.objects.filter(order__gt=current.order).order_by("order", "id")[:1]
+            ]
+        if not candidates:
+            return HttpResponseBadRequest("no hay siguiente estado")
+        target = candidates[0]
+        issue, target, ok = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True,
+        )(issue.pk, target.pk, request.user.pk)
+        if not ok:
+            return HttpResponseBadRequest("transición no permitida")
+        if request.htmx:
+            statuses = [s async for s in Status.objects.all()]
+            return await arender(
+                request, "issues/_status_badge.html",
+                {"issue": issue, "statuses": statuses},
+            )
+        return redirect(issue.get_absolute_url())
+
+
+class PinToggleView(AsyncLoginRequiredMixin, View):
+    """Toggle a pin on an issue (or project) for the current user."""
+
+    async def post(self, request, kind, pk):
+        from .models import Pin
+        if kind == "issue":
+            if not await Issue.objects.filter(pk=pk).aexists():
+                raise Http404
+            existing = await Pin.objects.filter(user=request.user, issue_id=pk).afirst()
+            pinned = False
+            if existing:
+                await existing.adelete()
+            else:
+                await Pin.objects.acreate(user=request.user, issue_id=pk)
+                pinned = True
+        elif kind == "project":
+            existing = await Pin.objects.filter(user=request.user, project_id=pk).afirst()
+            pinned = False
+            if existing:
+                await existing.adelete()
+            else:
+                await Pin.objects.acreate(user=request.user, project_id=pk)
+                pinned = True
+        else:
+            return HttpResponseBadRequest("kind inválido")
+        if request.htmx:
+            return await arender(
+                request, "issues/_pin_button.html",
+                {"kind": kind, "pk": pk, "pinned": pinned},
+            )
+        return HttpResponse(status=204)
+
+
+class SnoozeView(AsyncLoginRequiredMixin, View):
+    """Silence notifications for an issue for the given duration in hours."""
+
+    async def post(self, request, key):
+        from datetime import timedelta
+        from .models import NotificationSnooze
+        issue = await _aget_issue(key)
+        try:
+            hours = int(request.POST.get("hours", "24"))
+        except ValueError:
+            hours = 24
+        hours = max(1, min(hours, 24 * 30))
+        until = timezone.now() + timedelta(hours=hours)
+        await NotificationSnooze.objects.aupdate_or_create(
+            user=request.user, issue=issue, defaults={"until": until},
+        )
+        if request.htmx:
+            return await arender(
+                request, "issues/_snooze_button.html",
+                {"issue": issue, "snoozed_until": until},
+            )
+        return redirect(issue.get_absolute_url())
+
+
+class UnsnoozeView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        from .models import NotificationSnooze
+        issue = await _aget_issue(key)
+        await NotificationSnooze.objects.filter(user=request.user, issue=issue).adelete()
+        if request.htmx:
+            return await arender(
+                request, "issues/_snooze_button.html",
+                {"issue": issue, "snoozed_until": None},
+            )
+        return redirect(issue.get_absolute_url())
+
+
+class TimerStartView(AsyncLoginRequiredMixin, View):
+    """Start a timer on this issue. Stops any other running timer first."""
+
+    async def post(self, request, key):
+        from .models import Timer
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        # Auto-stop the previous timer (commits a WorkLog).
+        prev = await Timer.objects.filter(user=request.user).select_related("issue").afirst()
+        if prev:
+            await _astop_timer(prev)
+        await Timer.objects.acreate(user=request.user, issue=issue)
+        if request.htmx:
+            return await arender(request, "issues/_timer_button.html",
+                                 {"issue": issue, "running": True})
+        return redirect(issue.get_absolute_url())
+
+
+class TimerStopView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key):
+        from .models import Timer
+        issue = await _aget_issue(key)
+        timer = await Timer.objects.filter(user=request.user, issue=issue).afirst()
+        if timer:
+            await _astop_timer(timer)
+        if request.htmx:
+            return await arender(request, "issues/_timer_button.html",
+                                 {"issue": issue, "running": False})
+        return redirect(issue.get_absolute_url())
+
+
+async def _astop_timer(timer):
+    """Convert a running ``Timer`` into a ``WorkLog`` and delete it."""
+    elapsed = (timezone.now() - timer.started_at).total_seconds()
+    minutes = max(1, int(round(elapsed / 60)))
+    await sync_to_async(_log_work_atomic, thread_sensitive=True)(
+        timer.issue_id, timer.user_id, minutes, "(timer)",
+    )
+    await timer.adelete()
+
+
+class IssueCloneView(AsyncLoginRequiredMixin, View):
+    """Duplicate an issue (summary, description, type, priority, assignee,
+    labels, epic). Subtasks, comments, history, attachments and links are
+    not copied — the clone starts fresh."""
+
+    async def post(self, request, key):
+        src = await _aget_issue(key)
+        await aassert_can_edit(request.user, src.project)
+        num = await src.project.anext_issue_number()
+        clone = Issue(
+            project=src.project,
+            reporter=request.user,
+            summary=f"[clon] {src.summary}",
+            description=src.description,
+            status=src.status,
+            priority=src.priority,
+            issue_type=src.issue_type,
+            assignee=src.assignee,
+            epic=src.epic,
+            story_points=src.story_points,
+            estimate_minutes=src.estimate_minutes,
+            due_date=src.due_date,
+            key=f"{src.project.key}-{num}",
+        )
+        await clone.asave()
+        # Copy labels (M2M).
+        async for lab in src.labels.all():
+            await clone.labels.aadd(lab)
+        return redirect(clone.get_absolute_url())
+
+
+class IssueCsvImportView(AsyncLoginRequiredMixin, View):
+    """Paste CSV → preview → bulk-create issues for a project.
+
+    Expected columns (case-insensitive): ``summary`` (required), ``description``,
+    ``type``, ``priority``, ``assignee``, ``story_points``, ``due_date``.
+    Unknown columns are ignored. Type/priority/status fall back to first
+    available row in the global tables when the value is missing.
+    """
+
+    template_name = "issues/csv_import.html"
+
+    async def get(self, request, key):
+        project = await _aget_project(key)
+        await aassert_can_edit(request.user, project)
+        return await arender(request, self.template_name,
+                             {"project": project, "preview": None, "csv_text": ""})
+
+    async def post(self, request, key):
+        import csv as _csv
+        import io
+        from datetime import date as _date
+
+        project = await _aget_project(key)
+        await aassert_can_edit(request.user, project)
+        text = request.POST.get("csv", "").strip()
+        if not text:
+            return await arender(request, self.template_name,
+                                 {"project": project, "preview": None, "csv_text": "", "error": "CSV vacío"})
+
+        reader = _csv.DictReader(io.StringIO(text))
+        # Normalize header to lowercase.
+        rows = []
+        for raw in reader:
+            row = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+            if not row.get("summary"):
+                continue
+            rows.append(row)
+        if not rows:
+            return await arender(request, self.template_name,
+                                 {"project": project, "preview": None, "csv_text": text, "error": "Sin filas válidas (summary requerido)"})
+
+        action = request.POST.get("action", "preview")
+        if action == "preview":
+            return await arender(request, self.template_name,
+                                 {"project": project, "preview": rows[:50], "csv_text": text,
+                                  "total": len(rows)})
+
+        # Action == import: build issues.
+        default_status = await Status.objects.order_by("order").afirst()
+        types_by_name = {t.name.lower(): t async for t in IssueType.objects.all()}
+        priorities_by_name = {p.name.lower(): p async for p in Priority.objects.all()}
+        default_type = next(iter(types_by_name.values())) if types_by_name else None
+        default_priority = next(iter(priorities_by_name.values())) if priorities_by_name else None
+        from accounts.models import User
+        usernames = {row["assignee"].lower() for row in rows if row.get("assignee")}
+        users_by_name = {
+            u.username.lower(): u async for u in
+            User.objects.filter(username__in=usernames)
+        } if usernames else {}
+
+        created = 0
+        for row in rows:
+            try:
+                sp = int(row["story_points"]) if row.get("story_points") else None
+            except ValueError:
+                sp = None
+            due = None
+            if row.get("due_date"):
+                try:
+                    due = _date.fromisoformat(row["due_date"])
+                except ValueError:
+                    due = None
+            itype = types_by_name.get(row.get("type", "").lower(), default_type)
+            prio = priorities_by_name.get(row.get("priority", "").lower(), default_priority)
+            assignee = users_by_name.get(row.get("assignee", "").lower())
+            num = await project.anext_issue_number()
+            issue = Issue(
+                project=project,
+                reporter=request.user,
+                summary=row["summary"][:255],
+                description=row.get("description", ""),
+                status=default_status, priority=prio, issue_type=itype,
+                assignee=assignee, story_points=sp, due_date=due,
+                key=f"{project.key}-{num}",
+            )
+            await issue.asave()
+            created += 1
+        from django.contrib import messages
+        messages.success(request, f"{created} tareas importadas.")
+        return redirect("issues:list", key=project.key)
 
 
 class IssueCsvExportView(AsyncLoginRequiredMixin, View):

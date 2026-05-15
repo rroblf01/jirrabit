@@ -9,6 +9,8 @@
     <a class="btn ghost" href="{% url 'board:board' project.key %}">{% trans "Tablero" %}</a>
     <a class="btn ghost" href="{% url 'issues:export_csv' project.key %}"
        title="{% trans 'Exportar CSV' %}">⬇ CSV</a>
+    <a class="btn ghost" href="{% url 'issues:import_csv' project.key %}"
+       title="{% trans 'Importar CSV' %}">⬆ CSV</a>
   </div>
   <div class="table-scroll" style="margin-top:14px;">
   <table>

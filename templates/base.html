@@ -66,6 +66,13 @@
   {% block anon %}{% endblock %}
 {% endif %}
 <form style="display:none">{% csrf_token %}</form>
+<aside id="side-panel" aria-hidden="true">
+  <div class="side-panel-head">
+    <strong>{% trans "Vista previa" %}</strong>
+    <button type="button" class="btn ghost small" id="side-panel-close" aria-label="{% trans 'Cerrar' %}">×</button>
+  </div>
+  <div id="side-panel-body"></div>
+</aside>
 <script src="{% static 'js/board.js' %}" defer></script>
 </body>
 </html>

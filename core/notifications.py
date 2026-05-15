@@ -113,8 +113,11 @@ def _on_comment(sender, instance, created, **kwargs):
 
 def _create_in_app_notifications_for_comment(comment):
     """Create ``accounts.Notification`` rows for watchers and @mentions."""
+    from django.utils import timezone
+
     from accounts.models import Notification, User
     from core.markdown import extract_mentions
+    from issues.models import NotificationSnooze
 
     issue = comment.issue
     recipients = set()
@@ -131,9 +134,18 @@ def _create_in_app_notifications_for_comment(comment):
         User.objects.filter(username__in=mentioned_usernames).values_list("pk", flat=True)
     )
 
+    # Snoozed users: skip in-app notifications until ``until`` expires.
+    snoozed_ids = set(
+        NotificationSnooze.objects.filter(
+            issue=issue, until__gt=timezone.now(),
+        ).values_list("user_id", flat=True)
+    )
+
     url = f"/issues/{issue.key}/"
     body = comment.body[:140]
     for user_id in recipients:
+        if user_id in snoozed_ids:
+            continue
         kind = "mention" if user_id in mentioned_ids else "comment"
         Notification.objects.create(
             recipient_id=user_id,
@@ -144,12 +156,22 @@ def _create_in_app_notifications_for_comment(comment):
         )
     # Mentions for users that are NOT watchers/assignee/reporter
     for user_id in mentioned_ids - recipients - {comment.author_id}:
+        if user_id in snoozed_ids:
+            continue
         Notification.objects.create(
             recipient_id=user_id,
             actor=comment.author,
             kind="mention",
             text=f"{comment.author} te mencionó en {issue.key}",
             url=url,
+        )
+
+    # Read receipts: one row per @mention to track if/when the recipient sees it.
+    from accounts.models import MentionReceipt
+    for user_id in mentioned_ids - {comment.author_id}:
+        MentionReceipt.objects.get_or_create(
+            mentioned_id=user_id, comment=comment,
+            defaults={"actor": comment.author},
         )
 
 

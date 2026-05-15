@@ -274,6 +274,202 @@
     });
   }
 
+  // --- Side panel close button -------------------------------------------
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "side-panel-close") {
+      const panel = document.getElementById("side-panel");
+      if (panel) panel.classList.remove("open");
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const panel = document.getElementById("side-panel");
+      if (panel && panel.classList.contains("open")) panel.classList.remove("open");
+    }
+  });
+
+  // --- Markdown live preview + slash commands ----------------------------
+  // Any textarea with ``data-md-preview="1"`` gets a sibling preview pane
+  // that re-renders on input (debounced) via the server's markdown endpoint.
+  function attachMdPreview(textarea) {
+    if (textarea.dataset.mdPreviewBound === "1") return;
+    textarea.dataset.mdPreviewBound = "1";
+    const wrap = document.createElement("div");
+    wrap.className = "md-editor";
+    textarea.parentNode.insertBefore(wrap, textarea);
+    wrap.appendChild(textarea);
+    const pane = document.createElement("div");
+    pane.className = "md-preview-pane";
+    pane.setAttribute("aria-live", "polite");
+    pane.innerHTML = '<div class="md-preview-empty">Vista previa…</div>';
+    wrap.appendChild(pane);
+    let t = null;
+    async function update() {
+      const fd = new FormData();
+      fd.append("body", textarea.value || "");
+      try {
+        const csrf = document.querySelector('input[name=csrfmiddlewaretoken]');
+        const headers = {};
+        if (csrf) headers["X-CSRFToken"] = csrf.value;
+        const r = await fetch("/md/preview/", { method: "POST", body: fd, headers });
+        pane.innerHTML = (await r.text()) || '<div class="md-preview-empty">Vista previa…</div>';
+      } catch (e) { /* ignore */ }
+    }
+    textarea.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(update, 250);
+    });
+    update();
+  }
+
+  // Slash commands: typing "/" at the start of a line opens a tiny menu.
+  function attachSlash(textarea) {
+    if (textarea.dataset.slashBound === "1") return;
+    textarea.dataset.slashBound = "1";
+    const snippets = [
+      { key: "/code",  label: "Bloque de código",  insert: "```\n\n```" },
+      { key: "/quote", label: "Cita",              insert: "> " },
+      { key: "/h2",    label: "Encabezado H2",     insert: "## " },
+      { key: "/h3",    label: "Encabezado H3",     insert: "### " },
+      { key: "/list",  label: "Lista",             insert: "- " },
+      { key: "/task",  label: "Lista de tareas",   insert: "- [ ] " },
+      { key: "/link",  label: "Enlace",            insert: "[texto](url)" },
+      { key: "/issue", label: "Referencia KEY-123", insert: "KEY-123" },
+    ];
+    let menu = null;
+    let active = 0;
+    function close() { if (menu) { menu.remove(); menu = null; } }
+    function render(filtered, prefix) {
+      close();
+      menu = document.createElement("ul");
+      menu.className = "slash-menu";
+      menu.innerHTML = filtered.map((s, i) => `
+        <li data-idx="${i}" ${i === active ? 'class="active"' : ""}>
+          <code>${s.key}</code> <span style="color:var(--ink-500);">— ${s.label}</span>
+        </li>`).join("");
+      textarea.parentNode.appendChild(menu);
+      const rect = textarea.getBoundingClientRect();
+      menu.style.left = "0px";
+      menu.style.top = (textarea.offsetTop + textarea.offsetHeight + 4) + "px";
+      menu.querySelectorAll("li").forEach(li => {
+        li.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          pick(filtered[parseInt(li.dataset.idx)], prefix);
+        });
+      });
+    }
+    function pick(s, prefix) {
+      const cur = textarea.selectionStart;
+      const before = textarea.value.slice(0, cur).replace(/\/\w*$/, "");
+      const after = textarea.value.slice(textarea.selectionStart);
+      textarea.value = before + s.insert + after;
+      textarea.focus();
+      const pos = before.length + s.insert.length;
+      textarea.setSelectionRange(pos, pos);
+      close();
+    }
+    textarea.addEventListener("input", () => {
+      const cur = textarea.selectionStart;
+      const slice = textarea.value.slice(0, cur);
+      const m = slice.match(/\/(\w*)$/);
+      if (!m) { close(); return; }
+      const q = m[1].toLowerCase();
+      const filtered = snippets.filter(s => s.key.slice(1).startsWith(q));
+      active = 0;
+      if (filtered.length) render(filtered, q);
+      else close();
+    });
+    textarea.addEventListener("keydown", (e) => {
+      if (!menu) return;
+      const items = menu.querySelectorAll("li");
+      if (e.key === "ArrowDown") { e.preventDefault(); active = (active + 1) % items.length; render([...items].map(li => snippets[parseInt(li.textContent.match(/\/(\w+)/)[0].slice(1) === "" ? 0 : 0)]), ""); }
+      else if (e.key === "Escape") { close(); }
+    });
+    textarea.addEventListener("blur", () => setTimeout(close, 120));
+  }
+
+  function scanMdAndSlash(root) {
+    (root || document).querySelectorAll("textarea[data-md-preview]").forEach(attachMdPreview);
+    (root || document).querySelectorAll("textarea[data-slash]").forEach(attachSlash);
+  }
+  document.addEventListener("DOMContentLoaded", () => scanMdAndSlash(document));
+  document.body.addEventListener("htmx:afterSwap", (e) => scanMdAndSlash(e.target));
+
+  // --- Quick switcher (Ctrl/Cmd+K) ---------------------------------------
+  let qsOpen = false;
+  let qsItems = [];
+  let qsActive = 0;
+  let qsTimer = null;
+
+  function openQuickSwitch() {
+    if (qsOpen) return;
+    qsOpen = true;
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.id = "qs-backdrop";
+    backdrop.innerHTML = `
+      <div class="modal qs-modal" role="dialog" aria-modal="true" aria-label="Buscador rápido">
+        <input id="qs-input" type="text" placeholder="Issue, proyecto, filtro…" autocomplete="off">
+        <ul id="qs-list" class="typeahead-list" style="position:static; box-shadow:none; max-height:340px;"></ul>
+        <div style="font-size:11px; color:var(--ink-500); margin-top:8px;">
+          ↑↓ navegar · ↵ abrir · esc cerrar
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    const input = document.getElementById("qs-input");
+    input.focus();
+    function close() {
+      qsOpen = false;
+      backdrop.remove();
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") { close(); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); qsActive = Math.min(qsActive + 1, qsItems.length - 1); renderItems(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); qsActive = Math.max(qsActive - 1, 0); renderItems(); }
+      else if (e.key === "Enter") {
+        if (qsItems[qsActive]) { window.location.href = qsItems[qsActive].url; }
+      }
+    }
+    function renderItems() {
+      const list = document.getElementById("qs-list");
+      if (!list) return;
+      if (!qsItems.length) { list.innerHTML = ""; return; }
+      list.innerHTML = qsItems.map((it, i) => `
+        <li data-idx="${i}" ${i === qsActive ? 'class="active"' : ""}>
+          <a href="${it.url}">
+            <span class="badge" style="font-size:9px;">${it.type}</span>
+            <span style="flex:1;">${it.label.replace(/</g, "&lt;")}</span>
+            <span style="color:var(--ink-500); font-size:11px;">${it.hint || ""}</span>
+          </a>
+        </li>`).join("");
+      list.querySelectorAll("li").forEach(li => {
+        li.addEventListener("mouseenter", () => { qsActive = parseInt(li.dataset.idx); renderItems(); });
+      });
+    }
+    input.addEventListener("input", () => {
+      clearTimeout(qsTimer);
+      qsTimer = setTimeout(async () => {
+        const q = input.value.trim();
+        if (!q) { qsItems = []; qsActive = 0; renderItems(); return; }
+        const res = await fetch("/search/quickswitch/?q=" + encodeURIComponent(q));
+        const json = await res.json();
+        qsItems = json.items || [];
+        qsActive = 0;
+        renderItems();
+      }, 150);
+    });
+    backdrop.addEventListener("click", (e) => { if (e.target === backdrop) close(); });
+    document.addEventListener("keydown", onKey);
+  }
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      openQuickSwitch();
+    }
+  });
+  jirrabit.openQuickSwitch = openQuickSwitch;
+
   // --- Topbar typeahead: close on outside click ---------------------------
   document.addEventListener("click", (e) => {
     const wrap = document.getElementById("topbar-typeahead");

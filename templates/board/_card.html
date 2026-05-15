@@ -1,11 +1,30 @@
+{% load i18n %}
 <div class="card-issue" data-key="{{ issue.key }}" style="border-left-color:{{ issue.priority.color }};">
   <div style="display:flex; gap:6px; align-items:flex-start;">
     <input type="checkbox" class="card-select" value="{{ issue.key }}" onclick="event.stopPropagation()">
     <div style="flex:1;">
-      <div><a href="{{ issue.get_absolute_url }}">{{ issue.key }}</a> — {{ issue.summary }}</div>
+      <div>
+        <a href="{{ issue.get_absolute_url }}"
+           hx-get="{{ issue.get_absolute_url }}"
+           hx-target="#side-panel-body"
+           hx-trigger="click[shiftKey] consume"
+           hx-on="htmx:afterRequest: document.getElementById('side-panel').classList.add('open')"
+           title="{% trans 'Click: abrir · Shift+click: vista previa lateral' %}">{{ issue.key }}</a>
+         — {{ issue.summary }}
+      </div>
       <div class="meta">
         <span><span class="badge {{ issue.issue_type.category }}">{{ issue.issue_type.name }}</span></span>
-        <span>{% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %}{% else %}<span style="color:var(--ink-300);">—</span>{% endif %}</span>
+        <span>
+          <form hx-post="{% url 'issues:advance_status' issue.key %}"
+                hx-target="closest .card-issue" hx-swap="outerHTML"
+                style="display:inline;" onclick="event.stopPropagation()">
+            {% csrf_token %}
+            <button class="btn ghost small" type="submit"
+                    title="{% trans 'Avanzar estado' %}"
+                    style="padding:1px 6px; font-size:11px;">→</button>
+          </form>
+          {% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %}{% else %}<span style="color:var(--ink-300);">—</span>{% endif %}
+        </span>
       </div>
     </div>
   </div>

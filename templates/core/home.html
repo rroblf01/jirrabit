@@ -2,53 +2,109 @@
 {% load i18n %}
 {% block content %}
 <div class="card">
-  <h1>{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>
-  <p style="color:var(--ink-500);">{% trans "Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en los que participas." %}</p>
+  <h1 style="margin:0;">{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>
+  <p style="color:var(--ink-500); margin:6px 0 0;">
+    {% trans "Tu trabajo en un vistazo. Pulsa" %} <kbd>Ctrl</kbd>+<kbd>K</kbd> {% trans "para buscar rápido." %}
+  </p>
 </div>
 
-<div class="card">
-  <h2>{% trans "Mis tareas abiertas" %}</h2>
-  {% if my_issues %}
-  <table>
-    <thead><tr>
-      <th>{% trans "Clave" %}</th><th>{% trans "Tipo" %}</th><th>{% trans "Resumen" %}</th>
-      <th>{% trans "Estado" %}</th><th>{% trans "Prioridad" %}</th><th>{% trans "Proyecto" %}</th>
-    </tr></thead>
-    <tbody>
-    {% for i in my_issues %}
-      <tr>
-        <td><a href="{{ i.get_absolute_url }}">{{ i.key }}</a></td>
-        <td><span class="badge {{ i.issue_type.category }}">{{ i.issue_type.name }}</span></td>
-        <td>{{ i.summary }}</td>
-        <td><span class="badge {{ i.status.category }}">{{ i.status.name }}</span></td>
-        <td><span class="priority-dot" style="background:{{ i.priority.color }}"></span>{{ i.priority.name }}</td>
-        <td><a href="{{ i.project.get_absolute_url }}">{{ i.project.key }}</a></td>
-      </tr>
-    {% endfor %}
-    </tbody>
-  </table>
-  {% else %}<div class="empty">{% trans "Sin tareas asignadas." %}</div>{% endif %}
-</div>
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:14px;">
 
-<div class="card">
-  <h2>{% trans "Mis proyectos" %}</h2>
-  {% if projects %}
-  <table>
-    <thead><tr>
-      <th>{% trans "Clave" %}</th><th>{% trans "Nombre" %}</th>
-      <th>{% trans "Lead" %}</th><th>{% trans "Abiertas" %}</th>
-    </tr></thead>
-    <tbody>
-    {% for p in projects %}
-      <tr>
-        <td><a href="{{ p.get_absolute_url }}">{{ p.key }}</a></td>
-        <td>{{ p.name }}</td>
-        <td>{{ p.lead }}</td>
-        <td>{{ p.open_count }}</td>
-      </tr>
+  <div class="card">
+    <h2 style="margin-top:0;">{% trans "Asignadas a mí" %} <span class="badge">{{ assigned|length }}</span></h2>
+    {% if assigned %}
+      <ul style="list-style:none; padding:0; margin:0;">
+      {% for i in assigned %}
+        <li style="padding:6px 0; border-bottom:1px solid var(--ink-100); display:flex; gap:8px; align-items:center;">
+          <a href="{{ i.get_absolute_url }}" style="flex:1;">
+            <strong>{{ i.key }}</strong>
+            <span class="badge {{ i.status.category }}" style="font-size:9px;">{{ i.status.name }}</span>
+            {{ i.summary|truncatechars:60 }}
+          </a>
+          <span class="priority-dot" style="background:{{ i.priority.color }}"></span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">{% trans "Nada pendiente. 🎉" %}</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">👁 {% trans "Siguiendo" %} <span class="badge">{{ watching|length }}</span></h2>
+    {% if watching %}
+      <ul style="list-style:none; padding:0; margin:0;">
+      {% for i in watching %}
+        <li style="padding:6px 0; border-bottom:1px solid var(--ink-100);">
+          <a href="{{ i.get_absolute_url }}">
+            <strong>{{ i.key }}</strong>
+            <span class="badge {{ i.status.category }}" style="font-size:9px;">{{ i.status.name }}</span>
+            {{ i.summary|truncatechars:60 }}
+          </a>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty" style="font-size:12px;">{% trans "Aún no sigues ninguna tarea. Pulsa 👁 en una para suscribirte." %}</div>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0;">@ {% trans "Menciones recientes" %}</h2>
+    {% if mentions %}
+      <ul style="list-style:none; padding:0; margin:0;">
+      {% for n in mentions %}
+        <li style="padding:6px 0; border-bottom:1px solid var(--ink-100); font-size:13px;">
+          <a href="{{ n.url }}">{{ n.text|truncatechars:80 }}</a>
+          <div style="color:var(--ink-500); font-size:11px;">{{ n.created_at|date:"d M H:i" }}</div>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty" style="font-size:12px;">{% trans "Sin menciones recientes." %}</div>
+    {% endif %}
+  </div>
+
+  {% if pinned_issues or pinned_projects %}
+  <div class="card">
+    <h2 style="margin-top:0;">★ {% trans "Anclados" %}</h2>
+    {% for p in pinned_projects %}
+      <div style="padding:4px 0;"><a href="{{ p.get_absolute_url }}"><strong>{{ p.key }}</strong> — {{ p.name }}</a></div>
     {% endfor %}
-    </tbody>
-  </table>
-  {% else %}<div class="empty">{% trans "No participas en ningún proyecto." %} <a href="{% url 'projects:create' %}">{% trans "Crea uno" %}</a>.</div>{% endif %}
+    {% for i in pinned_issues %}
+      <div style="padding:4px 0; font-size:13px;"><a href="{{ i.get_absolute_url }}"><strong>{{ i.key }}</strong> {{ i.summary|truncatechars:50 }}</a></div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {% if recent %}
+  <div class="card">
+    <h2 style="margin-top:0;">🕒 {% trans "Recientes" %}</h2>
+    <ul style="list-style:none; padding:0; margin:0;">
+    {% for i in recent %}
+      <li style="padding:4px 0; font-size:13px;">
+        <a href="{{ i.get_absolute_url }}"><strong>{{ i.key }}</strong> {{ i.summary|truncatechars:60 }}</a>
+      </li>
+    {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2 style="margin-top:0;">{% trans "Mis proyectos" %}</h2>
+    {% if projects %}
+      <ul style="list-style:none; padding:0; margin:0;">
+      {% for p in projects %}
+        <li style="padding:6px 0; border-bottom:1px solid var(--ink-100);">
+          <a href="{{ p.get_absolute_url }}"><strong>{{ p.key }}</strong> — {{ p.name }}</a>
+          <span style="color:var(--ink-500); font-size:12px;"> · {{ p.open_count }} {% trans "abiertas" %}</span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="empty">{% trans "No participas en ningún proyecto." %} <a href="{% url 'projects:create' %}">{% trans "Crea uno" %}</a>.</div>
+    {% endif %}
+  </div>
+
 </div>
 {% endblock %}

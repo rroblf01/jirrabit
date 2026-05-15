@@ -1,0 +1,16 @@
+{% load i18n %}
+{% if running %}
+<form hx-post="{% url 'issues:timer_stop' issue.key %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  <button class="btn small" type="submit" style="background:var(--red);">
+    ⏸ {% trans "Parar timer" %}
+  </button>
+</form>
+{% else %}
+<form hx-post="{% url 'issues:timer_start' issue.key %}" hx-target="this" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  <button class="btn small" type="submit" style="background:var(--green);">
+    ▶ {% trans "Empezar timer" %}
+  </button>
+</form>
+{% endif %}

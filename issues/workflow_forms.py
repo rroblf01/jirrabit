@@ -54,10 +54,17 @@ class PriorityForm(forms.ModelForm):
 class IssueTypeForm(forms.ModelForm):
     class Meta:
         model = IssueType
-        fields = ("name", "category", "icon", "color")
-        widgets = {"color": forms.TextInput(attrs={"type": "color"})}
+        fields = ("name", "category", "icon", "color", "description_template")
+        widgets = {
+            "color": forms.TextInput(attrs={"type": "color"}),
+            "description_template": forms.Textarea(attrs={"rows": 6}),
+        }
         help_texts = {
             "icon": _("Un emoji o carácter corto (≤8 chars) usado en badges."),
+            "description_template": _(
+                "Plantilla Markdown prerellenada al crear tareas de este tipo. "
+                "Útil para bugs (pasos, esperado, real) o stories (como X quiero Y para Z)."
+            ),
         }
 
 

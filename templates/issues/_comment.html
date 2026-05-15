@@ -1,15 +1,37 @@
-<div class="comment" id="comment-{{ c.pk }}">
+{% load i18n %}
+<div class="comment{% if c.parent_id %} reply{% endif %}" id="comment-{{ c.pk }}">
   {% include "_avatar.html" with u=c.author %}
   <div class="body">
     <div class="meta">
-      <strong>{{ c.author }}</strong> · {{ c.created_at|date:"d M H:i" }}{% if c.edited %} · <em>editado</em>{% endif %}
-      {% if c.author_id == request.user.pk or request.user.is_superuser %}
-        <span style="float:right;">
-          <button class="btn ghost small" hx-get="{% url 'issues:comment_edit' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML">editar</button>
-          <button class="btn ghost small" hx-post="{% url 'issues:comment_delete' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML" hx-confirm="¿Borrar comentario?">borrar</button>
-        </span>
+      <strong>{{ c.author }}</strong> · {{ c.created_at|date:"d M H:i" }}{% if c.edited %} · <em>{% trans "editado" %}</em>{% endif %}
+      {% if c.author_id == request.user.pk %}
+        {% with receipts=c.mention_receipts.all %}
+          {% if receipts %}
+            <span title="{% trans 'Estado de menciones' %}" style="color:var(--ink-500);">
+              {% for r in receipts %}
+                {% if r.seen_at %}✓✓{% else %}✓{% endif %}{% if not forloop.last %} {% endif %}
+              {% endfor %}
+            </span>
+          {% endif %}
+        {% endwith %}
       {% endif %}
+      <span style="float:right;">
+        <button class="btn ghost small" type="button"
+                onclick="document.getElementById('reply-form-{{ c.pk }}').classList.toggle('hidden')">↩ {% trans "responder" %}</button>
+        {% if c.author_id == request.user.pk or request.user.is_superuser %}
+          <button class="btn ghost small" hx-get="{% url 'issues:comment_edit' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML">{% trans "editar" %}</button>
+          <button class="btn ghost small" hx-post="{% url 'issues:comment_delete' c.pk %}" hx-target="#comment-{{ c.pk }}" hx-swap="outerHTML" hx-confirm="{% trans '¿Borrar comentario?' %}">{% trans "borrar" %}</button>
+        {% endif %}
+      </span>
     </div>
     <div>{{ c.body_html|safe }}</div>
+    <form id="reply-form-{{ c.pk }}" class="hidden"
+          hx-post="{% url 'issues:add_comment' c.issue.key %}"
+          hx-target="#comment-{{ c.pk }}" hx-swap="afterend" style="margin-top:6px;">
+      {% csrf_token %}
+      <input type="hidden" name="parent" value="{{ c.pk }}">
+      <textarea name="body" rows="2" data-mentions="1" placeholder="{% trans 'Responder…' %}"></textarea>
+      <button class="btn small" type="submit" style="margin-top:4px;">{% trans "Enviar" %}</button>
+    </form>
   </div>
 </div>

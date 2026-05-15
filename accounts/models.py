@@ -175,3 +175,26 @@ class Notification(models.Model):
     class Meta:
         ordering = ("-created_at",)
         indexes = [models.Index(fields=["recipient", "read", "-created_at"])]
+
+
+class MentionReceipt(models.Model):
+    """One row per @mention: tracks when the mentioned user opened the issue
+    after being notified. Used by the comment author to see whether their
+    mention was seen.
+    """
+
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mentions_made",
+    )
+    mentioned = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mentions_received",
+    )
+    comment = models.ForeignKey(
+        "issues.Comment", on_delete=models.CASCADE, related_name="mention_receipts",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    seen_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        unique_together = ("mentioned", "comment")
+        indexes = [models.Index(fields=["mentioned", "seen_at"])]

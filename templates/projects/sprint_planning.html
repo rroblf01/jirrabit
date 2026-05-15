@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Planificación de sprint" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Planificación de sprint" %} · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <form method="get" style="display:flex; gap:8px; align-items:center;">
+      <select name="sprint" onchange="this.form.submit()">
+        {% for s in sprints %}
+          <option value="{{ s.pk }}" {% if sprint.pk == s.pk %}selected{% endif %}>{{ s.name }} ({{ s.get_status_display }})</option>
+        {% endfor %}
+      </select>
+      <label style="margin:0; font-size:13px;">{% trans "Capacidad SP" %}:
+        <input type="number" name="capacity" value="{{ capacity }}" min="1" max="200" style="width:70px;">
+      </label>
+      <button class="btn small">{% trans "Aplicar" %}</button>
+    </form>
+  </div>
+
+  {% if sprint %}
+  <p style="color:var(--ink-500); margin:6px 0;">
+    {{ sprint.start_date|default:"—" }} → {{ sprint.end_date|default:"—" }} ·
+    {{ total_sp }} {% trans "SP totales" %} ·
+    {% if unassigned_sp %}<strong>{{ unassigned_sp }} {% trans "sin asignar" %}</strong>{% endif %}
+  </p>
+
+  <h2 style="margin-top:16px;">{% trans "Carga por persona" %}</h2>
+  <table>
+    <thead><tr><th>{% trans "Persona" %}</th><th>{% trans "SP" %}</th><th>{% trans "Capacidad" %}</th><th style="width:50%;">{% trans "Carga" %}</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{% include "_avatar.html" with u=r.user %} {{ r.user }}</td>
+        <td><strong>{{ r.load }}</strong></td>
+        <td>{{ r.capacity }}</td>
+        <td>
+          <div style="height:12px; background:var(--ink-100); border-radius:6px; overflow:hidden;">
+            <div style="height:100%; width:{{ r.pct }}%; background:{% if r.over %}var(--red){% else %}var(--blue-500){% endif %};"></div>
+          </div>
+          {% if r.over %}<span style="color:var(--red); font-size:11px;">{% trans "sobrecarga" %}</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">{% trans "Sin sprints abiertos. Crea uno desde la vista del proyecto." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

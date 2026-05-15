@@ -288,3 +288,118 @@ class WorkflowEditorTests(TestCase):
         self.assertEqual(s3.order, 0)
         self.assertEqual(s1.order, 1)
         self.assertEqual(s2.order, 2)
+
+
+class ProductivityTests(TestCase):
+    """Smoke tests for the Tier-1/2/3 productivity features."""
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user)
+        self.issue = _make_issue(self.project, self.user)
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_pin_toggle(self):
+        from issues.models import Pin
+        r = self.c.post(reverse("issues:pin_toggle", args=["issue", self.issue.pk]))
+        self.assertEqual(r.status_code, 204)
+        self.assertTrue(Pin.objects.filter(user=self.user, issue=self.issue).exists())
+        # Toggling again removes it.
+        r = self.c.post(reverse("issues:pin_toggle", args=["issue", self.issue.pk]))
+        self.assertEqual(r.status_code, 204)
+        self.assertFalse(Pin.objects.filter(user=self.user, issue=self.issue).exists())
+
+    def test_advance_status_with_open_workflow(self):
+        # No allowed_next on default seed -> falls through to order-based pick.
+        r = self.c.post(reverse("issues:advance_status", args=[self.issue.key]))
+        self.assertEqual(r.status_code, 302)
+        self.issue.refresh_from_db()
+        self.assertNotEqual(self.issue.status.name, "To Do")
+
+    def test_clone_creates_new_issue(self):
+        before = Issue.objects.filter(project=self.project).count()
+        r = self.c.post(reverse("issues:clone", args=[self.issue.key]))
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Issue.objects.filter(project=self.project).count(), before + 1)
+        clone = Issue.objects.exclude(pk=self.issue.pk).get(project=self.project)
+        self.assertTrue(clone.summary.startswith("[clon]"))
+
+    def test_snooze_and_unsnooze(self):
+        from issues.models import NotificationSnooze
+        r = self.c.post(reverse("issues:snooze", args=[self.issue.key]), data={"hours": "4"})
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(NotificationSnooze.objects.filter(user=self.user, issue=self.issue).exists())
+        r = self.c.post(reverse("issues:unsnooze", args=[self.issue.key]))
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(NotificationSnooze.objects.filter(user=self.user, issue=self.issue).exists())
+
+    def test_timer_start_stop_logs_work(self):
+        from issues.models import Timer, WorkLog
+        r = self.c.post(reverse("issues:timer_start", args=[self.issue.key]))
+        self.assertEqual(r.status_code, 302)
+        self.assertTrue(Timer.objects.filter(user=self.user, issue=self.issue).exists())
+        r = self.c.post(reverse("issues:timer_stop", args=[self.issue.key]))
+        self.assertEqual(r.status_code, 302)
+        self.assertFalse(Timer.objects.exists())
+        self.assertTrue(WorkLog.objects.filter(issue=self.issue).exists())
+
+    def test_auto_watch_on_comment(self):
+        # Make a second user; comment as them; they should now be a watcher.
+        bob = _make_user("bob")
+        ProjectMembership.objects.create(project=self.project, user=bob, role="member")
+        c2 = Client(); c2.login(username="bob", password="pw")
+        r = c2.post(
+            reverse("issues:add_comment", args=[self.issue.key]),
+            data={"body": "hola"}, HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(bob, self.issue.watchers.all())
+
+    def test_quick_switch_returns_json(self):
+        r = self.c.get("/search/quickswitch/?q=Test")
+        self.assertEqual(r.status_code, 200)
+        payload = r.json()
+        self.assertIn("items", payload)
+        keys = [i["label"] for i in payload["items"]]
+        self.assertTrue(any(self.issue.key in k for k in keys))
+
+    def test_csv_export(self):
+        r = self.c.get(reverse("issues:export_csv", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("text/csv", r["Content-Type"])
+        self.assertIn(self.issue.key, r.content.decode("utf-8"))
+
+    def test_csv_import_preview_and_apply(self):
+        before = Issue.objects.filter(project=self.project).count()
+        csv = "summary,type,priority\nNueva 1,Task,High\nNueva 2,Task,Medium\n"
+        r = self.c.post(
+            reverse("issues:import_csv", args=[self.project.key]),
+            data={"csv": csv, "action": "preview"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "Nueva 1")
+        r = self.c.post(
+            reverse("issues:import_csv", args=[self.project.key]),
+            data={"csv": csv, "action": "import"},
+        )
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(Issue.objects.filter(project=self.project).count(), before + 2)
+
+    def test_markdown_preview_endpoint(self):
+        r = self.c.post("/md/preview/", data={"body": "**bold**"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn(b"<strong>", r.content)
+
+    def test_reports_view_renders(self):
+        r = self.c.get(reverse("projects:reports", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_roadmap_view_renders(self):
+        r = self.c.get(reverse("projects:roadmap", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_dependencies_view_renders(self):
+        r = self.c.get(reverse("projects:dependencies", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)

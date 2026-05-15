@@ -1,3 +1,4 @@
+from asgiref.sync import sync_to_async
 from django.http import Http404
 from django.shortcuts import redirect
 from django.views import View
@@ -209,6 +210,246 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
 
 
 # --- activity feed, burndown, custom fields, webhooks UI, members admin ---
+
+class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """Capacity-aware sprint planning view.
+
+    Computes per-assignee story-point load for the targeted sprint vs a
+    configurable capacity. Capacity comes from ``?capacity=<sp>`` query
+    string (per-user default). Useful to balance load before sprint start.
+    """
+
+    template_name = "projects/sprint_planning.html"
+
+    async def aget_context_data(self, **kwargs):
+        from collections import defaultdict
+        from core.permissions import aassert_can_view
+        from issues.models import Issue
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        sprint_id = self.request.GET.get("sprint")
+        sprint = None
+        if sprint_id:
+            sprint = await project.sprints.filter(pk=sprint_id).afirst()
+        if sprint is None:
+            sprint = await project.sprints.filter(status="active").afirst() \
+                or await project.sprints.exclude(status="closed").order_by("start_date").afirst()
+        try:
+            capacity = int(self.request.GET.get("capacity", "20"))
+        except ValueError:
+            capacity = 20
+
+        sp_by_user: dict = defaultdict(int)
+        unassigned_sp = 0
+        issues = []
+        if sprint:
+            issues = [
+                i async for i in
+                Issue.objects.filter(project=project, sprint=sprint)
+                .select_related("assignee", "status", "priority", "issue_type")
+            ]
+            for i in issues:
+                sp = i.story_points or 0
+                if i.assignee_id:
+                    sp_by_user[i.assignee_id] += sp
+                else:
+                    unassigned_sp += sp
+
+        members = [m async for m in project.members.defer("avatar").all()]
+        if project.lead_id and project.lead_id not in {m.pk for m in members}:
+            members.insert(0, await project.members.through.objects.none().afirst() or project.lead)
+        rows = []
+        for m in members:
+            load = sp_by_user.get(m.pk, 0)
+            rows.append({
+                "user": m,
+                "load": load,
+                "capacity": capacity,
+                "pct": min(100, int(round(100 * load / capacity))) if capacity else 0,
+                "over": load > capacity,
+            })
+
+        ctx["project"] = project
+        ctx["sprint"] = sprint
+        ctx["sprints"] = [s async for s in project.sprints.exclude(status="closed").order_by("start_date")]
+        ctx["rows"] = rows
+        ctx["unassigned_sp"] = unassigned_sp
+        ctx["capacity"] = capacity
+        ctx["issues"] = issues
+        ctx["total_sp"] = sum((i.story_points or 0) for i in issues)
+        return ctx
+
+
+class ProjectDependencyGraphView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """SVG-based dependency graph of issue links (blocks / blocked_by)."""
+
+    template_name = "projects/dependency_graph.html"
+
+    async def aget_context_data(self, **kwargs):
+        from core.permissions import aassert_can_view
+        from issues.models import Issue, IssueLink
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+
+        # Only "blocks" edges are interesting (others are inverses / lateral).
+        links = [
+            (link.source.key, link.target.key) async for link in
+            IssueLink.objects.filter(source__project=project, type="blocks")
+            .select_related("source", "target")
+        ]
+        # Collect nodes referenced by any block edge.
+        referenced = set()
+        for s, t in links:
+            referenced.add(s)
+            referenced.add(t)
+        nodes = []
+        if referenced:
+            async for i in (
+                Issue.objects.filter(project=project, key__in=referenced)
+                .select_related("status", "priority")
+            ):
+                nodes.append({
+                    "key": i.key, "summary": i.summary,
+                    "status": str(i.status), "category": i.status.category,
+                })
+
+        # Layout: simple level-by-level BFS from "sources" (no incoming edges).
+        in_deg = {n["key"]: 0 for n in nodes}
+        for s, t in links:
+            in_deg[t] = in_deg.get(t, 0) + 1
+        levels: dict[str, int] = {}
+        frontier = [k for k, d in in_deg.items() if d == 0]
+        adj: dict[str, list[str]] = {}
+        for s, t in links:
+            adj.setdefault(s, []).append(t)
+        level = 0
+        while frontier:
+            for k in frontier:
+                levels.setdefault(k, level)
+            nxt = []
+            for k in frontier:
+                for t in adj.get(k, []):
+                    if t not in levels:
+                        nxt.append(t)
+            frontier = nxt
+            level += 1
+        # Remaining nodes (cycles) go to level 0.
+        for n in nodes:
+            levels.setdefault(n["key"], 0)
+
+        cols: dict[int, list] = {}
+        for n in nodes:
+            n["level"] = levels[n["key"]]
+            cols.setdefault(n["level"], []).append(n)
+        # Assign x/y for SVG: col = level, row = index in column.
+        COL_W, ROW_H, NODE_W, NODE_H = 220, 60, 180, 36
+        positions = {}
+        for level_num, items in cols.items():
+            for idx, n in enumerate(items):
+                n["x"] = 20 + level_num * COL_W
+                n["y"] = 20 + idx * ROW_H
+                positions[n["key"]] = (n["x"], n["y"])
+
+        edges = []
+        for s, t in links:
+            if s in positions and t in positions:
+                sx, sy = positions[s]
+                tx, ty = positions[t]
+                edges.append({"x1": sx + NODE_W, "y1": sy + NODE_H / 2, "x2": tx, "y2": ty + NODE_H / 2})
+        ctx["project"] = project
+        ctx["nodes"] = nodes
+        ctx["edges"] = edges
+        ctx["node_w"] = NODE_W
+        ctx["node_h"] = NODE_H
+        max_x = max((n["x"] + NODE_W for n in nodes), default=400)
+        max_y = max((n["y"] + NODE_H for n in nodes), default=200)
+        ctx["svg_w"] = max(max_x + 20, 400)
+        ctx["svg_h"] = max(max_y + 20, 200)
+        return ctx
+
+
+class ProjectRoadmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """Gantt-like roadmap: epics laid out across project's date range."""
+
+    template_name = "projects/roadmap.html"
+
+    async def aget_context_data(self, **kwargs):
+        from datetime import timedelta
+        from django.db.models import Max, Min
+        from django.utils import timezone
+        from core.permissions import aassert_can_view
+        from issues.models import Issue
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        epics = [e async for e in project.epics.all().order_by("created_at")]
+
+        # Range = earliest issue created → latest due/resolved or +60d.
+        bounds = await sync_to_async(_compute_roadmap_range)(project)
+        start, end = bounds
+        total_days = max((end - start).days, 14)
+
+        bars = []
+        for e in epics:
+            agg = await sync_to_async(_epic_bounds)(e)
+            e_start, e_end, count, done = agg
+            if e_start is None:
+                continue
+            left_pct = ((e_start - start).days / total_days) * 100
+            width_pct = max(2.0, ((e_end - e_start).days / total_days) * 100)
+            pct_done = int(round(100 * done / count)) if count else 0
+            bars.append({
+                "epic": e, "left_pct": round(left_pct, 2),
+                "width_pct": round(width_pct, 2),
+                "pct_done": pct_done, "count": count, "done": done,
+                "start": e_start, "end": e_end,
+            })
+
+        # Vertical line for today.
+        today_pct = ((timezone.localdate() - start).days / total_days) * 100
+        ctx["project"] = project
+        ctx["bars"] = bars
+        ctx["start"] = start
+        ctx["end"] = end
+        ctx["today_pct"] = round(max(0, min(today_pct, 100)), 2)
+        return ctx
+
+
+def _compute_roadmap_range(project):
+    from datetime import timedelta
+    from django.db.models import Max, Min
+    from django.utils import timezone
+    from issues.models import Issue
+    qs = Issue.objects.filter(project=project)
+    agg = qs.aggregate(
+        min_c=Min("created_at"), max_d=Max("due_date"), max_r=Max("resolved_at"),
+    )
+    today = timezone.localdate()
+    start = (agg["min_c"].date() if agg["min_c"] else today)
+    end = max(filter(None, [
+        agg["max_d"], agg["max_r"].date() if agg["max_r"] else None, today + timedelta(days=30),
+    ]))
+    if end <= start:
+        end = start + timedelta(days=30)
+    return start, end
+
+
+def _epic_bounds(epic):
+    from django.db.models import Max, Min
+    qs = epic.issues.all()
+    count = qs.count()
+    done = qs.filter(status__category="done").count()
+    agg = qs.aggregate(start=Min("created_at"), end_due=Max("due_date"), end_res=Max("resolved_at"))
+    start_dt = agg["start"]
+    end_due = agg["end_due"]
+    end_res = agg["end_res"].date() if agg["end_res"] else None
+    if not start_dt:
+        return None, None, count, done
+    end = max(filter(None, [end_due, end_res, start_dt.date()]))
+    return start_dt.date(), end, count, done
+
 
 class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
     """Throughput, cycle time, and WIP-by-status snapshot."""

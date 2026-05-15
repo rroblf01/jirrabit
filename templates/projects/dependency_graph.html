@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Dependencias" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 8px;">{% trans "Grafo de dependencias" %} · {{ project.key }}</h1>
+  <p style="color:var(--ink-500); margin:0 0 14px;">
+    {% trans "Solo se muestran tareas con relaciones de tipo 'bloquea'." %}
+  </p>
+  {% if nodes %}
+  <div style="overflow:auto; background:var(--ink-50); border-radius:6px;">
+    <svg viewBox="0 0 {{ svg_w }} {{ svg_h }}" width="{{ svg_w }}" height="{{ svg_h }}"
+         role="img" aria-label="{% trans 'Grafo de dependencias' %}">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--ink-500)"/>
+        </marker>
+      </defs>
+      {% for e in edges %}
+        <line x1="{{ e.x1 }}" y1="{{ e.y1 }}" x2="{{ e.x2 }}" y2="{{ e.y2 }}"
+              stroke="var(--ink-500)" stroke-width="1.5" marker-end="url(#arrow)"/>
+      {% endfor %}
+      {% for n in nodes %}
+        <g transform="translate({{ n.x }}, {{ n.y }})">
+          <rect width="{{ node_w }}" height="{{ node_h }}" rx="6"
+                fill="white" stroke="{% if n.category == 'done' %}#16a34a{% elif n.category == 'in_progress' %}#2563eb{% else %}#94a3b8{% endif %}" stroke-width="1.5"/>
+          <a href="/issues/{{ n.key }}/">
+            <text x="10" y="15" font-size="11" font-weight="600" fill="var(--blue-700)">{{ n.key }}</text>
+            <text x="10" y="29" font-size="10" fill="var(--ink-700)">{{ n.summary|truncatechars:24 }}</text>
+          </a>
+        </g>
+      {% endfor %}
+    </svg>
+  </div>
+  {% else %}
+  <p class="empty">{% trans "No hay relaciones 'bloquea' en este proyecto. Crea una desde la pestaña de Vínculos de una tarea." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

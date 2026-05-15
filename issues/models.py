@@ -16,6 +16,10 @@ class IssueType(models.Model):
     category = models.CharField(max_length=16, choices=CATEGORY)
     icon = models.CharField(max_length=8, default="✷")  # decorative
     color = models.CharField(max_length=20, default="#1e6fff")
+    description_template = models.TextField(
+        blank=True, default="",
+        help_text="Markdown shown as default description when creating an issue of this type.",
+    )
 
     def __str__(self):
         return self.name
@@ -157,6 +161,9 @@ class Issue(models.Model):
 class Comment(models.Model):
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="replies",
+    )
     body = models.TextField()
     body_html_cache = models.TextField(blank=True, default="")
     edited = models.BooleanField(default=False)
@@ -270,6 +277,84 @@ class HistoryEntry(models.Model):
     class Meta:
         ordering = ("-created_at",)
         verbose_name_plural = "history entries"
+
+
+class Visit(models.Model):
+    """Per-user record of the last time they opened an issue.
+
+    Powers the "Recientes" list on the home dashboard. We only store the
+    most recent visit per (user, issue) pair: ``viewed_at`` is bumped via
+    ``update_or_create``.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="visits"
+    )
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="visits")
+    viewed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("user", "issue")
+        ordering = ("-viewed_at",)
+        indexes = [models.Index(fields=["user", "-viewed_at"])]
+
+
+class Pin(models.Model):
+    """Bookmark for a user. Pins an issue OR a project (not both)."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pins"
+    )
+    issue = models.ForeignKey(
+        Issue, on_delete=models.CASCADE, null=True, blank=True, related_name="pinned_by",
+    )
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.CASCADE,
+        null=True, blank=True, related_name="pinned_by",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        constraints = [
+            models.UniqueConstraint(fields=["user", "issue"], name="unique_pin_issue",
+                                    condition=models.Q(issue__isnull=False)),
+            models.UniqueConstraint(fields=["user", "project"], name="unique_pin_project",
+                                    condition=models.Q(project__isnull=False)),
+            models.CheckConstraint(
+                condition=(models.Q(issue__isnull=False) & models.Q(project__isnull=True))
+                          | (models.Q(issue__isnull=True) & models.Q(project__isnull=False)),
+                name="pin_xor_target",
+            ),
+        ]
+
+
+class NotificationSnooze(models.Model):
+    """Mute notifications for an issue until ``until`` for this user."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="snoozes"
+    )
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="snoozes")
+    until = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("user", "issue")
+
+
+class Timer(models.Model):
+    """A user's currently-running timer on an issue.
+
+    At most one active timer per user. Stopping the timer creates a
+    ``WorkLog`` row with ``minutes = (now - started_at).minutes``.
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="active_timer"
+    )
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="timers")
+    started_at = models.DateTimeField(auto_now_add=True)
 
 
 class AuditEntry(models.Model):

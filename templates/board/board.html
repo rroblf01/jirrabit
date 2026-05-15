@@ -38,6 +38,20 @@
   </form>
 
   {% if active_sprint %}<p style="color:var(--ink-500); margin:8px 0 0;">Sprint: <strong>{{ active_sprint.name }}</strong> — {{ active_sprint.goal }}</p>{% endif %}
+
+  <div class="filter-chips" style="margin-top:8px;">
+    <a class="chip{% if filter_assignee == 'me' %} active{% endif %}"
+       href="?assignee=me">{% trans "Mías" %}</a>
+    <a class="chip{% if filter_assignee == 'none' %} active{% endif %}"
+       href="?assignee=none">{% trans "Sin asignar" %}</a>
+    <a class="chip{% if request.GET.stale %} active{% endif %}"
+       href="?stale=7">{% trans "Sin tocar 7d+" %}</a>
+    <a class="chip{% if request.GET.due %} active{% endif %}"
+       href="?due=overdue">{% trans "Vencidas" %}</a>
+    {% if filter_assignee or filter_type or filter_priority or filter_epic or filter_text or request.GET.stale or request.GET.due %}
+      <a class="chip clear" href="?">{% trans "Limpiar todo" %}</a>
+    {% endif %}
+  </div>
 </div>
 
 <div class="card" id="bulk-bar" style="display:none; padding:10px 14px;">
