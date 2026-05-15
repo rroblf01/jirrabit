@@ -104,6 +104,10 @@ PALETTES: dict[str, dict[str, str]] = {
         "--ink-500": "#000000",
         "--ink-700": "#000000",
         "--ink-900": "#000000",
+        "--surface": "#ffffff",
+        "--surface-fg": "#000000",
+        "--surface-muted": "#ffffff",
+        "--surface-border": "#000000",
     },
     # Dark mode: muted slate surfaces + indigo accent. The extras block
     # below overrides individual components (topbar, buttons, chips) where
@@ -126,6 +130,10 @@ PALETTES: dict[str, dict[str, str]] = {
         "--ink-500": "#94a3b8",
         "--ink-700": "#cbd5e1",
         "--ink-900": "#f1f5f9",
+        "--surface": "#1e293b",
+        "--surface-fg": "#f1f5f9",
+        "--surface-muted": "#0f172a",
+        "--surface-border": "#334155",
     },
 }
 

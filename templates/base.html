@@ -21,7 +21,7 @@
     <a href="{% url 'core:home' %}">{% trans "Home" %}</a>
     <a href="{% url 'projects:list' %}">{% trans "Proyectos" %}</a>
     <a href="{% url 'accounts:user_list' %}">{% trans "Usuarios" %}</a>
-    <a href="{% url 'core:help' %}" title="{% trans 'Ayuda' %}">{% trans "Ayuda" %}</a>
+    <a href="{% url 'core:help' %}" title="{% trans 'Entiende Jira' %}">{% trans "Entiende Jira" %}</a>
     {% include "_notif_badge.html" %}
     {% if user.is_superuser %}
       <a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>
