@@ -406,7 +406,9 @@ body.htmx-busy #htmx-spinner { display: block; }
 .qs-modal { width: 560px; max-width: 90vw; padding: 16px; }
 .qs-modal input { width: 100%; font-size: 16px; padding: 10px 12px; }
 .qs-modal .typeahead-list { margin-top: 10px; border: 1px solid var(--ink-100); border-radius: 6px; }
-.qs-modal .typeahead-list li.active { background: var(--blue-50); }
+.qs-modal .typeahead-list li.active { background: var(--blue-100); border-left: 3px solid var(--blue-600); }
+.qs-modal .typeahead-list li.active a { font-weight: 600; }
+.qs-modal .typeahead-list li { transition: background .1s; }
 
 /* Topbar typeahead dropdown. */
 .typeahead-wrap { position: absolute; top: 100%; left: 0; right: 0; z-index: 60; }
@@ -415,7 +417,7 @@ body.htmx-busy #htmx-spinner { display: block; }
   border-radius: 6px; box-shadow: var(--shadow); max-height: 320px; overflow: auto;
 }
 .typeahead-list li a { display: flex; gap: 8px; align-items: center; padding: 6px 10px; color: inherit; }
-.typeahead-list li a:hover, .typeahead-list li a:focus { background: var(--blue-50); text-decoration: none; }
+.typeahead-list li a:hover, .typeahead-list li a:focus { background: var(--blue-100); text-decoration: none; }
 
 /* Mention autocomplete dropdown anchored to a wrapper. */
 .mention-wrap { position: relative; }
