@@ -17,7 +17,7 @@ from core.mixins import AsyncLoginRequiredMixin
 from core.permissions import aassert_can_edit, aassert_can_view
 from projects.models import Project
 
-from .forms import CommentForm, IssueForm
+from .forms import CommentForm, IssueForm, IssueTemplateForm
 from .inline import INLINE_FIELDS
 from .models import Attachment, Comment, Issue, IssueLink, IssueType, Priority, Status, WorkLog
 
@@ -105,12 +105,30 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
         return await super().post(request, *args, **kwargs)
 
     async def aget_form(self, form_class=None):
+        from .models import IssueTemplate
+
         if self.request.method == "POST":
             return IssueForm(self.request.POST, project=self.project)
         status = await Status.objects.order_by("order").afirst()
         priority = await Priority.objects.afirst()
-        # ``?type=<pk>`` lets the "create from template" buttons preselect the
-        # right type and bring its description scaffold along.
+        initial: dict = {"status": status, "priority": priority}
+
+        # ``?template=<pk>`` wins over ``?type``: pre-fill from a saved template.
+        tpl_param = self.request.GET.get("template")
+        tpl = None
+        if tpl_param and tpl_param.isdigit():
+            tpl = await IssueTemplate.objects.filter(
+                pk=tpl_param, project=self.project,
+            ).select_related("issue_type", "priority").afirst()
+        if tpl is not None:
+            initial["issue_type"] = tpl.issue_type
+            initial["summary"] = tpl.summary
+            initial["description"] = tpl.description
+            if tpl.priority_id:
+                initial["priority"] = tpl.priority
+            initial["labels"] = [l async for l in tpl.labels.all()]
+            return IssueForm(project=self.project, initial=initial)
+
         type_param = self.request.GET.get("type")
         if type_param and type_param.isdigit():
             itype = await IssueType.objects.filter(pk=type_param).afirst()
@@ -118,17 +136,18 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
             itype = None
         if itype is None:
             itype = await IssueType.objects.afirst()
-        return IssueForm(
-            project=self.project,
-            initial={
-                "status": status, "priority": priority, "issue_type": itype,
-                "description": itype.description_template if itype else "",
-            },
-        )
+        initial["issue_type"] = itype
+        initial["description"] = itype.description_template if itype else ""
+        return IssueForm(project=self.project, initial=initial)
 
     async def aget_context_data(self, **kwargs):
+        from .models import IssueTemplate
+
         ctx = await super().aget_context_data(**kwargs)
         ctx["project"] = self.project
+        ctx["templates"] = [
+            t async for t in IssueTemplate.objects.filter(project=self.project)
+        ]
         return ctx
 
     async def aform_valid(self, form):
@@ -199,9 +218,10 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
             f async for f in self.object.project.custom_fields.all()
         ]
         # N+1 fix: pre-evaluate related collections.
-        ctx["comments"] = [
-            c async for c in self.object.comments.select_related("author").all()
-        ]
+        comments_qs = self.object.comments.select_related("author").all()
+        if not (self.request.user.is_staff or self.request.user.is_superuser):
+            comments_qs = comments_qs.filter(is_internal=False)
+        ctx["comments"] = [c async for c in comments_qs]
         # Pre-aggregate reactions for each comment to avoid N+1 in the template.
         from asgiref.sync import sync_to_async as _sta
         for c in ctx["comments"]:
@@ -312,6 +332,8 @@ class AddCommentView(AsyncLoginRequiredMixin, View):
         comment = form.save(commit=False)
         comment.issue = issue
         comment.author = request.user
+        if not (request.user.is_staff or request.user.is_superuser):
+            comment.is_internal = False
         parent_id = request.POST.get("parent", "").strip()
         if parent_id and parent_id.isdigit():
             parent = await Comment.objects.filter(pk=int(parent_id), issue=issue).afirst()
@@ -1064,3 +1086,126 @@ class CustomFieldSetView(AsyncLoginRequiredMixin, View):
             request, "issues/_custom_field.html",
             {"issue": issue, "slug": slug, "value": value},
         )
+
+
+class IssueJsonExportView(AsyncLoginRequiredMixin, View):
+    """JSON dump of issues for a project. Mirrors CSV columns 1:1."""
+
+    async def get(self, request, key):
+        import json
+
+        project = await _aget_project(key)
+        await aassert_can_view(request.user, project)
+
+        qs = project.issues.select_related(
+            "status", "priority", "issue_type", "assignee", "reporter", "sprint", "epic",
+        ).order_by("key")
+        if not request.GET.get("archived"):
+            qs = qs.filter(archived=False)
+
+        items = []
+        async for i in qs:
+            items.append({
+                "key": i.key,
+                "summary": i.summary,
+                "status": str(i.status),
+                "priority": str(i.priority),
+                "type": str(i.issue_type),
+                "assignee": getattr(i.assignee, "username", None),
+                "reporter": getattr(i.reporter, "username", None),
+                "sprint": getattr(i.sprint, "name", None),
+                "epic": getattr(i.epic, "name", None),
+                "story_points": i.story_points,
+                "due_date": i.due_date.isoformat() if i.due_date else None,
+                "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
+                "created_at": i.created_at.isoformat(),
+                "updated_at": i.updated_at.isoformat(),
+                "url": request.build_absolute_uri(i.get_absolute_url()),
+            })
+        resp = HttpResponse(
+            json.dumps({"project": project.key, "issues": items}, ensure_ascii=False),
+            content_type="application/json; charset=utf-8",
+        )
+        resp["Content-Disposition"] = (
+            f'attachment; filename="{project.key}-issues-{timezone.now():%Y%m%d}.json"'
+        )
+        return resp
+
+
+class IssueTemplateListView(AsyncLoginRequiredMixin, AsyncListView):
+    template_name = "issues/template_list.html"
+    context_object_name = "templates"
+
+    async def aget_queryset(self):
+        from .models import IssueTemplate
+        self.project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, self.project)
+        return IssueTemplate.objects.filter(project=self.project).select_related("issue_type")
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+
+class IssueTemplateCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
+    form_class = IssueTemplateForm
+    template_name = "issues/template_form.html"
+
+    async def get(self, request, *args, **kwargs):
+        self.project = await _aget_project(kwargs["key"])
+        await aassert_can_edit(request.user, self.project)
+        return await super().get(request, *args, **kwargs)
+
+    async def post(self, request, *args, **kwargs):
+        self.project = await _aget_project(kwargs["key"])
+        await aassert_can_edit(request.user, self.project)
+        return await super().post(request, *args, **kwargs)
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+    async def aform_valid(self, form):
+        tpl = form.save(commit=False)
+        tpl.project = self.project
+        tpl.created_by = self.request.user
+        await tpl.asave()
+        await tpl.labels.aset(form.cleaned_data.get("labels", []))
+        self.object = tpl
+        return redirect("issues:template_list", key=self.project.key)
+
+
+class IssueTemplateUpdateView(AsyncLoginRequiredMixin, AsyncUpdateView):
+    form_class = IssueTemplateForm
+    template_name = "issues/template_form.html"
+
+    async def aget_object(self):
+        from .models import IssueTemplate
+        self.project = await _aget_project(self.kwargs["key"])
+        await aassert_can_edit(self.request.user, self.project)
+        return await IssueTemplate.objects.filter(
+            pk=self.kwargs["pk"], project=self.project,
+        ).afirst()
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+    async def aform_valid(self, form):
+        tpl = form.save(commit=False)
+        await tpl.asave()
+        await tpl.labels.aset(form.cleaned_data.get("labels", []))
+        self.object = tpl
+        return redirect("issues:template_list", key=self.project.key)
+
+
+class IssueTemplateDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from .models import IssueTemplate
+        project = await _aget_project(key)
+        await aassert_can_edit(request.user, project)
+        await IssueTemplate.objects.filter(pk=pk, project=project).adelete()
+        return redirect("issues:template_list", key=project.key)

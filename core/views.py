@@ -17,6 +17,55 @@ class HelpView(AsyncTemplateView):
     template_name = "core/help.html"
 
 
+class HealthzView(View):
+    """Public-ish JSON health probe. Returns service availability.
+
+    Anonymous-readable so it can be hit by load balancers / uptime checks.
+    Each subsystem failure flips ``ok`` to ``false`` but the response is
+    always 200 (so monitors get a structured payload to parse).
+    """
+
+    async def get(self, request):
+        import json
+
+        from asgiref.sync import sync_to_async
+        from channels.layers import get_channel_layer
+        from django.db import connection
+
+        result = {"ok": True, "services": {}}
+
+        # DB ping
+        try:
+            await sync_to_async(connection.ensure_connection, thread_sensitive=True)()
+            result["services"]["db"] = "ok"
+        except Exception as exc:
+            result["services"]["db"] = f"error: {exc.__class__.__name__}"
+            result["ok"] = False
+
+        # Channels / Redis layer
+        try:
+            layer = get_channel_layer()
+            if layer is None:
+                result["services"]["channels"] = "disabled"
+            else:
+                await layer.send("healthz", {"type": "ping"})
+                result["services"]["channels"] = "ok"
+        except Exception as exc:
+            result["services"]["channels"] = f"error: {exc.__class__.__name__}"
+            result["ok"] = False
+
+        # Counts (cheap signal that ORM is alive).
+        try:
+            result["counts"] = {
+                "projects": await Project.objects.acount(),
+                "issues": await Issue.objects.acount(),
+            }
+        except Exception:
+            pass
+
+        return HttpResponse(json.dumps(result), content_type="application/json")
+
+
 class MarkdownPreviewView(AsyncLoginRequiredMixin, View):
     """Render markdown server-side and return sanitized HTML.
 

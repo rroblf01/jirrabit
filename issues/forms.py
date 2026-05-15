@@ -2,7 +2,7 @@ from django import forms
 
 from core.dates import parse_due_date
 
-from .models import Comment, Issue, IssueType, Label, Priority, Status
+from .models import Comment, Issue, IssueTemplate, IssueType, Label, Priority, Status
 
 
 class IssueForm(forms.ModelForm):
@@ -26,6 +26,7 @@ class IssueForm(forms.ModelForm):
             "description": forms.Textarea(attrs={
                 "rows": 8, "data-mentions": "1",
                 "data-md-preview": "1", "data-slash": "1",
+                "data-md-toolbar": "1",
             }),
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "labels": forms.SelectMultiple(attrs={"size": 4}),
@@ -62,13 +63,30 @@ class IssueForm(forms.ModelForm):
 class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
-        fields = ("body",)
-        widgets = {"body": forms.Textarea(attrs={
-            "rows": 3,
-            "placeholder": "Escribe un comentario… (Markdown soportado, prueba /)",
-            "data-mentions": "1", "data-slash": "1",
-        })}
+        fields = ("body", "is_internal")
+        widgets = {
+            "body": forms.Textarea(attrs={
+                "rows": 3,
+                "placeholder": "Escribe un comentario… (Markdown soportado, prueba /)",
+                "data-mentions": "1", "data-slash": "1",
+                "data-md-toolbar": "1",
+            }),
+            "is_internal": forms.CheckboxInput(),
+        }
+        labels = {"is_internal": "Nota interna (solo staff)"}
 
 
 class QuickStatusForm(forms.Form):
     status = forms.ModelChoiceField(queryset=Status.objects.all())
+
+
+class IssueTemplateForm(forms.ModelForm):
+    class Meta:
+        model = IssueTemplate
+        fields = ("name", "issue_type", "summary", "description", "priority", "labels")
+        widgets = {
+            "description": forms.Textarea(attrs={
+                "rows": 6, "data-md-toolbar": "1", "data-mentions": "1",
+            }),
+            "labels": forms.SelectMultiple(attrs={"size": 4}),
+        }

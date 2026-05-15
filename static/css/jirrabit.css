@@ -428,3 +428,89 @@ body.htmx-busy #htmx-spinner { display: block; }
   padding: 2px 8px; font-size: 12px; cursor: pointer; }
 .copy-btn:hover { background: var(--blue-50); border-color: var(--blue-400); }
 .copy-btn.copied { background: #dcfce7; color: #166534; border-color: #86efac; }
+
+/* --- Keyboard shortcuts, cheatsheet, command palette --- */
+.kbd-overlay {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding-top: 10vh; z-index: 200;
+}
+.kbd-modal, .cmd-modal {
+  background: white; color: var(--ink-900); border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  width: min(560px, 92vw);
+  font-size: 13px;
+}
+.kbd-modal header, .cmd-modal footer {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; border-bottom: 1px solid var(--ink-100);
+}
+.cmd-modal footer { border-bottom: 0; border-top: 1px solid var(--ink-100); color: var(--ink-500); font-size: 11px; }
+.kbd-modal header button { background: transparent; border: 0; font-size: 18px; cursor: pointer; color: var(--ink-700); }
+.kbd-modal table { width: 100%; border-collapse: collapse; }
+.kbd-modal td { padding: 6px 14px; }
+.kbd-modal td:first-child { width: 140px; }
+.kbd-modal kbd {
+  background: var(--ink-50); border: 1px solid var(--ink-300); border-bottom-width: 2px;
+  padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11px;
+}
+.cmd-modal input[type="search"] {
+  width: 100%; padding: 12px 14px; border: 0; border-bottom: 1px solid var(--ink-100);
+  font-size: 15px; outline: none; border-radius: 8px 8px 0 0; background: white;
+}
+.cmd-results { list-style: none; margin: 0; padding: 4px 0; max-height: 50vh; overflow: auto; }
+.cmd-results li { display: grid; grid-template-columns: 70px 1fr auto;
+  gap: 8px; padding: 8px 14px; cursor: pointer; align-items: center; }
+.cmd-results li.active, .cmd-results li:hover { background: var(--blue-50); }
+.cmd-results li.empty { color: var(--ink-500); justify-content: center; cursor: default; grid-template-columns: 1fr; text-align: center; }
+.cmd-type {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+  color: var(--ink-500); border: 1px solid var(--ink-300); border-radius: 999px;
+  padding: 1px 8px; text-align: center;
+}
+.cmd-hint { color: var(--ink-500); font-size: 11px; }
+
+/* WIP limit overflow: red outline + tinted count chip. */
+.kanban .column.wip-over { outline: 2px solid var(--red); outline-offset: -2px; }
+.kanban .column.wip-over .count { background: #fee2e2; color: #991b1b; }
+
+/* Internal comments (staff-only notes). */
+.comment.internal .body { background: #fef9c3; border-left: 3px solid #ca8a04; }
+.comment.internal .internal-banner {
+  display: inline-block; font-size: 11px; font-weight: 600;
+  color: #854d0e; background: #fef08a; padding: 1px 8px; border-radius: 999px;
+  margin-bottom: 6px;
+}
+
+/* Markdown editor toolbar. */
+.md-toolbar { display: flex; gap: 2px; flex-wrap: wrap; margin-bottom: 4px; }
+.md-toolbar .md-tool {
+  background: var(--ink-50); border: 1px solid var(--ink-300); border-radius: 4px;
+  padding: 2px 8px; font-size: 12px; cursor: pointer; min-width: 28px; line-height: 1;
+}
+.md-toolbar .md-tool:hover { background: var(--blue-50); border-color: var(--blue-400); }
+
+/* Sticky bulk action bar on board/backlog. */
+.bulk-bar-sticky {
+  position: sticky; top: 60px; z-index: 40;
+  background: var(--blue-50); border: 1px solid var(--blue-200);
+  margin-bottom: 14px;
+}
+.bulk-bar-sticky form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* Onboarding banner. */
+.onboarding-card { border-left: 4px solid var(--blue-500); }
+.onboarding-card kbd {
+  background: var(--ink-100); border: 1px solid var(--ink-300); border-bottom-width: 2px;
+  padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11px;
+}
+
+/* Story-points chip on board cards. */
+.kanban .card-issue .sp-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--ink-100); color: var(--ink-700);
+  padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  min-width: 22px; justify-content: center;
+}
+.kanban .card-issue .sp-chip:before { content: "◆"; opacity: .6; }
+.kanban .card-issue .sp-chip .inline-edit { cursor: pointer; }

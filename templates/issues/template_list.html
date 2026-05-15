@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Plantillas" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Plantillas de tarea" %} · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <a class="btn" href="{% url 'issues:template_create' project.key %}">+ {% trans "Nueva plantilla" %}</a>
+    <a class="btn ghost" href="{{ project.get_absolute_url }}">{% trans "Volver al proyecto" %}</a>
+  </div>
+  <p style="color:var(--ink-500); margin-top:6px;">
+    {% trans "Crea esqueletos reutilizables. Al crear una tarea con ?template=ID se rellenan los campos." %}
+  </p>
+  {% if templates %}
+  <table>
+    <thead><tr>
+      <th>{% trans "Nombre" %}</th><th>{% trans "Tipo" %}</th><th>{% trans "Resumen" %}</th><th></th>
+    </tr></thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td><strong>{{ t.name }}</strong></td>
+        <td><span class="badge {{ t.issue_type.category }}">{{ t.issue_type.name }}</span></td>
+        <td>{{ t.summary|default:"—" }}</td>
+        <td style="text-align:right;">
+          <a class="btn small" href="{% url 'issues:create' project.key %}?template={{ t.pk }}">{% trans "Usar" %}</a>
+          <a class="btn ghost small" href="{% url 'issues:template_edit' project.key t.pk %}">{% trans "Editar" %}</a>
+          <form method="post" action="{% url 'issues:template_delete' project.key t.pk %}" style="display:inline;"
+                hx-confirm="{% trans '¿Borrar plantilla?' %}">
+            {% csrf_token %}
+            <button class="btn ghost small" type="submit">{% trans "Borrar" %}</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">{% trans "Aún no hay plantillas." %}</p>
+  {% endif %}
+</div>
+{% endblock %}

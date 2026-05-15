@@ -1,5 +1,5 @@
 {% load i18n %}
-<div class="comment{% if c.parent_id %} reply{% endif %}" id="comment-{{ c.pk }}">
+<div class="comment{% if c.parent_id %} reply{% endif %}{% if c.is_internal %} internal{% endif %}" id="comment-{{ c.pk }}">
   {% include "_avatar.html" with u=c.author %}
   <div class="body">
     <div class="meta">
@@ -27,6 +27,7 @@
         {% endif %}
       </span>
     </div>
+    {% if c.is_internal %}<div class="internal-banner">{% trans "🔒 Nota interna · solo staff" %}</div>{% endif %}
     <div>{{ c.body_html|safe }}</div>
     {% include "issues/_reactions.html" with c=c reactions=c.reactions_agg|default_if_none:'' %}
     <form id="reply-form-{{ c.pk }}" class="hidden"

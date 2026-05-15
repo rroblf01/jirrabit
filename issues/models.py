@@ -34,6 +34,9 @@ class Status(models.Model):
     name = models.CharField(max_length=40, unique=True)
     category = models.CharField(max_length=16, choices=CATEGORY)
     order = models.PositiveIntegerField(default=0)
+    # Soft WIP limit. Surfaced on the board column header; not enforced
+    # server-side so teams can override on the fly.
+    wip_limit = models.PositiveSmallIntegerField(null=True, blank=True)
     # Allowed forward transitions. Empty = any transition allowed (open workflow).
     allowed_next = models.ManyToManyField("self", symmetrical=False, blank=True, related_name="reachable_from")
 
@@ -169,6 +172,10 @@ class Comment(models.Model):
     body = models.TextField()
     body_html_cache = models.TextField(blank=True, default="")
     edited = models.BooleanField(default=False)
+    is_internal = models.BooleanField(
+        default=False, db_index=True,
+        help_text="Visible solo a staff/superusuarios. Útil para notas privadas del equipo.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -412,6 +419,36 @@ class BranchLink(models.Model):
     class Meta:
         ordering = ("-created_at",)
         unique_together = ("issue", "branch", "commit_sha")
+
+
+class IssueTemplate(models.Model):
+    """Reusable scaffold for new issues.
+
+    Bound to a project + issue type. When applied the create form is
+    pre-filled with the template's summary/description/labels/priority.
+    Description is markdown.
+    """
+
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.CASCADE, related_name="issue_templates",
+    )
+    name = models.CharField(max_length=80)
+    issue_type = models.ForeignKey(IssueType, on_delete=models.PROTECT)
+    summary = models.CharField(max_length=255, blank=True)
+    description = models.TextField(blank=True)
+    priority = models.ForeignKey(Priority, on_delete=models.SET_NULL, null=True, blank=True)
+    labels = models.ManyToManyField(Label, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("project", "name")
+        unique_together = ("project", "name")
+
+    def __str__(self):
+        return f"{self.project.key} · {self.name}"
 
 
 class AuditEntry(models.Model):

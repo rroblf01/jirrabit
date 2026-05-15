@@ -1,5 +1,18 @@
 // Native HTML5 drag-and-drop wired against HTMX endpoints.
 (function () {
+  function recountColumns(root) {
+    const cols = (root || document).querySelectorAll('.kanban .column');
+    cols.forEach(col => {
+      const cards = col.querySelectorAll('.card-issue').length;
+      const limit = col.dataset.wipLimit ? parseInt(col.dataset.wipLimit, 10) : null;
+      const span = col.querySelector('.count');
+      if (span) span.textContent = limit ? `${cards} / ${limit}` : `${cards}`;
+      col.classList.toggle('wip-over', limit !== null && cards > limit);
+    });
+  }
+  window.jirrabit = window.jirrabit || {};
+  window.jirrabit.recountColumns = recountColumns;
+
   function attach(root) {
     const cards = root.querySelectorAll('.card-issue');
     const cols = root.querySelectorAll('.kanban .column');
@@ -43,8 +56,10 @@
             attach(replacement.parentElement);
           }
         }
+        recountColumns();
       });
     });
+    recountColumns(root);
   }
 
   document.addEventListener('DOMContentLoaded', () => {
@@ -52,5 +67,6 @@
   });
   document.body.addEventListener('htmx:afterSwap', e => {
     if (e.target.classList && e.target.classList.contains('kanban')) attach(e.target);
+    if (document.querySelector('.kanban')) recountColumns();
   });
 })();

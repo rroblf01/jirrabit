@@ -10,6 +10,8 @@
   {% if palette_css %}<style id="palette-{{ palette_slug }}">{{ palette_css|safe }}</style>{% endif %}
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
   <script src="{% static 'js/ux.js' %}" defer></script>
+  <script src="{% static 'js/shortcuts.js' %}" defer></script>
+  <script src="{% static 'js/md-toolbar.js' %}" defer></script>
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 {% if user.is_authenticated %}

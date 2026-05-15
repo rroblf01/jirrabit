@@ -24,6 +24,9 @@
                     title="{% trans 'Avanzar estado' %}"
                     style="padding:1px 6px; font-size:11px;">→</button>
           </form>
+          <span class="sp-chip" title="{% trans 'Story points' %}">
+            {% include "issues/_inline/story_points_display.html" with issue=issue %}
+          </span>
           {% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %}{% else %}<span style="color:var(--ink-300);">—</span>{% endif %}
         </span>
       </div>

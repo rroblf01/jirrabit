@@ -54,7 +54,7 @@
   </div>
 </div>
 
-<div class="card" id="bulk-bar" style="display:none; padding:10px 14px;">
+<div class="card bulk-bar-sticky" id="bulk-bar" style="display:none; padding:10px 14px;">
   <form hx-post="{% url 'board:bulk_update' project.key %}" hx-include="#bulk-bar input[name='keys']" id="bulk-form"
         data-toast="{% trans 'Cambios aplicados' %}">
     {% csrf_token %}
@@ -84,8 +84,12 @@
 
 <div class="kanban">
   {% for col in columns %}
-  <div class="column" id="col-{{ col.status.pk }}" data-status-id="{{ col.status.pk }}">
-    <h3>{{ col.status.name }} <span class="count">{{ col.issues|length }}</span></h3>
+  <div class="column{% if col.status.wip_limit and col.issues|length > col.status.wip_limit %} wip-over{% endif %}"
+       id="col-{{ col.status.pk }}" data-status-id="{{ col.status.pk }}"
+       {% if col.status.wip_limit %}data-wip-limit="{{ col.status.wip_limit }}"{% endif %}>
+    <h3>{{ col.status.name }}
+      <span class="count" id="col-count-{{ col.status.pk }}">{{ col.issues|length }}{% if col.status.wip_limit %} / {{ col.status.wip_limit }}{% endif %}</span>
+    </h3>
     {% for i in col.issues %}{% include "board/_card.html" with issue=i %}{% empty %}
       <div class="empty" style="font-size:12px; padding:16px 8px; border:1px dashed var(--ink-300); border-radius:8px;">
         {% trans "Arrastra tareas aquí" %}

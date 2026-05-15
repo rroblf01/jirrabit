@@ -1,6 +1,35 @@
 {% extends "base.html" %}
 {% load i18n %}
 {% block content %}
+<div class="card onboarding-card" id="onboarding-card" style="display:none;">
+  <div style="display:flex; gap:16px; align-items:flex-start;">
+    <div style="font-size:32px;">👋</div>
+    <div style="flex:1;">
+      <h2 style="margin:0 0 4px;">{% trans "Bienvenido a Jirrabit" %}</h2>
+      <p style="color:var(--ink-700); margin:0 0 10px;">
+        {% trans "Atajos para arrancar rápido:" %}
+      </p>
+      <ul style="margin:0 0 10px; padding-left:18px; line-height:1.7;">
+        <li><kbd>?</kbd> {% trans "ver todos los atajos de teclado" %}</li>
+        <li><kbd>Ctrl</kbd>+<kbd>K</kbd> {% trans "paleta de comandos (buscar tareas/proyectos)" %}</li>
+        <li><kbd>c</kbd> {% trans "crear tarea en el proyecto actual" %}</li>
+        <li><kbd>g</kbd> <kbd>b</kbd> {% trans "ir al tablero · " %}<kbd>g</kbd> <kbd>p</kbd> {% trans "lista de proyectos" %}</li>
+        <li>{% trans "Escribe " %}<code>/</code>{% trans " dentro de un comentario para abrir el menú de plantillas." %}</li>
+      </ul>
+      <a class="btn small" href="{% url 'projects:list' %}">{% trans "Ver proyectos" %}</a>
+      <button class="btn ghost small" type="button" onclick="document.getElementById('onboarding-card').style.display='none'; try { localStorage.setItem('onboarding_dismissed', '1'); } catch(e){}">{% trans "Entendido, no mostrar más" %}</button>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    try {
+      if (!localStorage.getItem("onboarding_dismissed")) {
+        document.getElementById("onboarding-card").style.display = "";
+      }
+    } catch (e) {}
+  })();
+</script>
 <div class="card">
   <div class="row">
     <h1 style="margin:0;">{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Plantilla" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>{% if form.instance.pk %}{% trans "Editar plantilla" %}{% else %}{% trans "Nueva plantilla" %}{% endif %}</h1>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+    <div class="form-row">
+      <label>{{ field.label }}</label>
+      {{ field }}
+      {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
+    </div>
+    {% endfor %}
+    <button class="btn" type="submit">{% trans "Guardar" %}</button>
+    <a class="btn ghost" href="{% url 'issues:template_list' project.key %}">{% trans "Cancelar" %}</a>
+  </form>
+</div>
+{% endblock %}
