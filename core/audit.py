@@ -4,7 +4,12 @@ Captures any save on tracked models as an ``issues.AuditEntry`` row scoped
 to the relevant project. Plays nice with the in-app notifications module —
 audit is the *historical record*, notifications are the *unread inbox*.
 """
+import logging
+
+from django.db import DatabaseError
 from django.db.models.signals import post_save, post_delete
+
+logger = logging.getLogger("jirrabit.audit")
 
 
 _TRACKED = {
@@ -43,8 +48,8 @@ def _audit_save(sender, instance, created, **kwargs):
             target_id=instance.pk,
             target_label=str(instance)[:255],
         )
-    except Exception:
-        pass
+    except DatabaseError:
+        logger.exception("Failed to write AuditEntry for %s pk=%s", sender.__name__, instance.pk)
 
 
 def _audit_delete(sender, instance, **kwargs):
@@ -65,9 +70,10 @@ def _audit_delete(sender, instance, **kwargs):
             target_id=instance.pk,
             target_label=str(instance)[:255],
         )
-    except Exception:
-        # CASCADE delete may have already removed the project.
-        pass
+    except DatabaseError:
+        # CASCADE delete may have already removed the project — expected.
+        logger.debug("AuditEntry delete-row failed for %s pk=%s (cascade?)",
+                     sender.__name__, instance.pk, exc_info=True)
 
 
 def connect() -> None:

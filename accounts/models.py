@@ -82,6 +82,18 @@ class APIKey(models.Model):
         )
         return instance, plain
 
+    @classmethod
+    async def acreate_for(cls, *, owner, name: str) -> tuple["APIKey", str]:
+        import secrets
+        plain = secrets.token_urlsafe(36)
+        instance = await cls.objects.acreate(
+            owner=owner,
+            name=name,
+            prefix=plain[:8],
+            token_hash=cls.hash_token(plain),
+        )
+        return instance, plain
+
 
 class InviteToken(models.Model):
     """Signed token that lets a single anonymous user register.

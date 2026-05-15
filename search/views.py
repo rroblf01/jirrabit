@@ -17,12 +17,21 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
             return ["search/_results.html"]
         return ["search/search.html"]
 
+    PAGE_SIZE = 50
+
     async def aget_context_data(self, **kwargs):
+        from .jql import JQLError
         ctx = await super().aget_context_data(**kwargs)
         query = self.request.GET.get("q", "").strip()
-        issues = []
-        error = None
+        try:
+            page = max(int(self.request.GET.get("page", "1")), 1)
+        except ValueError:
+            page = 1
+        offset = (page - 1) * self.PAGE_SIZE
+        issues: list = []
+        error: str | None = None
         suggestions: list[str] = []
+        has_more = False
         if query:
             try:
                 q, order = parse_jql(query)
@@ -32,12 +41,14 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
                     .distinct()
                     .order_by(*(order or ["-updated_at"]))
                 )
-                issues = [i async for i in qs]
-            except Exception as e:
+                rows = [
+                    i async for i in qs[offset : offset + self.PAGE_SIZE + 1]
+                ]
+                has_more = len(rows) > self.PAGE_SIZE
+                issues = rows[: self.PAGE_SIZE]
+            except JQLError as e:
                 import difflib
                 error = str(e)
-                # When the parser complains about a field, surface the closest
-                # known fields so the user can fix the typo without re-reading docs.
                 if "Campo desconocido:" in error:
                     bad = error.split("'")[1] if "'" in error else ""
                     if bad:
@@ -48,6 +59,9 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["issues"] = issues
         ctx["error"] = error
         ctx["suggestions"] = suggestions
+        ctx["page"] = page
+        ctx["next_page"] = page + 1 if has_more else None
+        ctx["prev_page"] = page - 1 if page > 1 else None
         ctx["valid_fields"] = sorted(VALID_FIELDS)
         from django.db.models import Q
         ctx["saved_filters"] = [

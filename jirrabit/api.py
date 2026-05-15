@@ -14,6 +14,7 @@ List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 from datetime import date as _date
 from typing import Generic, List, Optional, TypeVar
 
+from django.db import models
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -249,16 +250,54 @@ def list_issues(
     return paginate(qs, IssueOut.from_issue, page, size)
 
 
+def _validate_assignee(project, user_id):
+    if user_id is None:
+        return None
+    in_project = (
+        User.objects.filter(pk=user_id, is_active=True).filter(
+            models.Q(memberships__project=project) | models.Q(led_projects=project)
+        ).exists()
+    )
+    if not in_project:
+        from ninja.errors import HttpError
+        raise HttpError(400, "assignee no pertenece al proyecto")
+    return user_id
+
+
+def _validate_sprint(project, sprint_id):
+    if sprint_id is None:
+        return None
+    if not Sprint.objects.filter(pk=sprint_id, project=project).exists():
+        from ninja.errors import HttpError
+        raise HttpError(400, "sprint no pertenece al proyecto")
+    return sprint_id
+
+
 @api.post("/projects/{key}/issues/", response=IssueOut)
 def create_issue(request, key: str, payload: IssueIn):
+    from ninja.errors import HttpError
     project = _visible_project(request, key)
-    status = Status.objects.get(pk=payload.status_id) if payload.status_id else Status.objects.order_by("order").first()
-    priority = Priority.objects.get(pk=payload.priority_id) if payload.priority_id else Priority.objects.first()
-    itype = IssueType.objects.get(pk=payload.issue_type_id) if payload.issue_type_id else IssueType.objects.first()
+    try:
+        status = (
+            Status.objects.get(pk=payload.status_id) if payload.status_id
+            else Status.objects.order_by("order").first()
+        )
+        priority = (
+            Priority.objects.get(pk=payload.priority_id) if payload.priority_id
+            else Priority.objects.first()
+        )
+        itype = (
+            IssueType.objects.get(pk=payload.issue_type_id) if payload.issue_type_id
+            else IssueType.objects.first()
+        )
+    except (Status.DoesNotExist, Priority.DoesNotExist, IssueType.DoesNotExist) as exc:
+        raise HttpError(400, "status/priority/type inválido") from exc
+    assignee_id = _validate_assignee(project, payload.assignee_id)
+    sprint_id = _validate_sprint(project, payload.sprint_id)
     issue = Issue.objects.create(
         project=project, reporter=request.user, summary=payload.summary,
         description=payload.description, status=status, priority=priority, issue_type=itype,
-        assignee_id=payload.assignee_id, sprint_id=payload.sprint_id,
+        assignee_id=assignee_id, sprint_id=sprint_id,
         story_points=payload.story_points, due_date=payload.due_date,
     )
     return IssueOut.from_issue(issue)
@@ -269,11 +308,30 @@ def get_issue(request, key: str):
     return IssueOut.from_issue(_visible_issue(request, key))
 
 
+_PATCHABLE_FIELDS = {
+    "summary", "description", "status_id", "priority_id",
+    "assignee_id", "sprint_id", "story_points", "due_date",
+}
+
+
 @api.patch("/issues/{key}/", response=IssueOut)
 def patch_issue(request, key: str, payload: IssuePatch):
+    from ninja.errors import HttpError
     issue = _visible_issue(request, key)
     data = payload.dict(exclude_unset=True)
+    if "status_id" in data:
+        if not Status.objects.filter(pk=data["status_id"]).exists():
+            raise HttpError(400, "status inválido")
+    if "priority_id" in data:
+        if not Priority.objects.filter(pk=data["priority_id"]).exists():
+            raise HttpError(400, "priority inválido")
+    if "assignee_id" in data:
+        _validate_assignee(issue.project, data["assignee_id"])
+    if "sprint_id" in data:
+        _validate_sprint(issue.project, data["sprint_id"])
     for field, value in data.items():
+        if field not in _PATCHABLE_FIELDS:
+            continue
         setattr(issue, field, value)
     issue.save()
     issue.refresh_from_db()

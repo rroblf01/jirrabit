@@ -4,7 +4,7 @@ services:
     env_file:
       - .env
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - jirrabitdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "${JIRRABIT_DB_USER:-jirrabit}"]
       interval: 5s
@@ -38,4 +38,4 @@ services:
       sh -c "python manage.py runserver 0.0.0.0:8000"
 
 volumes:
-  pgdata:
+  jirrabitdata:

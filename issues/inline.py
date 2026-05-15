@@ -6,6 +6,9 @@ Each handler exposes the templates and an ``apply`` coroutine that mutates
 from datetime import date as date_cls
 from typing import Tuple
 
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import models
+
 from accounts.models import User
 from projects.models import Epic, Sprint
 
@@ -23,6 +26,13 @@ def register(name):
 
 def _empty(v):
     return v in (None, "", "None")
+
+
+def _parse_pk(raw) -> int:
+    try:
+        return int(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("pk inválido") from exc
 
 
 class _Base:
@@ -78,7 +88,8 @@ class _PriorityField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.priority)
-        issue.priority = await Priority.objects.aget(pk=int(request.POST.get("value")))
+        pk = _parse_pk(request.POST.get("value"))
+        issue.priority = await Priority.objects.aget(pk=pk)
         return old, str(issue.priority)
 
 
@@ -97,7 +108,8 @@ class _TypeField(_Base):
 
     async def apply(self, issue, request):
         old = str(issue.issue_type)
-        issue.issue_type = await IssueType.objects.aget(pk=int(request.POST.get("value")))
+        pk = _parse_pk(request.POST.get("value"))
+        issue.issue_type = await IssueType.objects.aget(pk=pk)
         return old, str(issue.issue_type)
 
 
@@ -108,9 +120,16 @@ class _AssigneeField(_Base):
     display_template = "issues/_inline/assignee_display.html"
 
     async def context(self, issue):
+        project = issue.project
+        options = [
+            u async for u in
+            User.objects.filter(is_active=True).filter(
+                models.Q(memberships__project=project) | models.Q(led_projects=project)
+            ).defer("avatar").distinct().order_by("username")
+        ]
         return {
             "field": "assignee",
-            "options": [u async for u in User.objects.filter(is_active=True).order_by("username")],
+            "options": options,
             "current_id": issue.assignee_id,
             "allow_empty": True,
             "empty_label": "Sin asignar",
@@ -122,7 +141,16 @@ class _AssigneeField(_Base):
         if _empty(raw):
             issue.assignee = None
         else:
-            issue.assignee = await User.objects.aget(pk=int(raw))
+            pk = _parse_pk(raw)
+            project = issue.project
+            user = await User.objects.filter(
+                pk=pk, is_active=True,
+            ).filter(
+                models.Q(memberships__project=project) | models.Q(led_projects=project)
+            ).afirst()
+            if user is None:
+                raise PermissionDenied("Usuario no pertenece al proyecto.")
+            issue.assignee = user
         return old, str(issue.assignee or "sin asignar")
 
 
@@ -148,7 +176,11 @@ class _SprintField(_Base):
         if _empty(raw):
             issue.sprint = None
         else:
-            issue.sprint = await Sprint.objects.aget(pk=int(raw))
+            pk = _parse_pk(raw)
+            sprint = await Sprint.objects.filter(pk=pk, project=issue.project).afirst()
+            if sprint is None:
+                raise PermissionDenied("Sprint no pertenece al proyecto.")
+            issue.sprint = sprint
         return old, str(issue.sprint or "backlog")
 
 
@@ -174,7 +206,11 @@ class _EpicField(_Base):
         if _empty(raw):
             issue.epic = None
         else:
-            issue.epic = await Epic.objects.aget(pk=int(raw))
+            pk = _parse_pk(raw)
+            epic = await Epic.objects.filter(pk=pk, project=issue.project).afirst()
+            if epic is None:
+                raise PermissionDenied("Epic no pertenece al proyecto.")
+            issue.epic = epic
         return old, str(issue.epic or "sin epic")
 
 

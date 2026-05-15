@@ -43,9 +43,7 @@ class JirrabitLoginView(AsyncFormView):
         else:
             self.request.session.set_expiry(0)
         next_url = (
-            self.request.POST.get("next")
-            or self.request.GET.get("next")
-            or settings.LOGIN_REDIRECT_URL
+            self.request.POST.get("next") or self.request.GET.get("next") or settings.LOGIN_REDIRECT_URL
         )
         return redirect(next_url)
 
@@ -69,23 +67,26 @@ class LogoutAllDevicesView(AsyncLoginRequiredMixin, View):
     ``django-user-sessions``).
     """
 
+    @staticmethod
+    def _revoke_other_sessions(user_pk: str, current_key: str) -> int:
+        from django.contrib.sessions.models import Session
+        count = 0
+        for s in Session.objects.iterator():
+            data = s.get_decoded()
+            if str(data.get("_auth_user_id")) == user_pk and s.session_key != current_key:
+                s.delete()
+                count += 1
+        return count
+
     async def post(self, request):
         from asgiref.sync import sync_to_async
-        from django.contrib.sessions.models import Session
+        from django.contrib import messages
+
         user_pk = str(request.user.pk)
         current_key = request.session.session_key
-
-        def _purge():
-            count = 0
-            for s in Session.objects.iterator():
-                data = s.get_decoded()
-                if str(data.get("_auth_user_id")) == user_pk and s.session_key != current_key:
-                    s.delete()
-                    count += 1
-            return count
-
-        count = await sync_to_async(_purge, thread_sensitive=True)()
-        from django.contrib import messages
+        count = await sync_to_async(self._revoke_other_sessions, thread_sensitive=True)(
+            user_pk, current_key,
+        )
         messages.success(request, f"{count} sesiones revocadas.")
         return redirect("accounts:profile")
 
@@ -115,9 +116,7 @@ class RegisterView(AsyncFormView):
         ctx = await super().aget_context_data(**kwargs)
         ctx["invite_only"] = settings.JIRRABIT_INVITE_ONLY
         ctx["token"] = self.request.GET.get("token") or self.request.POST.get("token") or ""
-        ctx["invite_invalid"] = (
-            settings.JIRRABIT_INVITE_ONLY and (await self._aget_valid_invite()) is None
-        )
+        ctx["invite_invalid"] = settings.JIRRABIT_INVITE_ONLY and (await self._aget_valid_invite()) is None
         return ctx
 
     async def get(self, request, *args, **kwargs):
@@ -128,6 +127,7 @@ class RegisterView(AsyncFormView):
         if invite is None:
             from django.core.exceptions import PermissionDenied
             from django.utils.translation import gettext as _
+
             raise PermissionDenied(_("Necesitas una invitación válida para registrarte."))
         self._invite = invite
         return await super().post(request, *args, **kwargs)
@@ -165,6 +165,7 @@ class ProfileView(AsyncLoginRequiredMixin, AsyncUpdateView):
 
     async def aget_context_data(self, **kwargs):
         from core.palettes import PALETTE_CHOICES
+
         ctx = await super().aget_context_data(**kwargs)
         ctx["palette_chips"] = PALETTE_CHOICES
         return ctx
@@ -189,12 +190,10 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
         return ["accounts/user_list.html"]
 
     async def aget_queryset(self):
-        qs = User.objects.all().order_by("username")
+        qs = User.objects.defer("avatar").order_by("username")
         q = self.request.GET.get("q", "").strip()
         if q:
-            qs = qs.filter(
-                Q(username__icontains=q) | Q(display_name__icontains=q) | Q(email__icontains=q)
-            )
+            qs = qs.filter(Q(username__icontains=q) | Q(display_name__icontains=q) | Q(email__icontains=q))
         return qs
 
     async def aget_context_data(self, **kwargs):
@@ -206,14 +205,39 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
 class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
     template_name = "notifications/inbox.html"
     context_object_name = "notifications"
+    PAGE_SIZE = 50
 
     def get_template_names(self):
         if self.request.htmx:
             return ["notifications/_list.html"]
         return [self.template_name]
 
+    def _page(self) -> int:
+        try:
+            return max(int(self.request.GET.get("page", "1")), 1)
+        except ValueError:
+            return 1
+
     async def aget_queryset(self):
-        return Notification.objects.filter(recipient=self.request.user).select_related("actor")[:100]
+        page = self._page()
+        offset = (page - 1) * self.PAGE_SIZE
+        return (
+            Notification.objects
+            .filter(recipient=self.request.user)
+            .select_related("actor")
+            [offset : offset + self.PAGE_SIZE + 1]
+        )
+
+    async def aget_context_data(self, **kwargs):
+        ctx = await super().aget_context_data(**kwargs)
+        page = self._page()
+        items = list(ctx.get("notifications") or [])
+        ctx["has_more"] = len(items) > self.PAGE_SIZE
+        ctx["notifications"] = items[: self.PAGE_SIZE]
+        ctx["page"] = page
+        ctx["next_page"] = page + 1 if ctx["has_more"] else None
+        ctx["prev_page"] = page - 1 if page > 1 else None
+        return ctx
 
 
 class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
@@ -223,7 +247,9 @@ class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
         if ids:
             qs = qs.filter(pk__in=ids)
         await qs.aupdate(read=True)
-        notifs = [n async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[:100]]
+        notifs = [
+            n async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[:100]
+        ]
         return await arender(request, "notifications/_list.html", {"notifications": notifs})
 
 
@@ -233,6 +259,7 @@ class UserMentionSearchView(AsyncLoginRequiredMixin, View):
         if not q:
             return await arender(request, "notifications/_mention_list.html", {"users": []})
         from django.db.models import Q
+
         qs = User.objects.filter(is_active=True).filter(
             Q(username__icontains=q) | Q(display_name__icontains=q)
         )[:8]
@@ -246,6 +273,7 @@ class APIKeyListView(AsyncLoginRequiredMixin, AsyncListView):
 
     async def aget_queryset(self):
         from .models import APIKey
+
         return APIKey.objects.filter(owner=self.request.user)
 
     async def aget_context_data(self, **kwargs):
@@ -258,10 +286,10 @@ class APIKeyListView(AsyncLoginRequiredMixin, AsyncListView):
 
 class APIKeyCreateView(AsyncLoginRequiredMixin, View):
     async def post(self, request):
-        from asgiref.sync import sync_to_async
         from .models import APIKey
+
         name = request.POST.get("name", "").strip() or "default"
-        _, plain = await sync_to_async(APIKey.create_for)(owner=request.user, name=name)
+        _, plain = await APIKey.acreate_for(owner=request.user, name=name)
         # Stash the plaintext in the session so the next render can show it once.
         request.session["fresh_api_token"] = plain
         request.session["fresh_api_name"] = name
@@ -272,6 +300,7 @@ class APIKeyRevokeView(AsyncLoginRequiredMixin, View):
     async def post(self, request, pk):
         from django.utils import timezone
         from .models import APIKey
+
         k = await APIKey.objects.filter(pk=pk, owner=request.user).afirst()
         if k:
             k.revoked_at = timezone.now()
@@ -283,19 +312,10 @@ class NotificationCountView(AsyncLoginRequiredMixin, View):
     """Poll target for the topbar bell badge."""
 
     async def get(self, request):
-        from django.http import HttpResponse
-        from django.template.loader import render_to_string
-        count = await Notification.objects.filter(
-            recipient=request.user, read=False
-        ).acount()
+        count = await Notification.objects.filter(recipient=request.user, read=False).acount()
         request.unread_notifications = count
-        # Reuse the same fragment as the topbar so HTMX can swap it.
-        return HttpResponse(
-            render_to_string(
-                "_notif_badge.html",
-                {"unread_notifications": count, "request": request},
-                request=request,
-            )
+        return await arender(
+            request, "_notif_badge.html", {"unread_notifications": count},
         )
 
 
@@ -306,5 +326,6 @@ class PalettePreviewView(View):
     async def get(self, request):
         from django.http import HttpResponse
         from core.palettes import palette_css
+
         slug = request.GET.get("p", "blue")
         return HttpResponse(palette_css(slug), content_type="text/css")

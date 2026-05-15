@@ -17,6 +17,7 @@ logger = logging.getLogger("jirrabit.notifications")
 
 
 def _send(subject: str, body: str, recipients: list[str]) -> None:
+    import smtplib
     recipients = [r for r in recipients if r]
     if not recipients:
         return
@@ -26,10 +27,10 @@ def _send(subject: str, body: str, recipients: list[str]) -> None:
             body,
             settings.DEFAULT_FROM_EMAIL,
             recipients,
-            fail_silently=True,
+            fail_silently=False,
         )
-    except Exception:  # pragma: no cover - defensive
-        logger.exception("Failed to send notification email")
+    except (smtplib.SMTPException, OSError):
+        logger.exception("Failed to send notification email to %s", recipients)
 
 
 def _action(created: bool) -> str:

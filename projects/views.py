@@ -26,7 +26,7 @@ async def _aget_project(key):
 
 async def _aget_sprint(pk):
     try:
-        return await Sprint.objects.aget(pk=pk)
+        return await Sprint.objects.select_related("project").aget(pk=pk)
     except Sprint.DoesNotExist as exc:
         raise Http404(f"Sprint {pk} not found") from exc
 
@@ -77,7 +77,7 @@ class ProjectDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         project = self.object
         ctx["epics"] = [e async for e in project.epics.all()]
         ctx["sprints"] = [s async for s in project.sprints.all()]
-        members = [m async for m in project.members.all()]
+        members = [m async for m in project.members.defer("avatar").all()]
         project._prefetched_objects_cache = {"members": members}
         return ctx
 
@@ -185,6 +185,7 @@ class SprintCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCrea
 class SprintStartView(AsyncLoginRequiredMixin, View):
     async def post(self, request, sprint_id):
         sprint = await _aget_sprint(sprint_id)
+        await aassert_can_admin(request.user, sprint.project)
         await sprint.astart()
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
 
@@ -192,6 +193,7 @@ class SprintStartView(AsyncLoginRequiredMixin, View):
 class SprintCloseView(AsyncLoginRequiredMixin, View):
     async def post(self, request, sprint_id):
         sprint = await _aget_sprint(sprint_id)
+        await aassert_can_admin(request.user, sprint.project)
         await sprint.aclose()
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
 
@@ -200,14 +202,34 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
 
 class ProjectActivityView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/activity.html"
+    PAGE_SIZE = 50
 
     async def aget_context_data(self, **kwargs):
         from issues.models import AuditEntry, HistoryEntry
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
+        try:
+            page = max(int(self.request.GET.get("page", "1")), 1)
+        except ValueError:
+            page = 1
+        offset = (page - 1) * self.PAGE_SIZE
+        end = offset + self.PAGE_SIZE + 1
+        audits = [
+            a async for a in
+            AuditEntry.objects.filter(project=project)
+            .select_related("actor")[offset:end]
+        ]
+        history = [
+            h async for h in
+            HistoryEntry.objects.filter(issue__project=project)
+            .select_related("actor", "issue")[offset:end]
+        ]
         ctx["project"] = project
-        ctx["audits"] = [a async for a in AuditEntry.objects.filter(project=project).select_related("actor")[:100]]
-        ctx["history"] = [h async for h in HistoryEntry.objects.filter(issue__project=project).select_related("actor", "issue")[:100]]
+        ctx["audits"] = audits[: self.PAGE_SIZE]
+        ctx["history"] = history[: self.PAGE_SIZE]
+        ctx["page"] = page
+        ctx["next_page"] = page + 1 if (len(audits) > self.PAGE_SIZE or len(history) > self.PAGE_SIZE) else None
+        ctx["prev_page"] = page - 1 if page > 1 else None
         return ctx
 
 
@@ -231,10 +253,22 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         # Velocity: closed sprints, committed (sum SP at start) vs
         # completed (sum SP of issues resolved during the sprint).
+        # Single query for all sprint issues, grouped in Python.
         from issues.models import Issue
+        closed_sprints = [
+            s async for s in
+            project.sprints.filter(status="closed").order_by("end_date")[:12]
+        ]
+        closed_ids = [s.pk for s in closed_sprints]
+        issues_by_sprint: dict[int, list] = {sid: [] for sid in closed_ids}
+        if closed_ids:
+            async for i in Issue.objects.filter(sprint_id__in=closed_ids).only(
+                "sprint_id", "story_points", "resolved_at",
+            ):
+                issues_by_sprint[i.sprint_id].append(i)
         velocity = []
-        async for s in project.sprints.filter(status="closed").order_by("end_date")[:12]:
-            sprint_issues = [i async for i in Issue.objects.filter(sprint=s)]
+        for s in closed_sprints:
+            sprint_issues = issues_by_sprint.get(s.pk, [])
             committed = sum(i.story_points or 0 for i in sprint_issues)
             completed = sum(
                 (i.story_points or 0) for i in sprint_issues
@@ -264,7 +298,10 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         if sprint and sprint.start_date and sprint.end_date:
             from issues.models import Issue
-            issues = [i async for i in Issue.objects.filter(sprint=sprint)]
+            issues = [
+                i async for i in
+                Issue.objects.filter(sprint=sprint).only("story_points", "resolved_at")
+            ]
             total_sp = sum(i.story_points or 0 for i in issues)
             days = (sprint.end_date - sprint.start_date).days or 1
             today = timezone.localdate()
@@ -292,45 +329,67 @@ class ProjectMembersView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/members.html"
 
     async def aget_context_data(self, **kwargs):
-        from projects.models import ProjectMembership
         from accounts.models import User
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_admin(self.request.user, project)
         ctx["project"] = project
-        ctx["memberships"] = [m async for m in project.memberships.select_related("user").all()]
+        ctx["memberships"] = [
+            m async for m in
+            project.memberships.select_related("user").defer("user__avatar")
+        ]
         member_ids = {m.user_id for m in ctx["memberships"]}
         ctx["available_users"] = [
-            u async for u in User.objects.filter(is_active=True).exclude(pk__in=member_ids).order_by("username")
+            u async for u in
+            User.objects.filter(is_active=True)
+            .defer("avatar")
+            .exclude(pk__in=member_ids).order_by("username")
         ]
         return ctx
 
 
 class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
-        from projects.models import ProjectMembership
+        from django.http import HttpResponseBadRequest
         from accounts.models import User
+        from projects.models import ProjectMembership
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
-        user_id = request.POST.get("user_id")
+        try:
+            user_id = int(request.POST.get("user_id", ""))
+        except (TypeError, ValueError):
+            return HttpResponseBadRequest("user_id inválido")
         role = request.POST.get("role", "member")
-        user = await User.objects.aget(pk=user_id)
-        await ProjectMembership.objects.acreate(project=project, user=user, role=role)
+        if role not in {"admin", "member", "viewer"}:
+            return HttpResponseBadRequest("rol inválido")
+        user = await User.objects.filter(pk=user_id, is_active=True).afirst()
+        if user is None:
+            return HttpResponseBadRequest("usuario no encontrado")
+        await ProjectMembership.objects.aget_or_create(
+            project=project, user=user, defaults={"role": role},
+        )
         return redirect("projects:members", key=project.key)
 
 
 class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
+        from django.http import Http404
         from projects.models import ProjectMembership
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
-        m = await ProjectMembership.objects.aget(pk=pk, project=project)
+        m = await ProjectMembership.objects.filter(pk=pk, project=project).afirst()
+        if m is None:
+            raise Http404("Membership not found in this project")
         action = request.POST.get("action")
         if action == "delete":
             await m.adelete()
         else:
-            m.role = request.POST.get("role", m.role)
-            await m.asave()
+            new_role = request.POST.get("role", m.role)
+            if new_role not in {"admin", "member", "viewer"}:
+                from django.http import HttpResponseBadRequest
+                return HttpResponseBadRequest("rol inválido")
+            m.role = new_role
+            await m.asave(update_fields=["role"])
         return redirect("projects:members", key=project.key)
 
 

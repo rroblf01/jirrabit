@@ -1,4 +1,6 @@
+from asgiref.sync import sync_to_async
 from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.utils import timezone
@@ -18,6 +20,50 @@ from projects.models import Project
 from .forms import CommentForm, IssueForm
 from .inline import INLINE_FIELDS
 from .models import Attachment, Comment, Issue, IssueLink, IssueType, Priority, Status, WorkLog
+
+
+def _change_status_atomic(issue_pk, new_status_pk, user_pk):
+    """Atomic status transition under row lock. Returns (issue, new_status, ok)."""
+    from .models import HistoryEntry
+
+    with transaction.atomic():
+        issue = (
+            Issue.objects
+            .select_for_update()
+            .select_related("status", "project")
+            .get(pk=issue_pk)
+        )
+        new_status = Status.objects.get(pk=new_status_pk)
+        current = issue.status
+        if current.pk != new_status.pk and not current.can_transition_to(new_status):
+            return issue, new_status, False
+        issue.status = new_status
+        if new_status.category == "done" and not issue.resolved_at:
+            issue.resolved_at = timezone.now()
+        elif new_status.category != "done":
+            issue.resolved_at = None
+        issue.save()
+        if current.pk != new_status.pk:
+            HistoryEntry.objects.create(
+                issue=issue, actor_id=user_pk, field="status",
+                old_value=str(current), new_value=str(new_status),
+            )
+    return issue, new_status, True
+
+
+def _log_work_atomic(issue_pk, user_pk, minutes, comment):
+    with transaction.atomic():
+        issue = Issue.objects.select_for_update().get(pk=issue_pk)
+        WorkLog.objects.create(
+            issue=issue, author_id=user_pk, minutes=minutes, comment=comment,
+        )
+        issue.time_spent_minutes = (issue.time_spent_minutes or 0) + minutes
+        if issue.time_remaining_minutes:
+            issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - minutes)
+        issue.save(update_fields=[
+            "time_spent_minutes", "time_remaining_minutes", "updated_at",
+        ])
+    return issue
 
 
 async def _aget_project(key):
@@ -196,25 +242,12 @@ class ChangeStatusView(AsyncLoginRequiredMixin, View):
         issue = await _aget_issue(key)
         await aassert_can_edit(request.user, issue.project)
         new_status = await _aget_status(request.POST.get("status"))
-        current = issue.status
-        # Workflow rule: ``Status.allowed_next`` restricts transitions.
-        allowed = [s async for s in current.allowed_next.all()]
-        if allowed and new_status.pk != current.pk:
-            if not any(s.pk == new_status.pk for s in allowed):
-                return HttpResponseBadRequest(
-                    f"Transición no permitida: {current} → {new_status}"
-                )
-        issue.status = new_status
-        if new_status.category == "done" and not issue.resolved_at:
-            issue.resolved_at = timezone.now()
-        elif new_status.category != "done":
-            issue.resolved_at = None
-        await issue.asave()
-        from issues.models import HistoryEntry
-        if current.pk != new_status.pk:
-            await HistoryEntry.objects.acreate(
-                issue=issue, actor=request.user, field="status",
-                old_value=str(current), new_value=str(new_status),
+        issue, new_status, ok = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True,
+        )(issue.pk, new_status.pk, request.user.pk)
+        if not ok:
+            return HttpResponseBadRequest(
+                f"Transición no permitida hacia {new_status}"
             )
         if request.htmx:
             statuses = [s async for s in Status.objects.all()]
@@ -374,13 +407,9 @@ class LogWorkView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("minutos inválidos")
         if minutes <= 0:
             return HttpResponseBadRequest("minutos debe ser > 0")
-        log = await WorkLog.objects.acreate(
-            issue=issue, author=request.user, minutes=minutes, comment=comment
+        issue = await sync_to_async(_log_work_atomic, thread_sensitive=True)(
+            issue.pk, request.user.pk, minutes, comment,
         )
-        issue.time_spent_minutes = (issue.time_spent_minutes or 0) + minutes
-        if issue.time_remaining_minutes:
-            issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - minutes)
-        await issue.asave()
         worklogs = [w async for w in issue.worklogs.select_related("author")[:10]]
         return await arender(
             request, "issues/_time_panel.html",
