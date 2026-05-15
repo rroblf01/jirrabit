@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}SLA · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">SLA · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <form method="get" style="display:flex; gap:6px; align-items:center;">
+      <label style="margin:0; font-size:13px;">{% trans "Alerta tras" %}:
+        <input type="number" name="days" value="{{ threshold }}" min="1" max="365" style="width:60px;">
+        {% trans "días en mismo estado" %}
+      </label>
+      <button class="btn small">{% trans "Aplicar" %}</button>
+    </form>
+  </div>
+  <p style="color:var(--ink-500); margin:0 0 14px; font-size:13px;">
+    {% trans "Tareas abiertas que llevan más de" %} {{ threshold }} {% trans "días sin cambiar de estado." %}
+  </p>
+  {% if rows %}
+  <table>
+    <thead><tr>
+      <th>{% trans "Clave" %}</th><th>{% trans "Resumen" %}</th><th>{% trans "Estado" %}</th>
+      <th>{% trans "Asignado" %}</th><th>{% trans "Días" %}</th><th>{% trans "Entró el" %}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td><a href="{{ r.issue.get_absolute_url }}">{{ r.issue.key }}</a></td>
+        <td>{{ r.issue.summary|truncatechars:80 }}</td>
+        <td><span class="badge {{ r.issue.status.category }}">{{ r.issue.status.name }}</span></td>
+        <td>{{ r.issue.assignee|default:"—" }}</td>
+        <td><strong>{{ r.days_in_status }}d</strong></td>
+        <td>{{ r.entered_at|date:"d M Y" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">{% trans "Nada estancado. 🎉" %}</p>
+  {% endif %}
+</div>
+{% endblock %}

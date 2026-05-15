@@ -214,28 +214,47 @@ class _EpicField(_Base):
         return old, str(issue.epic or "sin epic")
 
 
+TSHIRT_TO_SP = {
+    "XS": 1, "S": 2, "M": 3, "L": 5, "XL": 8, "XXL": 13,
+}
+
+
 @register("story_points")
 class _StoryPointsField(_Base):
     label = "Story points"
-    form_template = "issues/_inline/number_form.html"
+    form_template = "issues/_inline/tshirt_form.html"
     display_template = "issues/_inline/story_points_display.html"
 
     async def context(self, issue):
-        return {"field": "story_points", "value": issue.story_points or ""}
+        return {
+            "field": "story_points",
+            "value": issue.story_points or "",
+            "tshirt_sizes": list(TSHIRT_TO_SP.items()),
+            "current_size": _sp_to_tshirt(issue.story_points),
+        }
 
     async def apply(self, issue, request):
         old = str(issue.story_points or "—")
-        raw = request.POST.get("value", "").strip()
-        if raw:
+        raw = request.POST.get("value", "").strip().upper()
+        if raw in TSHIRT_TO_SP:
+            issue.story_points = TSHIRT_TO_SP[raw]
+        elif raw:
             try:
                 issue.story_points = max(0, int(round(float(raw))))
             except ValueError:
-                # Leave the previous value untouched on bad input rather
-                # than 500'ing the inline edit.
                 pass
         else:
             issue.story_points = None
         return old, str(issue.story_points or "—")
+
+
+def _sp_to_tshirt(sp):
+    if not sp:
+        return ""
+    # Map SP back to the closest t-shirt label for highlight in the picker.
+    pairs = sorted(TSHIRT_TO_SP.items(), key=lambda kv: kv[1])
+    closest = min(pairs, key=lambda kv: abs(kv[1] - sp))
+    return closest[0] if closest[1] == sp else ""
 
 
 @register("due_date")

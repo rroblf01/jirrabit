@@ -274,6 +274,119 @@
     });
   }
 
+  // --- Done celebration --------------------------------------------------
+  // Fires a small particle burst from the center of an element. Triggered
+  // by elements with ``data-celebrate`` or after an HTMX swap returns a
+  // status badge in the "done" category.
+  function celebrate(origin) {
+    const rect = origin.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const colors = ["#22c55e", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"];
+    for (let i = 0; i < 24; i++) {
+      const d = document.createElement("div");
+      d.className = "celebrate-burst";
+      d.style.left = cx + "px";
+      d.style.top = cy + "px";
+      d.style.background = colors[i % colors.length];
+      const angle = (Math.PI * 2 * i) / 24;
+      const dist = 80 + Math.random() * 80;
+      d.style.setProperty("--dx", Math.cos(angle) * dist + "px");
+      d.style.setProperty("--dy", Math.sin(angle) * dist + "px");
+      document.body.appendChild(d);
+      setTimeout(() => d.remove(), 900);
+    }
+  }
+  document.body.addEventListener("click", (e) => {
+    const trigger = e.target.closest("[data-celebrate]");
+    if (trigger) celebrate(trigger);
+  });
+  // Auto-celebrate after a status change that returns a 'done' badge.
+  document.body.addEventListener("htmx:afterSwap", (e) => {
+    const badge = (e.detail && e.detail.target) ? e.detail.target.querySelector(".badge.done") : null;
+    if (badge && e.detail.target.dataset.lastCategory !== "done") {
+      celebrate(e.detail.target);
+      e.detail.target.dataset.lastCategory = "done";
+    }
+  });
+  jirrabit.celebrate = celebrate;
+
+  // --- Mobile board gestures --------------------------------------------
+  // On touch devices the kanban card supports horizontal swipe:
+  //   left  → advance to next status (calls /issues/<key>/advance/)
+  //   right → no-op (reserved for future "back to previous status")
+  function attachSwipe(card) {
+    if (card.dataset.swipeBound === "1") return;
+    card.dataset.swipeBound = "1";
+    let startX = null, startY = null, tracking = false;
+    card.addEventListener("touchstart", (ev) => {
+      if (ev.touches.length !== 1) return;
+      startX = ev.touches[0].clientX;
+      startY = ev.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+    card.addEventListener("touchend", async (ev) => {
+      if (!tracking || startX === null) return;
+      tracking = false;
+      const t = ev.changedTouches[0];
+      const dx = t.clientX - startX;
+      const dy = t.clientY - startY;
+      if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+      if (dx < 0) {
+        // Swipe left → advance.
+        const key = card.dataset.key;
+        if (!key) return;
+        const csrf = document.querySelector("input[name=csrfmiddlewaretoken]");
+        const fd = new FormData();
+        const r = await fetch(`/issues/${key}/advance/`, {
+          method: "POST", body: fd, headers: csrf ? { "X-CSRFToken": csrf.value } : {},
+        });
+        if (r.ok) {
+          card.style.transition = "transform .2s, opacity .2s";
+          card.style.transform = "translateX(-100%)";
+          card.style.opacity = "0";
+          setTimeout(() => location.reload(), 220);
+        }
+      }
+    });
+  }
+  function scanSwipe(root) {
+    (root || document).querySelectorAll(".kanban .card-issue").forEach(attachSwipe);
+  }
+  if ("ontouchstart" in window) {
+    document.addEventListener("DOMContentLoaded", () => scanSwipe(document));
+    document.body.addEventListener("htmx:afterSwap", (e) => scanSwipe(e.target));
+  }
+
+  // --- Comment permalink copy -------------------------------------------
+  // Click a comment timestamp → smooth scroll + copy URL to clipboard.
+  document.body.addEventListener("click", async (e) => {
+    const anchor = e.target.closest("a.comment-anchor");
+    if (!anchor) return;
+    e.preventDefault();
+    const id = anchor.dataset.commentId;
+    if (!id) return;
+    const url = location.origin + location.pathname + "#comment-" + id;
+    try {
+      await navigator.clipboard.writeText(url);
+      jirrabit.toast("Enlace copiado", "ok");
+    } catch (_) {}
+    const target = document.getElementById("comment-" + id);
+    if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
+    history.replaceState(null, "", "#comment-" + id);
+  });
+  // Scroll to #comment-N on page load.
+  document.addEventListener("DOMContentLoaded", () => {
+    const m = location.hash.match(/^#comment-(\d+)$/);
+    if (!m) return;
+    const target = document.getElementById("comment-" + m[1]);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.classList.add("highlight");
+      setTimeout(() => target.classList.remove("highlight"), 2200);
+    }
+  });
+
   // --- Side panel close button -------------------------------------------
   document.addEventListener("click", (e) => {
     if (e.target && e.target.id === "side-panel-close") {

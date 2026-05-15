@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Workload heatmap" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Workload heatmap" %} · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    <form method="get" style="display:flex; gap:6px; align-items:center;">
+      <label style="margin:0; font-size:13px;">{% trans "Días" %}:
+        <input type="number" name="days" value="{{ days_back }}" min="7" max="90" style="width:70px;">
+      </label>
+      <button class="btn small">{% trans "Aplicar" %}</button>
+    </form>
+  </div>
+  <p style="color:var(--ink-500); margin:0 0 14px; font-size:13px;">
+    {% trans "Carga diaria de SP por persona, basada en fecha de resolución y due_date." %}
+    {% trans "Más oscuro = más carga." %}
+  </p>
+
+  <div class="table-scroll">
+  <table style="border-collapse:separate; border-spacing:1px;">
+    <thead><tr>
+      <th>{% trans "Persona" %}</th>
+      {% for d in days %}
+        <th style="font-size:9px; padding:1px 2px; min-width:14px;" title="{{ d|date:'D d M' }}">
+          {{ d|date:"d" }}
+        </th>
+      {% endfor %}
+      <th>{% trans "Total" %}</th>
+    </tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td>{% include "_avatar.html" with u=r.user %} {{ r.user }}</td>
+        {% for c in r.cells %}
+          <td style="padding:0; width:14px; height:18px;
+                     background: rgba(37,99,235,{{ c.intensity|stringformat:'d' }});
+                     background: rgba(37,99,235,0.{{ c.intensity }});"
+              title="{{ c.date|date:'d M' }}: {{ c.sp }} SP"></td>
+        {% endfor %}
+        <td><strong>{{ r.total }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

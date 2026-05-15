@@ -1,4 +1,5 @@
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
+from django.shortcuts import redirect
 from django.utils import timezone
 from django.views import View
 
@@ -19,6 +20,8 @@ async def _aget_project(key):
 
 async def _filtered_issues_qs(project, request):
     qs = project.issues.select_related("status", "priority", "issue_type", "assignee")
+    if not request.GET.get("archived"):
+        qs = qs.filter(archived=False)
     assignee = request.GET.get("assignee")
     if assignee == "me":
         qs = qs.filter(assignee=request.user)
@@ -210,6 +213,82 @@ class BacklogView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["groups"] = groups
         ctx["sprints"] = sprints
         return ctx
+
+
+class BoardColumnQuickCreateView(AsyncLoginRequiredMixin, View):
+    """Create a new issue directly in a board column (sticky-note style).
+
+    Receives ``summary`` + ``status_id``; returns the rendered card so the
+    board can append it without a full reload.
+    """
+
+    async def post(self, request, key):
+        from issues.models import IssueType, Priority, Status
+        project = await _aget_project(key)
+        await aassert_can_edit(request.user, project)
+        summary = request.POST.get("summary", "").strip()
+        status_id = request.POST.get("status_id", "")
+        if not summary or not status_id.isdigit():
+            return HttpResponseBadRequest("summary + status requeridos")
+        status = await Status.objects.filter(pk=int(status_id)).afirst()
+        if status is None:
+            return HttpResponseBadRequest("status inválido")
+        priority = await Priority.objects.afirst()
+        itype = await IssueType.objects.afirst()
+        num = await project.anext_issue_number()
+        issue = Issue(
+            project=project, reporter=request.user,
+            summary=summary[:255], description="",
+            status=status, priority=priority, issue_type=itype,
+            key=f"{project.key}-{num}",
+        )
+        await issue.asave()
+        return await arender(request, "board/_card.html", {"issue": issue})
+
+
+class BoardViewListView(AsyncLoginRequiredMixin, View):
+    """Return the saved-view picker fragment for a project."""
+
+    async def get(self, request, key):
+        from .models import SavedBoardView
+        project = await _aget_project(key)
+        await aassert_can_view(request.user, project)
+        views = [
+            v async for v in
+            SavedBoardView.objects.filter(user=request.user, project=project)
+        ]
+        return await arender(
+            request, "board/_view_picker.html",
+            {"project": project, "views": views, "current": request.GET.urlencode()},
+        )
+
+
+class BoardViewSaveView(AsyncLoginRequiredMixin, View):
+    """Persist the current filter combination as a named view."""
+
+    async def post(self, request, key):
+        from .models import SavedBoardView
+        project = await _aget_project(key)
+        await aassert_can_view(request.user, project)
+        name = request.POST.get("name", "").strip()[:80]
+        if not name:
+            return HttpResponseBadRequest("nombre requerido")
+        # The set of params we know about — anything else is ignored to keep
+        # links predictable when the schema evolves.
+        keys = ("assignee", "type", "priority", "epic", "sprint", "stale", "due", "text")
+        filters = {k: request.POST.get(k, "") for k in keys if request.POST.get(k)}
+        await SavedBoardView.objects.aupdate_or_create(
+            user=request.user, project=project, name=name,
+            defaults={"filters": filters},
+        )
+        return HttpResponse(status=204, headers={"HX-Redirect": f"/board/{project.key}/?{request.POST.urlencode()}"})
+
+
+class BoardViewDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from .models import SavedBoardView
+        await SavedBoardView.objects.filter(pk=pk, user=request.user).adelete()
+        return redirect("board:board", key=key)
 
 
 class BacklogMoveView(AsyncLoginRequiredMixin, View):

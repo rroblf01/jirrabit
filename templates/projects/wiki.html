@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Wiki" %} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row">
+    <h1 style="margin:0;">{% trans "Wiki" %} · {{ project.key }}</h1>
+    <div class="spacer"></div>
+    {% if can_edit and not edit_mode %}
+      <a class="btn ghost" href="?edit=1">{% trans "Editar" %}</a>
+    {% endif %}
+  </div>
+
+  {% if edit_mode and can_edit %}
+    <form method="post" style="margin-top:14px;">
+      {% csrf_token %}
+      <textarea name="body" rows="20" data-md-preview="1" data-slash="1"
+                style="font-family:monospace;">{{ wiki.body }}</textarea>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn" type="submit">{% trans "Guardar" %}</button>
+        <a class="btn ghost" href="{% url 'projects:wiki' project.key %}">{% trans "Cancelar" %}</a>
+      </div>
+    </form>
+  {% else %}
+    {% if wiki and wiki.body %}
+      <div class="md-rendered" style="margin-top:14px;">{{ body_html|safe }}</div>
+      <p style="color:var(--ink-500); font-size:12px; margin-top:14px;">
+        {% trans "Última edición" %}: {{ wiki.updated_at|date:"d M Y H:i" }} · {{ wiki.updated_by|default:_('—') }}
+      </p>
+    {% else %}
+      <div class="empty">
+        <p>{% trans "Sin contenido todavía." %}</p>
+        {% if can_edit %}<a class="btn" href="?edit=1">{% trans "Empezar wiki" %}</a>{% endif %}
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

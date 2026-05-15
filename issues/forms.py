@@ -1,5 +1,7 @@
 from django import forms
 
+from core.dates import parse_due_date
+
 from .models import Comment, Issue, IssueType, Label, Priority, Status
 
 
@@ -35,6 +37,26 @@ class IssueForm(forms.ModelForm):
             self.fields["epic"].queryset = project.epics.all()
             self.fields["sprint"].queryset = project.sprints.all()
             self.fields["parent"].queryset = project.issues.exclude(pk=self.instance.pk or 0)
+        # Accept loose date phrases ("tomorrow", "next friday", "3d").
+        self.fields["due_date"].widget = forms.TextInput(attrs={
+            "placeholder": "YYYY-MM-DD, mañana, viernes, 3d…",
+        })
+
+    def clean_due_date(self):
+        raw = self.cleaned_data.get("due_date")
+        if not raw:
+            return None
+        # Django parses ``date`` already if input is ISO; only kick in when
+        # the user typed something it didn't understand (came through as
+        # ``str`` because we replaced the widget).
+        if hasattr(raw, "year"):
+            return raw
+        parsed = parse_due_date(str(raw))
+        if parsed is None:
+            raise forms.ValidationError(
+                "Fecha no reconocida. Usa YYYY-MM-DD, 'mañana', 'next friday', '3d', etc."
+            )
+        return parsed
 
 
 class CommentForm(forms.ModelForm):

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}@team:{{ team.slug }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0 0 6px;">@team:{{ team.slug }} — {{ team.name }}</h1>
+  {% if team.description %}<p style="color:var(--ink-500); margin:0 0 14px;">{{ team.description }}</p>{% endif %}
+  <h2 style="font-size:14px;">{% trans "Miembros" %} ({{ members|length }})</h2>
+  <ul style="list-style:none; padding:0;">
+    {% for m in members %}
+      <li style="padding:6px 0; border-bottom:1px solid var(--ink-100);">
+        {% include "_avatar.html" with u=m %} {{ m }}
+        {% if m.job_title %}<span style="color:var(--ink-500); font-size:12px;">— {{ m.job_title }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endblock %}

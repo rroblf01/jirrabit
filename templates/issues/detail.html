@@ -39,6 +39,8 @@
 
       <section class="tab-panel active" id="tab-desc">
         {% include "issues/_inline/description_display.html" %}
+        {% include "issues/_subtasks.html" with issue=issue subtasks=subtasks %}
+        {% include "issues/_branch_links.html" with issue=issue branches=branches %}
       </section>
 
       <section class="tab-panel" id="tab-comments">

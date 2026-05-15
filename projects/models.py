@@ -76,6 +76,22 @@ class ProjectMembership(models.Model):
         return f"{self.user} @ {self.project.key} ({self.role})"
 
 
+class ProjectWiki(models.Model):
+    """Markdown wiki page attached to a project. One row per project."""
+
+    project = models.OneToOneField(
+        Project, on_delete=models.CASCADE, related_name="wiki",
+    )
+    body = models.TextField(blank=True, default="")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+
+    def __str__(self):
+        return f"Wiki: {self.project.key}"
+
+
 class SavedFilter(models.Model):
     SCOPE_CHOICES = (("private", _("Privado")), ("shared", _("Compartido")))
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters")

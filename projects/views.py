@@ -451,6 +451,161 @@ def _epic_bounds(epic):
     return start_dt.date(), end, count, done
 
 
+class ProjectSlaView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """Surface issues that have been stuck in a single status > threshold.
+
+    SLA is computed from ``issues.HistoryEntry`` (field="status") rows: the
+    timestamp of the most recent status change is the issue's "time at
+    current status". Open issues that exceed the configured day threshold
+    are flagged.
+    """
+
+    template_name = "projects/sla.html"
+
+    async def aget_context_data(self, **kwargs):
+        from datetime import timedelta
+        from django.utils import timezone
+        from core.permissions import aassert_can_view
+        from issues.models import HistoryEntry, Issue
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        try:
+            threshold = max(1, int(self.request.GET.get("days", "7")))
+        except ValueError:
+            threshold = 7
+        now = timezone.now()
+        cutoff = now - timedelta(days=threshold)
+        candidates = [
+            i async for i in
+            Issue.objects.filter(project=project, archived=False)
+            .exclude(status__category="done")
+            .select_related("status", "priority", "assignee")
+            .order_by("updated_at")
+        ]
+        rows = []
+        for i in candidates:
+            last_change = await HistoryEntry.objects.filter(
+                issue=i, field="status",
+            ).order_by("-created_at").afirst()
+            entered_at = last_change.created_at if last_change else i.created_at
+            if entered_at <= cutoff:
+                rows.append({
+                    "issue": i,
+                    "entered_at": entered_at,
+                    "days_in_status": int((now - entered_at).total_seconds() / 86400),
+                })
+        ctx["project"] = project
+        ctx["rows"] = sorted(rows, key=lambda r: -r["days_in_status"])
+        ctx["threshold"] = threshold
+        return ctx
+
+
+class ProjectWikiView(AsyncLoginRequiredMixin, View):
+    """Render & edit a project's wiki page.
+
+    Reading is open to any project viewer; editing requires admin role.
+    Body is markdown rendered with the same sanitiser used everywhere else.
+    """
+
+    async def get(self, request, key):
+        from core.markdown import render_markdown
+        from core.permissions import aassert_can_view, can_admin, aget_role
+        from .models import ProjectWiki
+        project = await _aget_project(key)
+        await aassert_can_view(request.user, project)
+        wiki = await ProjectWiki.objects.filter(project=project).afirst()
+        role = await aget_role(request.user, project)
+        edit_mode = request.GET.get("edit") == "1"
+        return await arender(
+            request, "projects/wiki.html",
+            {
+                "project": project,
+                "wiki": wiki,
+                "body_html": render_markdown(wiki.body) if wiki else "",
+                "can_edit": can_admin(role) or request.user.is_superuser,
+                "edit_mode": edit_mode,
+            },
+        )
+
+    async def post(self, request, key):
+        from core.permissions import aassert_can_admin
+        from .models import ProjectWiki
+        project = await _aget_project(key)
+        await aassert_can_admin(request.user, project)
+        body = request.POST.get("body", "")
+        wiki, _ = await ProjectWiki.objects.aget_or_create(project=project)
+        wiki.body = body
+        wiki.updated_by = request.user
+        await wiki.asave()
+        return redirect("projects:wiki", key=project.key)
+
+
+class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    """Calendar grid showing daily SP load per project member.
+
+    For each user in the project, plot a row of cells (one per day, last 30
+    days). Cell color intensity = sum of story_points of issues whose
+    ``resolved_at`` falls on that day OR ``due_date`` if still open.
+    """
+
+    template_name = "projects/heatmap.html"
+
+    async def aget_context_data(self, **kwargs):
+        from collections import defaultdict
+        from datetime import timedelta
+        from django.utils import timezone
+        from core.permissions import aassert_can_view
+        from issues.models import Issue
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        today = timezone.localdate()
+        try:
+            days_back = max(7, min(int(self.request.GET.get("days", "30")), 90))
+        except ValueError:
+            days_back = 30
+        start = today - timedelta(days=days_back - 1)
+        days = [start + timedelta(days=i) for i in range(days_back)]
+
+        members = [m async for m in project.members.defer("avatar").order_by("username")]
+        load: dict[int, dict] = defaultdict(lambda: defaultdict(int))
+        async for i in (
+            Issue.objects.filter(project=project, assignee__isnull=False).only(
+                "assignee_id", "story_points", "resolved_at", "due_date",
+            )
+        ):
+            sp = i.story_points or 0
+            if not sp:
+                continue
+            day = None
+            if i.resolved_at and start <= i.resolved_at.date() <= today:
+                day = i.resolved_at.date()
+            elif i.due_date and start <= i.due_date <= today + timedelta(days=days_back):
+                day = i.due_date
+            if day and start <= day <= today + timedelta(days=days_back):
+                if day < start: continue
+                load[i.assignee_id][day] += sp
+
+        max_load = max(
+            (n for u in load.values() for n in u.values()), default=0,
+        ) or 1
+        rows = []
+        for m in members:
+            cells = []
+            for d in days:
+                v = load.get(m.pk, {}).get(d, 0)
+                intensity = int(round(100 * v / max_load))
+                cells.append({"date": d, "sp": v, "intensity": intensity})
+            rows.append({"user": m, "cells": cells, "total": sum(c["sp"] for c in cells)})
+        ctx["project"] = project
+        ctx["rows"] = rows
+        ctx["days"] = days
+        ctx["max_load"] = max_load
+        ctx["days_back"] = days_back
+        return ctx
+
+
 class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
     """Throughput, cycle time, and WIP-by-status snapshot."""
 

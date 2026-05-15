@@ -1,0 +1,29 @@
+{% load i18n %}
+<div id="branches" class="branch-links">
+  <h4 style="margin:0 0 6px; font-size:13px; color:var(--ink-700);">
+    {% trans "Branches / commits" %}
+    <span class="badge">{{ branches|length }}</span>
+  </h4>
+  <ul style="list-style:none; padding:0; margin:0; font-size:13px;">
+  {% for b in branches %}
+    <li style="display:flex; gap:6px; align-items:center; padding:3px 0;">
+      <code>{{ b.branch }}</code>
+      {% if b.commit_sha %}<span style="color:var(--ink-500);">{{ b.commit_sha|slice:":7" }}</span>{% endif %}
+      {% if b.repo_url %}<a href="{{ b.repo_url }}" target="_blank" rel="noopener">↗</a>{% endif %}
+      {% if b.message %}<span style="color:var(--ink-500);">— {{ b.message|truncatechars:50 }}</span>{% endif %}
+      <form hx-post="{% url 'issues:branch_delete' issue.key b.pk %}" hx-target="#branches" hx-swap="outerHTML"
+            style="margin-left:auto;" hx-confirm="{% trans '¿Desvincular?' %}">
+        {% csrf_token %}
+        <button class="btn ghost small" type="submit">×</button>
+      </form>
+    </li>
+  {% endfor %}
+  </ul>
+  <form hx-post="{% url 'issues:branch_create' issue.key %}" hx-target="#branches" hx-swap="outerHTML"
+        style="margin-top:6px; display:flex; gap:4px; flex-wrap:wrap;">
+    {% csrf_token %}
+    <input type="text" name="branch" placeholder="feature/{{ issue.key|lower }}" style="flex:1; min-width:160px;" required>
+    <input type="text" name="repo_url" placeholder="https://… (opcional)" style="flex:1;">
+    <button class="btn small" type="submit">{% trans "Vincular" %}</button>
+  </form>
+</div>

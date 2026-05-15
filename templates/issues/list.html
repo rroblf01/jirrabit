@@ -7,8 +7,24 @@
     <div class="spacer"></div>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Tarea" %}</a>
     <a class="btn ghost" href="{% url 'board:board' project.key %}">{% trans "Tablero" %}</a>
-    <a class="btn ghost" href="{% url 'issues:export_csv' project.key %}"
-       title="{% trans 'Exportar CSV' %}">⬇ CSV</a>
+    <details style="display:inline-block; position:relative;">
+      <summary class="btn ghost" style="list-style:none; cursor:pointer;">⬇ CSV</summary>
+      <form action="{% url 'issues:export_csv' project.key %}" method="get"
+            style="position:absolute; right:0; top:100%; background:white; border:1px solid var(--ink-100); border-radius:6px; padding:10px; box-shadow:var(--shadow); z-index:20; min-width:240px;">
+        <strong style="font-size:12px;">{% trans "Columnas" %}</strong>
+        <div style="max-height:200px; overflow:auto; margin:6px 0;">
+          {% for col in csv_columns %}
+          <label style="display:block; font-size:12px;">
+            <input type="checkbox" name="cols_chk" value="{{ col }}" checked style="width:auto;"
+                   onchange="this.form.cols.value = [...this.form.querySelectorAll('input[name=cols_chk]:checked')].map(i=>i.value).join(',')">
+            {{ col }}
+          </label>
+          {% endfor %}
+        </div>
+        <input type="hidden" name="cols" value="key,summary,status,priority,type,assignee,reporter,sprint,epic,story_points,estimate_minutes,time_spent_minutes,due_date,resolved_at,created_at,updated_at">
+        <button class="btn small" type="submit" style="width:100%;">{% trans "Exportar" %}</button>
+      </form>
+    </details>
     <a class="btn ghost" href="{% url 'issues:import_csv' project.key %}"
        title="{% trans 'Importar CSV' %}">⬆ CSV</a>
   </div>

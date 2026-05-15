@@ -191,6 +191,11 @@ img.avatar { display: inline-block; object-fit: cover; }
 .comments { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
 .comment { display: flex; gap: 10px; }
 .comment.reply { margin-left: 36px; border-left: 2px solid var(--blue-200); padding-left: 8px; }
+.comment.highlight { animation: highlight-flash 2s ease-out; }
+@keyframes highlight-flash {
+  0% { background: var(--blue-100); }
+  100% { background: transparent; }
+}
 .comment .body { background: var(--ink-50); padding: 10px 12px; border-radius: 8px; flex: 1; }
 .comment .meta { font-size: 12px; color: var(--ink-500); margin-bottom: 4px; }
 .hidden { display: none; }
@@ -350,6 +355,22 @@ body.htmx-busy #htmx-spinner { display: block; }
 }
 .slash-menu li { padding: 4px 10px; font-size: 13px; cursor: pointer; }
 .slash-menu li:hover, .slash-menu li.active { background: var(--blue-50); }
+
+/* Done celebration: floating confetti dots. Triggered by JS adding ``.celebrate``. */
+.celebrate-burst {
+  position: fixed; pointer-events: none; z-index: 10000;
+  width: 4px; height: 4px; border-radius: 50%; opacity: 0;
+  animation: celebrate-pop .9s ease-out forwards;
+}
+@keyframes celebrate-pop {
+  0% { transform: translate(0, 0) scale(0); opacity: 1; }
+  60% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 0; }
+}
+
+/* Issue keys auto-linked from markdown. */
+.issue-key { font-family: monospace; font-weight: 600; color: var(--blue-700); }
+.issue-key::before { content: "🔗"; font-size: 9px; margin-right: 2px; opacity: .5; }
 
 /* Side panel preview. */
 #side-panel {

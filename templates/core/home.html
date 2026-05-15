@@ -2,7 +2,11 @@
 {% load i18n %}
 {% block content %}
 <div class="card">
-  <h1 style="margin:0;">{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>
+  <div class="row">
+    <h1 style="margin:0;">{% blocktrans with name=user.display_name|default:user.username %}Hola, {{ name }}{% endblocktrans %}</h1>
+    <div class="spacer"></div>
+    <a class="btn ghost small" href="{% url 'core:dashboard_config' %}">⚙ {% trans "Configurar" %}</a>
+  </div>
   <p style="color:var(--ink-500); margin:6px 0 0;">
     {% trans "Tu trabajo en un vistazo. Pulsa" %} <kbd>Ctrl</kbd>+<kbd>K</kbd> {% trans "para buscar rápido." %}
   </p>

@@ -15,7 +15,7 @@ from core.async_views import AsyncListView
 from core.mixins import AsyncLoginRequiredMixin
 
 from .forms import RegisterForm
-from .models import User
+from .models import Team, User
 
 
 class AsyncSuperuserRequiredMixin(AsyncLoginRequiredMixin):
@@ -147,3 +147,82 @@ class AdminInviteRevokeView(AsyncSuperuserRequiredMixin, View):
             return await arender(request, "accounts/admin/_invite_row.html", {"i": i})
         from django.http import HttpResponse
         return HttpResponse("")
+
+
+# --- Teams ------------------------------------------------------------------
+
+class AdminTeamListView(AsyncSuperuserRequiredMixin, AsyncListView):
+    template_name = "accounts/admin/team_list.html"
+    context_object_name = "teams"
+
+    async def aget_queryset(self):
+        return Team.objects.all().prefetch_related("members")
+
+
+class AdminTeamCreateView(AsyncSuperuserRequiredMixin, View):
+    async def get(self, request):
+        users = [u async for u in User.objects.filter(is_active=True).defer("avatar").order_by("username")]
+        return await arender(
+            request, "accounts/admin/team_form.html",
+            {"team": None, "users": users, "member_ids": set()},
+        )
+
+    async def post(self, request):
+        from django.utils.text import slugify
+        from django.http import HttpResponseBadRequest
+        name = request.POST.get("name", "").strip()
+        if not name:
+            return HttpResponseBadRequest("nombre requerido")
+        slug = slugify(request.POST.get("slug", "") or name)[:40]
+        team = await Team.objects.acreate(
+            name=name, slug=slug,
+            description=request.POST.get("description", "").strip()[:255],
+        )
+        member_ids = [int(i) for i in request.POST.getlist("members") if i.isdigit()]
+        if member_ids:
+            await team.members.aset(member_ids)
+        return redirect("accounts:admin_team_list")
+
+
+class AdminTeamEditView(AsyncSuperuserRequiredMixin, View):
+    async def get(self, request, pk):
+        team = await Team.objects.filter(pk=pk).afirst()
+        if team is None:
+            raise Http404
+        users = [u async for u in User.objects.filter(is_active=True).defer("avatar").order_by("username")]
+        member_ids = {m async for m in team.members.values_list("pk", flat=True)}
+        return await arender(
+            request, "accounts/admin/team_form.html",
+            {"team": team, "users": users, "member_ids": member_ids},
+        )
+
+    async def post(self, request, pk):
+        team = await Team.objects.filter(pk=pk).afirst()
+        if team is None:
+            raise Http404
+        team.name = request.POST.get("name", team.name).strip()
+        team.description = request.POST.get("description", "").strip()[:255]
+        await team.asave(update_fields=["name", "description"])
+        member_ids = [int(i) for i in request.POST.getlist("members") if i.isdigit()]
+        await team.members.aset(member_ids)
+        return redirect("accounts:admin_team_list")
+
+
+class AdminTeamDeleteView(AsyncSuperuserRequiredMixin, View):
+    async def post(self, request, pk):
+        await Team.objects.filter(pk=pk).adelete()
+        return redirect("accounts:admin_team_list")
+
+
+class TeamDetailView(AsyncLoginRequiredMixin, View):
+    """Public-ish team page reachable from ``@team:slug`` autolink."""
+
+    async def get(self, request, slug):
+        team = await Team.objects.filter(slug=slug).afirst()
+        if team is None:
+            raise Http404
+        members = [m async for m in team.members.defer("avatar").order_by("username")]
+        return await arender(
+            request, "accounts/team_detail.html",
+            {"team": team, "members": members},
+        )

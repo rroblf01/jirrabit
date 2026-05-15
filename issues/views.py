@@ -183,6 +183,19 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["timer_running"] = await Timer.objects.filter(
             user=self.request.user, issue=self.object,
         ).aexists()
+        ctx["subtasks"] = [
+            s async for s in
+            self.object.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+        ]
+        ctx["branches"] = [
+            b async for b in self.object.branches.all().order_by("-created_at")
+        ]
+        # Pre-aggregate reactions for each comment to avoid N+1 in the template.
+        from asgiref.sync import sync_to_async as _sta
+        for c in ctx["comments"]:
+            c.reactions_agg = await _sta(_aggregate_reactions, thread_sensitive=True)(
+                c.pk, self.request.user.pk,
+            )
         ctx["statuses"] = [s async for s in Status.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
         ctx["is_watching"] = await self.object.watchers.filter(
@@ -264,6 +277,7 @@ class IssueListView(AsyncLoginRequiredMixin, AsyncListView):
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
         ctx["project"] = self.project
+        ctx["csv_columns"] = IssueCsvExportView.ALL_COLUMNS
         return ctx
 
 
@@ -412,11 +426,16 @@ class CommentEditView(AsyncLoginRequiredMixin, View):
         return await arender(request, "issues/_comment_form.html", {"c": comment})
 
     async def post(self, request, pk):
+        from .models import CommentEdit
         comment = await _aget_comment(pk)
         if comment.author_id != request.user.pk and not request.user.is_superuser:
             raise PermissionDenied
         new_body = request.POST.get("body", "").strip()
         if new_body and new_body != comment.body:
+            # Snapshot the previous version for the history viewer.
+            await CommentEdit.objects.acreate(
+                comment=comment, old_body=comment.body, edited_by=request.user,
+            )
             comment.body = new_body
             comment.edited = True
             await comment.asave()
@@ -671,6 +690,188 @@ class IssueCloneView(AsyncLoginRequiredMixin, View):
         return redirect(clone.get_absolute_url())
 
 
+class SubtaskCreateView(AsyncLoginRequiredMixin, View):
+    """Create a subtask under ``key`` from a single summary input."""
+
+    async def post(self, request, key):
+        parent = await _aget_issue(key)
+        await aassert_can_edit(request.user, parent.project)
+        summary = request.POST.get("summary", "").strip()
+        if not summary:
+            return HttpResponseBadRequest("summary requerido")
+        subtype = await IssueType.objects.filter(category="subtask").afirst() \
+            or await IssueType.objects.afirst()
+        default_status = await Status.objects.order_by("order").afirst()
+        default_prio = await Priority.objects.afirst()
+        num = await parent.project.anext_issue_number()
+        sub = Issue(
+            project=parent.project, parent=parent, reporter=request.user,
+            summary=summary[:255], description="",
+            status=default_status, priority=default_prio, issue_type=subtype,
+            key=f"{parent.project.key}-{num}",
+        )
+        await sub.asave()
+        # Render the subtasks fragment for HTMX swap.
+        subtasks = [
+            s async for s in
+            parent.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+        ]
+        return await arender(
+            request, "issues/_subtasks.html",
+            {"issue": parent, "subtasks": subtasks},
+        )
+
+
+class SubtaskToggleView(AsyncLoginRequiredMixin, View):
+    """Flip a subtask between its first 'todo' status and the project's 'done'.
+
+    Used by the checkbox in the parent's subtask checklist. Bypasses
+    workflow restrictions intentionally — this is a power-user shortcut.
+    """
+
+    async def post(self, request, key):
+        sub = await _aget_issue(key)
+        await aassert_can_edit(request.user, sub.project)
+        if sub.status.category == "done":
+            target = await Status.objects.exclude(category="done").order_by("order").afirst()
+        else:
+            target = await Status.objects.filter(category="done").afirst() \
+                or await Status.objects.order_by("-order").afirst()
+        if target is None:
+            return HttpResponseBadRequest("sin estado destino")
+        sub, target, ok = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True,
+        )(sub.pk, target.pk, request.user.pk)
+        if sub.parent_id:
+            parent = await _aget_issue_by_pk(sub.parent_id)
+            subtasks = [
+                s async for s in
+                parent.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+            ]
+            return await arender(
+                request, "issues/_subtasks.html",
+                {"issue": parent, "subtasks": subtasks},
+            )
+        return HttpResponse(status=204)
+
+
+async def _aget_issue_by_pk(pk):
+    qs = Issue.objects.select_related("project", "status")
+    try:
+        return await qs.aget(pk=pk)
+    except Issue.DoesNotExist as exc:
+        raise Http404 from exc
+
+
+class ReactToggleView(AsyncLoginRequiredMixin, View):
+    """Toggle an emoji reaction on a comment for the current user."""
+
+    async def post(self, request, comment_id):
+        from .models import Reaction
+        emoji = request.POST.get("emoji", "").strip()
+        valid = {e for e, _ in Reaction.EMOJIS}
+        if emoji not in valid:
+            return HttpResponseBadRequest("emoji inválido")
+        comment = await Comment.objects.select_related("issue", "issue__project").aget(pk=comment_id)
+        await aassert_can_view(request.user, comment.issue.project)
+        existing = await Reaction.objects.filter(
+            comment=comment, user=request.user, emoji=emoji,
+        ).afirst()
+        if existing:
+            await existing.adelete()
+        else:
+            await Reaction.objects.acreate(comment=comment, user=request.user, emoji=emoji)
+        # Broadcast to the project group so other viewers see it live.
+        try:
+            from asgiref.sync import sync_to_async as _sta
+            from channels.layers import get_channel_layer
+            layer = get_channel_layer()
+            if layer:
+                await layer.group_send(
+                    f"project.{comment.issue.project.key}",
+                    {"type": "reaction.event",
+                     "payload": {"comment_id": comment.pk}},
+                )
+        except Exception:
+            pass
+        reactions = await sync_to_async(_aggregate_reactions, thread_sensitive=True)(
+            comment.pk, request.user.pk,
+        )
+        return await arender(
+            request, "issues/_reactions.html",
+            {"c": comment, "reactions": reactions},
+        )
+
+
+def _aggregate_reactions(comment_id, viewer_pk):
+    """Group reactions by emoji with counts and whether the viewer is in."""
+    from .models import Reaction
+    rows = list(
+        Reaction.objects.filter(comment_id=comment_id)
+        .values("emoji", "user_id")
+    )
+    by_emoji: dict[str, dict] = {}
+    for r in rows:
+        bucket = by_emoji.setdefault(r["emoji"], {"emoji": r["emoji"], "count": 0, "mine": False})
+        bucket["count"] += 1
+        if r["user_id"] == viewer_pk:
+            bucket["mine"] = True
+    label_map = {e: lbl for e, lbl in __import__("issues.models", fromlist=["Reaction"]).Reaction.EMOJIS}
+    for b in by_emoji.values():
+        b["label"] = label_map.get(b["emoji"], b["emoji"])
+    return list(by_emoji.values())
+
+
+class BranchLinkCreateView(AsyncLoginRequiredMixin, View):
+    """Attach a git branch reference to an issue."""
+
+    async def post(self, request, key):
+        from .models import BranchLink
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        branch = request.POST.get("branch", "").strip()[:200]
+        if not branch:
+            return HttpResponseBadRequest("branch requerido")
+        repo = request.POST.get("repo_url", "").strip()[:255]
+        sha = request.POST.get("commit_sha", "").strip()[:64]
+        msg = request.POST.get("message", "").strip()[:255]
+        await BranchLink.objects.aget_or_create(
+            issue=issue, branch=branch, commit_sha=sha,
+            defaults={"repo_url": repo, "message": msg, "created_by": request.user},
+        )
+        links = [b async for b in issue.branches.all().order_by("-created_at")]
+        return await arender(
+            request, "issues/_branch_links.html",
+            {"issue": issue, "branches": links},
+        )
+
+
+class BranchLinkDeleteView(AsyncLoginRequiredMixin, View):
+    async def post(self, request, key, pk):
+        from .models import BranchLink
+        issue = await _aget_issue(key)
+        await aassert_can_edit(request.user, issue.project)
+        await BranchLink.objects.filter(pk=pk, issue=issue).adelete()
+        links = [b async for b in issue.branches.all().order_by("-created_at")]
+        return await arender(
+            request, "issues/_branch_links.html",
+            {"issue": issue, "branches": links},
+        )
+
+
+class CommentEditHistoryView(AsyncLoginRequiredMixin, View):
+    """Render the list of prior bodies for a comment."""
+
+    async def get(self, request, pk):
+        comment = await _aget_comment(pk)
+        await aassert_can_view(request.user, comment.issue.project)
+        edits = [e async for e in comment.edits.all().order_by("-edited_at")]
+        return await arender(
+            request, "issues/_comment_history.html",
+            {"comment": comment, "edits": edits},
+        )
+
+
 class IssueCsvImportView(AsyncLoginRequiredMixin, View):
     """Paste CSV → preview → bulk-create issues for a project.
 
@@ -764,14 +965,40 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
 
 
 class IssueCsvExportView(AsyncLoginRequiredMixin, View):
-    """Stream issues of a project as CSV, honoring the same filters as the list view."""
+    """Stream issues of a project as CSV, honoring the same filters as the list view.
 
-    COLUMNS = (
+    ``?cols=`` accepts a comma-separated subset of the columns below. Without
+    that param the full set is exported (backwards-compatible).
+    """
+
+    ALL_COLUMNS = (
         "key", "summary", "status", "priority", "type",
         "assignee", "reporter", "sprint", "epic",
         "story_points", "estimate_minutes", "time_spent_minutes",
         "due_date", "resolved_at", "created_at", "updated_at",
     )
+
+    def _row(self, i, columns):
+        out = []
+        for c in columns:
+            if c == "key": out.append(i.key)
+            elif c == "summary": out.append(i.summary)
+            elif c == "status": out.append(str(i.status))
+            elif c == "priority": out.append(str(i.priority))
+            elif c == "type": out.append(str(i.issue_type))
+            elif c == "assignee": out.append(getattr(i.assignee, "username", "") or "")
+            elif c == "reporter": out.append(getattr(i.reporter, "username", "") or "")
+            elif c == "sprint": out.append(getattr(i.sprint, "name", "") or "")
+            elif c == "epic": out.append(getattr(i.epic, "name", "") or "")
+            elif c == "story_points": out.append(i.story_points if i.story_points is not None else "")
+            elif c == "estimate_minutes": out.append(i.estimate_minutes if i.estimate_minutes is not None else "")
+            elif c == "time_spent_minutes": out.append(i.time_spent_minutes or 0)
+            elif c == "due_date": out.append(i.due_date.isoformat() if i.due_date else "")
+            elif c == "resolved_at": out.append(i.resolved_at.isoformat() if i.resolved_at else "")
+            elif c == "created_at": out.append(i.created_at.isoformat())
+            elif c == "updated_at": out.append(i.updated_at.isoformat())
+            else: out.append("")
+        return out
 
     async def get(self, request, key):
         import csv
@@ -779,6 +1006,13 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
 
         project = await _aget_project(key)
         await aassert_can_view(request.user, project)
+
+        cols_param = request.GET.get("cols", "").strip()
+        if cols_param:
+            allowed = set(self.ALL_COLUMNS)
+            columns = [c for c in cols_param.split(",") if c in allowed] or list(self.ALL_COLUMNS)
+        else:
+            columns = list(self.ALL_COLUMNS)
 
         qs = project.issues.select_related(
             "status", "priority", "issue_type", "assignee", "reporter", "sprint", "epic",
@@ -796,29 +1030,14 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
             qs = qs.filter(assignee=request.user)
         elif assignee and assignee.isdigit():
             qs = qs.filter(assignee_id=int(assignee))
+        if not request.GET.get("archived"):
+            qs = qs.filter(archived=False)
 
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(self.COLUMNS)
+        writer.writerow(columns)
         async for i in qs:
-            writer.writerow([
-                i.key,
-                i.summary,
-                str(i.status),
-                str(i.priority),
-                str(i.issue_type),
-                getattr(i.assignee, "username", "") or "",
-                getattr(i.reporter, "username", "") or "",
-                getattr(i.sprint, "name", "") or "",
-                getattr(i.epic, "name", "") or "",
-                i.story_points if i.story_points is not None else "",
-                i.estimate_minutes if i.estimate_minutes is not None else "",
-                i.time_spent_minutes or 0,
-                i.due_date.isoformat() if i.due_date else "",
-                i.resolved_at.isoformat() if i.resolved_at else "",
-                i.created_at.isoformat(),
-                i.updated_at.isoformat(),
-            ])
+            writer.writerow(self._row(i, columns))
         resp = HttpResponse(buf.getvalue(), content_type="text/csv; charset=utf-8")
         resp["Content-Disposition"] = (
             f'attachment; filename="{project.key}-issues-{timezone.now():%Y%m%d}.csv"'

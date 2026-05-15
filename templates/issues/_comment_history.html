@@ -1,0 +1,14 @@
+{% load i18n %}
+<div class="comment-history" style="margin-top:8px; padding:8px; background:var(--ink-50); border-radius:6px; font-size:12px;">
+  <strong>{% trans "Historial de ediciones" %}</strong>
+  {% for e in edits %}
+    <div style="margin-top:6px; padding:6px; background:white; border-left:3px solid var(--blue-200);">
+      <div style="color:var(--ink-500); font-size:11px;">
+        {{ e.edited_at|date:"d M H:i" }} · {{ e.edited_by|default:_("sistema") }}
+      </div>
+      <div style="white-space:pre-wrap; margin-top:4px;">{{ e.old_body|truncatechars:300 }}</div>
+    </div>
+  {% empty %}
+    <div style="color:var(--ink-500); margin-top:4px;">{% trans "No hay versiones previas." %}</div>
+  {% endfor %}
+</div>

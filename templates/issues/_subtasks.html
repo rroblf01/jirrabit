@@ -1,0 +1,32 @@
+{% load i18n %}
+<div id="subtasks-{{ issue.pk }}" class="subtasks">
+  <h4 style="margin:14px 0 6px; font-size:13px; color:var(--ink-700);">
+    {% trans "Subtareas" %} <span class="badge">{{ subtasks|length }}</span>
+  </h4>
+  <ul style="list-style:none; padding:0; margin:0;">
+    {% for s in subtasks %}
+      <li style="display:flex; gap:6px; align-items:center; padding:4px 0; font-size:13px;">
+        <form hx-post="{% url 'issues:subtask_toggle' s.key %}"
+              hx-target="#subtasks-{{ issue.pk }}" hx-swap="outerHTML" style="display:inline;">
+          {% csrf_token %}
+          <button type="submit" style="background:none; border:0; cursor:pointer; padding:0;"
+                  aria-label="{% trans 'Marcar' %}">
+            {% if s.status.category == "done" %}☑{% else %}☐{% endif %}
+          </button>
+        </form>
+        <a href="{{ s.get_absolute_url }}"
+           style="{% if s.status.category == 'done' %}text-decoration:line-through; color:var(--ink-500);{% endif %}">
+          <strong>{{ s.key }}</strong> {{ s.summary|truncatechars:60 }}
+        </a>
+        <span class="badge {{ s.status.category }}" style="font-size:9px;">{{ s.status.name }}</span>
+      </li>
+    {% endfor %}
+  </ul>
+  <form hx-post="{% url 'issues:subtask_create' issue.key %}"
+        hx-target="#subtasks-{{ issue.pk }}" hx-swap="outerHTML" style="margin-top:6px;">
+    {% csrf_token %}
+    <input type="text" name="summary" placeholder="{% trans '+ Nueva subtarea' %}"
+           style="width:60%;" required>
+    <button class="btn small" type="submit">{% trans "Añadir" %}</button>
+  </form>
+</div>

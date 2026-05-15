@@ -15,6 +15,9 @@
     <a class="btn ghost" href="{% url 'projects:planning' project.key %}">{% trans "Planning" %}</a>
     <a class="btn ghost" href="{% url 'projects:roadmap' project.key %}">{% trans "Roadmap" %}</a>
     <a class="btn ghost" href="{% url 'projects:dependencies' project.key %}">{% trans "Dependencias" %}</a>
+    <a class="btn ghost" href="{% url 'projects:heatmap' project.key %}">{% trans "Heatmap" %}</a>
+    <a class="btn ghost" href="{% url 'projects:sla' project.key %}">SLA</a>
+    <a class="btn ghost" href="{% url 'projects:wiki' project.key %}">Wiki</a>
     <a class="btn ghost" href="{% url 'projects:members' project.key %}">{% trans "Miembros" %}</a>
     <a class="btn ghost" href="{% url 'projects:custom_fields' project.key %}">{% trans "Campos" %}</a>
     <a class="btn ghost" href="{% url 'projects:webhooks' project.key %}">{% trans "Webhooks" %}</a>

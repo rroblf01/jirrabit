@@ -1,0 +1,17 @@
+{% load i18n %}
+<form hx-post="{% url 'issues:inline_edit' issue.key field %}"
+      hx-target="closest .inline-edit" hx-swap="outerHTML" style="display:inline;">
+  {% csrf_token %}
+  <div class="filter-chips" style="display:inline-flex; flex-wrap:wrap; gap:4px;">
+    {% for size, sp in tshirt_sizes %}
+      <button type="submit" name="value" value="{{ size }}"
+              class="chip{% if size == current_size %} active{% endif %}"
+              title="{{ sp }} SP">{{ size }}</button>
+    {% endfor %}
+    <button type="submit" name="value" value="" class="chip clear" title="{% trans 'Quitar' %}">×</button>
+  </div>
+  <input type="number" name="value" placeholder="custom" value="{{ value }}"
+         style="width:70px; margin-left:6px;"
+         min="0" max="999"
+         onkeydown="if(event.key==='Enter'){event.preventDefault();this.form.requestSubmit();}">
+</form>

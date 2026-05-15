@@ -75,6 +75,8 @@ class Label(models.Model):
 
 
 class Issue(models.Model):
+    archived = models.BooleanField(default=False, db_index=True,
+        help_text="Auto-archived after configured retention; hidden from default views.")
     project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="issues")
     key = models.CharField(max_length=30, unique=True, db_index=True)
     issue_type = models.ForeignKey(IssueType, on_delete=models.PROTECT, related_name="issues")
@@ -355,6 +357,61 @@ class Timer(models.Model):
     )
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="timers")
     started_at = models.DateTimeField(auto_now_add=True)
+
+
+class Reaction(models.Model):
+    """Emoji reactions on a comment ("Slack-style")."""
+
+    EMOJIS = (
+        ("+1", "👍"),
+        ("-1", "👎"),
+        ("heart", "❤️"),
+        ("tada", "🎉"),
+        ("eyes", "👀"),
+        ("rocket", "🚀"),
+    )
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    emoji = models.CharField(max_length=20, choices=EMOJIS)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("comment", "user", "emoji")
+        indexes = [models.Index(fields=["comment", "emoji"])]
+
+
+class CommentEdit(models.Model):
+    """Snapshot of a comment body before an edit. Powers the edit-history viewer."""
+
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="edits")
+    old_body = models.TextField()
+    edited_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+
+    class Meta:
+        ordering = ("-edited_at",)
+
+
+class BranchLink(models.Model):
+    """Association between an issue and a git branch (or commit ref).
+
+    Populated either manually from the issue detail page or via the
+    ``/api/v1/incoming/git/`` webhook when a CI hook pushes a payload.
+    """
+
+    issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="branches")
+    branch = models.CharField(max_length=200)
+    repo_url = models.URLField(blank=True)
+    commit_sha = models.CharField(max_length=64, blank=True)
+    message = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        unique_together = ("issue", "branch", "commit_sha")
 
 
 class AuditEntry(models.Model):

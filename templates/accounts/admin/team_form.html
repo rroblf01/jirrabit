@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block content %}
+<div class="card" style="max-width:560px;">
+  <h1 style="margin-top:0;">{% if team %}{% trans "Editar equipo" %}{% else %}{% trans "Nuevo equipo" %}{% endif %}</h1>
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-row">
+      <label>{% trans "Nombre" %}</label>
+      <input type="text" name="name" value="{{ team.name|default:'' }}" required>
+    </div>
+    {% if not team %}
+    <div class="form-row">
+      <label>{% trans "Slug (para @team:slug)" %}</label>
+      <input type="text" name="slug" placeholder="frontend">
+    </div>
+    {% endif %}
+    <div class="form-row">
+      <label>{% trans "Descripción" %}</label>
+      <input type="text" name="description" value="{{ team.description|default:'' }}">
+    </div>
+    <div class="form-row">
+      <label>{% trans "Miembros" %}</label>
+      <div style="max-height:300px; overflow:auto; border:1px solid var(--ink-100); border-radius:6px; padding:6px;">
+        {% for u in users %}
+        <label style="display:block; padding:2px 4px;">
+          <input type="checkbox" name="members" value="{{ u.pk }}" style="width:auto;"
+                 {% if u.pk in member_ids %}checked{% endif %}>
+          {{ u.username }} <span style="color:var(--ink-500); font-size:12px;">— {{ u }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn" type="submit">{% trans "Guardar" %}</button>
+      <a class="btn ghost" href="{% url 'accounts:admin_team_list' %}">{% trans "Cancelar" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

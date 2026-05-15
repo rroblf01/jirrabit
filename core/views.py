@@ -1,10 +1,12 @@
 from django.db.models import Count, Q
 from django.http import HttpResponse
+from django.shortcuts import redirect
 from django.views import View
 
 from issues.models import Issue
 from projects.models import Project
 
+from .aio import arender
 from .async_views import AsyncTemplateView
 from .mixins import AsyncLoginRequiredMixin
 
@@ -28,17 +30,58 @@ class MarkdownPreviewView(AsyncLoginRequiredMixin, View):
         return HttpResponse(render_markdown(body))
 
 
+class DashboardConfigView(AsyncLoginRequiredMixin, View):
+    """List + persist the user's dashboard widget order/enabled set."""
+
+    async def get(self, request):
+        from accounts.models import DashboardWidget
+        existing = {
+            w.kind: w async for w in DashboardWidget.objects.filter(user=request.user)
+        }
+        widgets = []
+        for kind, label in DashboardWidget.KIND_CHOICES:
+            row = existing.get(kind)
+            widgets.append({
+                "kind": kind, "label": label,
+                "enabled": row.enabled if row else True,
+                "order": row.order if row else 99,
+            })
+        widgets.sort(key=lambda w: w["order"])
+        return await arender(request, "core/dashboard_config.html", {"widgets": widgets})
+
+    async def post(self, request):
+        from accounts.models import DashboardWidget
+        for i, kind in enumerate(request.POST.getlist("order")):
+            enabled = bool(request.POST.get(f"enabled_{kind}"))
+            await DashboardWidget.objects.aupdate_or_create(
+                user=request.user, kind=kind,
+                defaults={"order": i, "enabled": enabled},
+            )
+        return redirect("core:home")
+
+
 class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
     """Personal dashboard: assigned, watching, recently mentioned, pinned."""
 
     template_name = "core/home.html"
 
     async def aget_context_data(self, **kwargs):
-        from accounts.models import Notification
+        from accounts.models import DashboardWidget, Notification
         from issues.models import Pin, Visit
         ctx = await super().aget_context_data(**kwargs)
         user = self.request.user
         common = ("project", "status", "priority", "issue_type", "assignee")
+        # Honor user's widget ordering/enabled-state. Anything not yet stored
+        # falls back to default enabled with high order so it appears last.
+        prefs = {
+            w.kind: w async for w in DashboardWidget.objects.filter(user=user)
+        }
+        widget_order = []
+        for kind, _label in DashboardWidget.KIND_CHOICES:
+            row = prefs.get(kind)
+            widget_order.append((kind, row.enabled if row else True, row.order if row else 99))
+        widget_order.sort(key=lambda t: t[2])
+        ctx["widget_order"] = [k for k, en, _ in widget_order if en]
 
         # Assigned to me, still open
         assigned_qs = (

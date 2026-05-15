@@ -129,10 +129,19 @@ def _create_in_app_notifications_for_comment(comment):
         recipients.add(issue.reporter_id)
     recipients.discard(comment.author_id)
 
+    from core.markdown import extract_teams
     mentioned_usernames = set(extract_mentions(comment.body))
+    mentioned_team_slugs = set(extract_teams(comment.body))
     mentioned_ids = set(
         User.objects.filter(username__in=mentioned_usernames).values_list("pk", flat=True)
     )
+    if mentioned_team_slugs:
+        from accounts.models import Team
+        team_member_ids = (
+            Team.objects.filter(slug__in=mentioned_team_slugs)
+            .values_list("members__id", flat=True)
+        )
+        mentioned_ids.update(pk for pk in team_member_ids if pk)
 
     # Snoozed users: skip in-app notifications until ``until`` expires.
     snoozed_ids = set(

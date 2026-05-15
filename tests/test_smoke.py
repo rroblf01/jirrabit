@@ -403,3 +403,190 @@ class ProductivityTests(TestCase):
     def test_dependencies_view_renders(self):
         r = self.c.get(reverse("projects:dependencies", args=[self.project.key]))
         self.assertEqual(r.status_code, 200)
+
+
+class AdvancedFeatureTests(TestCase):
+    """Smoke tests for the 20-feature rollout: subtasks, reactions, dates,
+    teams, branches, dashboard, wiki, etc."""
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user)
+        self.issue = _make_issue(self.project, self.user)
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_subtask_create_and_toggle(self):
+        from issues.models import Issue, IssueType
+        IssueType.objects.get_or_create(name="Subtask", defaults={"category": "subtask"})
+        r = self.c.post(
+            reverse("issues:subtask_create", args=[self.issue.key]),
+            data={"summary": "Sub one"},
+        )
+        self.assertEqual(r.status_code, 200)
+        sub = Issue.objects.get(parent=self.issue)
+        self.assertEqual(sub.summary, "Sub one")
+        r = self.c.post(reverse("issues:subtask_toggle", args=[sub.key]))
+        self.assertEqual(r.status_code, 200)
+        sub.refresh_from_db()
+        self.assertEqual(sub.status.category, "done")
+
+    def test_reaction_toggle(self):
+        from issues.models import Comment, Reaction
+        c = Comment.objects.create(issue=self.issue, author=self.user, body="hi")
+        r = self.c.post(reverse("issues:react", args=[c.pk]), data={"emoji": "+1"})
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(Reaction.objects.filter(comment=c, user=self.user, emoji="+1").exists())
+        r = self.c.post(reverse("issues:react", args=[c.pk]), data={"emoji": "+1"})
+        self.assertFalse(Reaction.objects.filter(comment=c, user=self.user, emoji="+1").exists())
+
+    def test_smart_due_date_parser(self):
+        from datetime import date, timedelta
+        from core.dates import parse_due_date
+        today = date(2026, 5, 18)  # Monday
+        self.assertEqual(parse_due_date("tomorrow", today), today + timedelta(days=1))
+        self.assertEqual(parse_due_date("mañana", today), today + timedelta(days=1))
+        self.assertEqual(parse_due_date("3d", today), today + timedelta(days=3))
+        self.assertEqual(parse_due_date("in 5 days", today), today + timedelta(days=5))
+        self.assertEqual(parse_due_date("2026-06-01", today), date(2026, 6, 1))
+        # Friday after this Monday.
+        self.assertEqual(parse_due_date("friday", today), today + timedelta(days=4))
+        self.assertEqual(parse_due_date("next monday", today), today + timedelta(days=7))
+        self.assertIsNone(parse_due_date("garbage"))
+
+    def test_tshirt_sizing(self):
+        from issues.inline import TSHIRT_TO_SP
+        r = self.c.post(
+            reverse("issues:inline_edit", args=[self.issue.key, "story_points"]),
+            data={"value": "L"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.story_points, TSHIRT_TO_SP["L"])
+
+    def test_team_mention_expansion(self):
+        from accounts.models import Notification, Team
+        from issues.models import Comment
+        bob = _make_user("bob")
+        ProjectMembership.objects.create(project=self.project, user=bob, role="member")
+        team = Team.objects.create(slug="qa", name="QA")
+        team.members.add(bob)
+        # Posting a comment that mentions the team should create a Notification for bob.
+        self.c.post(
+            reverse("issues:add_comment", args=[self.issue.key]),
+            data={"body": "ping @team:qa please"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertTrue(Notification.objects.filter(recipient=bob, kind="mention").exists())
+
+    def test_branch_link_create_delete(self):
+        from issues.models import BranchLink
+        r = self.c.post(
+            reverse("issues:branch_create", args=[self.issue.key]),
+            data={"branch": "feature/login", "repo_url": "https://example.com/repo"},
+        )
+        self.assertEqual(r.status_code, 200)
+        link = BranchLink.objects.get(issue=self.issue, branch="feature/login")
+        r = self.c.post(reverse("issues:branch_delete", args=[self.issue.key, link.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(BranchLink.objects.filter(pk=link.pk).exists())
+
+    def test_auto_link_issue_keys_in_markdown(self):
+        from core.markdown import render_markdown
+        html = render_markdown(f"see {self.issue.key} for details")
+        self.assertIn(f'href="/issues/{self.issue.key}/"', html)
+        # ``team:foo`` should not capture as a user mention.
+        html = render_markdown("hello @team:qa")
+        self.assertIn("team:qa", html)
+        self.assertIn('class="mention team"', html)
+
+    def test_csv_export_with_columns(self):
+        r = self.c.get(
+            reverse("issues:export_csv", args=[self.project.key]) + "?cols=key,summary",
+        )
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode("utf-8")
+        self.assertIn(self.issue.key, body)
+        # Header should only have selected columns.
+        header = body.splitlines()[0]
+        self.assertEqual(header, "key,summary")
+
+    def test_comment_edit_history(self):
+        from issues.models import Comment, CommentEdit
+        c = Comment.objects.create(issue=self.issue, author=self.user, body="v1")
+        r = self.c.post(reverse("issues:comment_edit", args=[c.pk]), data={"body": "v2"})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(CommentEdit.objects.filter(comment=c).count(), 1)
+
+    def test_board_column_quick_create(self):
+        from issues.models import Issue, Status
+        before = Issue.objects.filter(project=self.project).count()
+        status = Status.objects.first()
+        r = self.c.post(
+            reverse("board:column_create", args=[self.project.key]),
+            data={"summary": "Quick one", "status_id": status.pk},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(Issue.objects.filter(project=self.project).count(), before + 1)
+
+    def test_saved_board_view(self):
+        from board.models import SavedBoardView
+        r = self.c.post(
+            reverse("board:view_save", args=[self.project.key]),
+            data={"name": "Mías P1", "assignee": "me", "priority": "1"},
+        )
+        self.assertEqual(r.status_code, 204)
+        v = SavedBoardView.objects.get(user=self.user, project=self.project, name="Mías P1")
+        self.assertEqual(v.filters["assignee"], "me")
+
+    def test_project_wiki_create_and_read(self):
+        from projects.models import ProjectWiki
+        r = self.c.post(
+            reverse("projects:wiki", args=[self.project.key]),
+            data={"body": "# Welcome\n\nproject readme"},
+        )
+        self.assertEqual(r.status_code, 302)
+        w = ProjectWiki.objects.get(project=self.project)
+        self.assertIn("Welcome", w.body)
+        r = self.c.get(reverse("projects:wiki", args=[self.project.key]))
+        self.assertContains(r, "Welcome")
+
+    def test_auto_archive_command(self):
+        from datetime import timedelta
+        from django.core.management import call_command
+        from django.utils import timezone
+        from issues.models import Issue, Status
+        done = Status.objects.get(name="Done")
+        old = _make_issue(self.project, self.user, summary="old done")
+        Issue.objects.filter(pk=old.pk).update(
+            status=done, resolved_at=timezone.now() - timedelta(days=60),
+        )
+        call_command("auto_archive", "--days", "30")
+        old.refresh_from_db()
+        self.assertTrue(old.archived)
+
+    def test_dashboard_config_persists(self):
+        from accounts.models import DashboardWidget
+        r = self.c.post(
+            reverse("core:dashboard_config"),
+            data={
+                "order": ["assigned", "watching", "pinned"],
+                "enabled_assigned": "1", "enabled_watching": "1",
+            },
+        )
+        self.assertEqual(r.status_code, 302)
+        w = DashboardWidget.objects.get(user=self.user, kind="assigned")
+        self.assertEqual(w.order, 0)
+        self.assertTrue(w.enabled)
+        # pinned has no enabled checkbox → stored as False.
+        p = DashboardWidget.objects.get(user=self.user, kind="pinned")
+        self.assertFalse(p.enabled)
+
+    def test_heatmap_renders(self):
+        r = self.c.get(reverse("projects:heatmap", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)
+
+    def test_sla_view_renders(self):
+        r = self.c.get(reverse("projects:sla", args=[self.project.key]))
+        self.assertEqual(r.status_code, 200)

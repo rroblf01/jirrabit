@@ -32,6 +32,9 @@ class ProjectConsumer(AsyncJsonWebsocketConsumer):
     async def comment_event(self, event):
         await self.send_json({"type": "comment", **event["payload"]})
 
+    async def reaction_event(self, event):
+        await self.send_json({"type": "reaction", **event["payload"]})
+
 
 class IssuePresenceConsumer(AsyncJsonWebsocketConsumer):
     """Live presence for an issue detail page.

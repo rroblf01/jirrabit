@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Configurar dashboard" %}{% endblock %}
+{% block content %}
+<div class="card" style="max-width:560px;">
+  <h1 style="margin-top:0;">{% trans "Configurar dashboard" %}</h1>
+  <p style="color:var(--ink-500);">
+    {% trans "Arrastra para reordenar y desactiva los widgets que no uses." %}
+  </p>
+  <form method="post" id="widgets-form">
+    {% csrf_token %}
+    <ul id="widgets-list" style="list-style:none; padding:0; margin:0;">
+      {% for w in widgets %}
+        <li data-kind="{{ w.kind }}" draggable="true"
+            style="display:flex; gap:10px; align-items:center; padding:8px; border:1px solid var(--ink-100); border-radius:6px; margin-bottom:4px; background:white; cursor:grab;">
+          <span style="color:var(--ink-500); user-select:none;">⋮⋮</span>
+          <label style="margin:0; flex:1;">
+            <input type="checkbox" name="enabled_{{ w.kind }}" {% if w.enabled %}checked{% endif %} style="width:auto;">
+            {{ w.label }}
+          </label>
+        </li>
+      {% endfor %}
+    </ul>
+    <div class="row" style="margin-top:14px;">
+      <button class="btn" type="submit">{% trans "Guardar" %}</button>
+      <a class="btn ghost" href="{% url 'core:home' %}">{% trans "Cancelar" %}</a>
+    </div>
+  </form>
+</div>
+
+<script>
+(function () {
+  const list = document.getElementById("widgets-list");
+  let dragged = null;
+  list.addEventListener("dragstart", (e) => {
+    dragged = e.target.closest("li");
+    if (dragged) dragged.style.opacity = ".4";
+  });
+  list.addEventListener("dragend", () => { if (dragged) dragged.style.opacity = ""; dragged = null; sync(); });
+  list.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    const t = e.target.closest("li");
+    if (!t || t === dragged) return;
+    const rect = t.getBoundingClientRect();
+    const after = (e.clientY - rect.top) > rect.height / 2;
+    list.insertBefore(dragged, after ? t.nextSibling : t);
+  });
+  function sync() {
+    document.querySelectorAll("#widgets-form input[name='order']").forEach(n => n.remove());
+    document.querySelectorAll("#widgets-list li").forEach(li => {
+      const inp = document.createElement("input");
+      inp.type = "hidden"; inp.name = "order"; inp.value = li.dataset.kind;
+      document.getElementById("widgets-form").appendChild(inp);
+    });
+  }
+  document.getElementById("widgets-form").addEventListener("submit", sync);
+})();
+</script>
+{% endblock %}

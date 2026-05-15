@@ -1,0 +1,22 @@
+{% load i18n %}
+<div id="view-picker" style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+  {% for v in views %}
+    {% with vquery=v.filters.urlencode %}
+    <a class="chip" href="?{% for k, val in v.filters.items %}{{ k }}={{ val }}{% if not forloop.last %}&{% endif %}{% endfor %}">{{ v.name }}</a>
+    <form method="post" action="{% url 'board:view_delete' project.key v.pk %}" style="display:inline;"
+          hx-confirm="{% trans '¿Borrar vista guardada?' %}">
+      {% csrf_token %}
+      <button class="chip clear" type="submit" style="padding:1px 6px;">×</button>
+    </form>
+    {% endwith %}
+  {% endfor %}
+  <form hx-post="{% url 'board:view_save' project.key %}{% if current %}?{{ current }}{% endif %}"
+        style="display:flex; gap:4px; align-items:center;">
+    {% csrf_token %}
+    {# Re-send the current filter params so they are persisted. #}
+    {% for k, v in request.GET.items %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <input type="text" name="name" placeholder="{% trans 'Guardar vista como…' %}"
+           style="width:140px; padding:2px 6px; font-size:12px;" required>
+    <button class="chip active" type="submit">💾</button>
+  </form>
+</div>

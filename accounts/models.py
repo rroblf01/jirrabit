@@ -177,6 +177,60 @@ class Notification(models.Model):
         indexes = [models.Index(fields=["recipient", "read", "-created_at"])]
 
 
+class Team(models.Model):
+    """Named group of users for ``@team:foo`` mentions.
+
+    Membership is independent of project membership; teams are meant to be
+    light functional groups (frontend, qa, oncall) that anyone can mention
+    in a comment to ping multiple recipients at once.
+    """
+
+    slug = models.SlugField(max_length=40, unique=True, help_text=_("Identificador para @team:slug"))
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=255, blank=True)
+    members = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="teams", blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
+class DashboardWidget(models.Model):
+    """User-configurable widget on the home dashboard.
+
+    ``kind`` is one of: assigned, watching, mentions, pinned, recent,
+    projects, reactions, branches. Order controls the rendering position.
+    """
+
+    KIND_CHOICES = (
+        ("assigned", _("Asignadas a mí")),
+        ("watching", _("Siguiendo")),
+        ("mentions", _("Menciones recientes")),
+        ("pinned", _("Anclados")),
+        ("recent", _("Recientes")),
+        ("projects", _("Mis proyectos")),
+        ("reactions", _("Reacciones recientes")),
+        ("timer", _("Timer activo")),
+        ("overdue", _("Vencidas")),
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dashboard_widgets",
+    )
+    kind = models.CharField(max_length=20, choices=KIND_CHOICES)
+    order = models.PositiveIntegerField(default=0)
+    enabled = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("order", "id")
+        unique_together = ("user", "kind")
+
+    def __str__(self):
+        return f"{self.user}.{self.kind}"
+
+
 class MentionReceipt(models.Model):
     """One row per @mention: tracks when the mentioned user opened the issue
     after being notified. Used by the comment author to see whether their
