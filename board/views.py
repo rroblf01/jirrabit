@@ -203,10 +203,18 @@ class BacklogView(AsyncLoginRequiredMixin, AsyncTemplateView):
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
         sprints = [s async for s in project.sprints.exclude(status="closed")]
-        groups = []
-        for s in sprints:
-            issues = [i async for i in s.issues.select_related("status", "priority", "issue_type", "assignee").order_by("rank", "-updated_at")]
-            groups.append({"sprint": s, "issues": issues})
+        sprint_ids = [s.pk for s in sprints]
+        # Single query for all sprint issues; group in memory to avoid N+1.
+        sprint_issues = [
+            i async for i in
+            project.issues.filter(sprint_id__in=sprint_ids)
+            .select_related("status", "priority", "issue_type", "assignee")
+            .order_by("rank", "-updated_at")
+        ]
+        by_sprint: dict[int, list] = {sid: [] for sid in sprint_ids}
+        for i in sprint_issues:
+            by_sprint[i.sprint_id].append(i)
+        groups = [{"sprint": s, "issues": by_sprint[s.pk]} for s in sprints]
         unassigned = [i async for i in project.issues.filter(sprint__isnull=True).exclude(status__category="done").select_related("status", "priority", "issue_type", "assignee").order_by("-updated_at")]
         groups.append({"sprint": None, "issues": unassigned})
         ctx["project"] = project

@@ -11,6 +11,7 @@
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
   <script src="{% static 'js/ux.js' %}" defer></script>
   <script src="{% static 'js/md-toolbar.js' %}" defer></script>
+  <script src="{% static 'js/drafts.js' %}" defer></script>
   <script src="{% static 'js/reltime.js' %}" defer></script>
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
@@ -52,6 +53,9 @@
       <a role="menuitem" href="#" id="enable-desktop-notif" onclick="event.preventDefault(); window.jirrabit && window.jirrabit.enableDesktopNotifications && window.jirrabit.enableDesktopNotifications();">
         <span aria-hidden="true">🔔</span> {% trans "Activar notificaciones de escritorio" %}
       </a>
+      <a role="menuitem" href="#" onclick="event.preventDefault(); window.jirrabit && window.jirrabit.toggleNotifSound && window.jirrabit.toggleNotifSound();">
+        <span aria-hidden="true">🔊</span> {% trans "Activar/desactivar sonido" %}
+      </a>
       <div class="user-menu-sep"></div>
       <form method="post" action="{% url 'accounts:logout' %}" role="none">
         {% csrf_token %}
@@ -63,16 +67,16 @@
 <div class="layout">
   <aside class="sidebar">
     <h3>{% trans "Proyectos" %}</h3>
-    <ul>
+    <ul id="nav-projects-list">
       {% for p in nav_projects %}
-        <li><a href="{{ p.get_absolute_url }}">{{ p.key }} · {{ p.name }}</a></li>
+        <li draggable="true" data-key="{{ p.key }}"><a href="{{ p.get_absolute_url }}">{{ p.key }} · {{ p.name }}</a></li>
       {% empty %}
         <li class="empty" style="padding:6px">Sin proyectos</li>
       {% endfor %}
     </ul>
     <a class="btn ghost small" href="{% url 'projects:create' %}">+ Nuevo proyecto</a>
   </aside>
-  <main class="main">
+  <main class="main" hx-boost="true">
     {% if messages %}{% for m in messages %}<div class="flash">{{ m }}</div>{% endfor %}{% endif %}
     {% block content %}{% endblock %}
   </main>

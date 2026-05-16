@@ -35,7 +35,7 @@
           hx-target="#comment-{{ c.pk }}" hx-swap="afterend" style="margin-top:6px;">
       {% csrf_token %}
       <input type="hidden" name="parent" value="{{ c.pk }}">
-      <textarea name="body" rows="2" data-mentions="1" placeholder="{% trans 'Responder…' %}"></textarea>
+      <textarea name="body" rows="2" data-mentions="1" placeholder="{% trans 'Responder…' %}">@{{ c.author.username }} </textarea>
       <button class="btn small" type="submit" style="margin-top:4px;">{% trans "Enviar" %}</button>
     </form>
   </div>

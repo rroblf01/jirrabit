@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load i18n %}
+{% load i18n jirrabit_extras %}
 {% block content %}
 <div class="card">
   <div class="row">
@@ -7,6 +7,10 @@
     <div class="spacer"></div>
     <a class="btn ghost" href="{% url 'board:backlog' project.key %}">Backlog</a>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
+  </div>
+  <div class="last-updated" style="margin-top:4px; font-size:11px; color:var(--ink-500);" id="board-last-updated">
+    {% now "c" as now_iso %}
+    {% trans "Cargado" %}: <time datetime="{{ now_iso }}" data-rel="1">{{ now_iso }}</time>
   </div>
 
   <form method="get" id="board-filters" style="margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit, minmax(140px,1fr)); gap:8px;">
@@ -100,13 +104,13 @@
 </div>
 
 {% if not columns or not active_sprint and not request.GET.sprint %}
-<div class="card" style="text-align:center; margin-top:14px; padding:24px;">
-  <p style="color:var(--ink-500); margin:0 0 10px;">
-    {% trans "Tablero vacío. Sin sprint activo o sin tareas." %}
-  </p>
-  <div class="row" style="justify-content:center;">
-    <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Crear tarea" %}</a>
-    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">{% trans "Ir a backlog" %}</a>
+<div class="card">
+  <div class="empty illustrated" data-icon="🗂">
+    <p>{% trans "Tablero vacío. Sin sprint activo o sin tareas." %}</p>
+    <div class="empty-cta">
+      <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Crear tarea" %}</a>
+      <a class="btn ghost" href="{% url 'board:backlog' project.key %}">{% trans "Ir a backlog" %}</a>
+    </div>
   </div>
 </div>
 {% endif %}
@@ -169,6 +173,12 @@ document.addEventListener('change', e => {
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
     if (msg.type !== 'issue') return;
+    const t = document.querySelector("#board-last-updated time");
+    if (t) {
+      const iso = new Date().toISOString();
+      t.setAttribute("datetime", iso);
+      t.textContent = "ahora";
+    }
     pendingCount += 1;
     if (!badge) {
       badge = document.createElement('div');

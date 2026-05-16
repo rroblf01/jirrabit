@@ -65,6 +65,45 @@
   </form>
 
   <hr style="border:none; border-top:1px solid var(--ink-300); margin:20px 0;">
+  <h3>{% trans "Borradores guardados localmente" %}</h3>
+  <p style="color:var(--ink-500); font-size:13px;">
+    {% trans "Texto sin enviar que se guarda en este navegador. Al volver a la página correspondiente se recupera." %}
+  </p>
+  <div id="drafts-list"></div>
+  <script>
+    (function () {
+      const list = document.getElementById("drafts-list");
+      function render() {
+        const items = (window.jirrabit && window.jirrabit.listDrafts ? window.jirrabit.listDrafts() : []);
+        if (!items.length) {
+          list.innerHTML = '<p class="empty" style="padding:14px; font-size:13px;">{% trans "Sin borradores." %}</p>';
+          return;
+        }
+        list.innerHTML = '<table><thead><tr><th>{% trans "Ruta" %}</th><th>{% trans "Vista previa" %}</th><th></th></tr></thead><tbody></tbody></table>';
+        const tb = list.querySelector("tbody");
+        items.forEach(it => {
+          const parts = it.key.split("::");
+          const path = parts[0].replace(/^draft:/, "");
+          const tr = document.createElement("tr");
+          const preview = it.value.replace(/\s+/g, " ").slice(0, 80) + (it.value.length > 80 ? "…" : "");
+          tr.innerHTML = `
+            <td><a href="${path}">${path}</a></td>
+            <td style="color:var(--ink-700); font-size:13px;">${preview}</td>
+            <td style="text-align:right;"><button class="btn ghost small" type="button" data-k="${it.key.replace(/"/g, '&quot;')}">{% trans "Borrar" %}</button></td>`;
+          tr.querySelector("button").onclick = () => {
+            window.jirrabit.deleteDraft(it.key);
+            render();
+          };
+          tb.appendChild(tr);
+        });
+      }
+      // Wait until drafts.js is loaded.
+      document.addEventListener("DOMContentLoaded", render);
+      if (window.jirrabit && window.jirrabit.listDrafts) render();
+    })();
+  </script>
+
+  <hr style="border:none; border-top:1px solid var(--ink-300); margin:20px 0;">
   <h3>{% trans "Sesiones" %}</h3>
   <p style="color:var(--ink-500); font-size:13px;">
     {% trans "Si crees que alguien ha entrado en tu cuenta, cierra todas las sesiones activas (excepto la actual)." %}

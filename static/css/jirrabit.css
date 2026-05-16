@@ -293,6 +293,18 @@ img.avatar { display: inline-block; object-fit: cover; }
 body.htmx-busy #htmx-spinner { display: block; }
 @keyframes htmx-bar { from { background-position: -50% 0; } to { background-position: 150% 0; } }
 
+/* Persistent corner indicator while htmx is busy. Subtle, only appears
+   after a small delay so quick requests don't flash it. */
+#htmx-corner {
+  position: fixed; bottom: 14px; left: 14px; z-index: 9998;
+  width: 18px; height: 18px; border-radius: 999px;
+  border: 2px solid var(--ink-300); border-top-color: var(--blue-600);
+  opacity: 0; pointer-events: none;
+  transition: opacity .15s linear .25s;
+}
+body.htmx-busy #htmx-corner { opacity: 1; animation: htmx-corner-spin .8s linear infinite; }
+@keyframes htmx-corner-spin { to { transform: rotate(360deg); } }
+
 /* Element-level spinner: HTMX adds .htmx-request to the triggering node. */
 .htmx-request[hx-post], .htmx-request[hx-get], .htmx-request[hx-put], .htmx-request[hx-delete] {
   opacity: .6; pointer-events: none;
@@ -636,3 +648,128 @@ body.htmx-busy .kanban { opacity: .7; transition: opacity .2s; }
   font-size: 14px; padding: 0 4px;
 }
 .toast { display: flex; gap: 10px; align-items: center; }
+
+/* Draft autosave indicator. */
+.draft-indicator { font-size: 11px; color: var(--ink-500); margin-top: 4px; }
+.draft-indicator[data-kind="restored"] { color: var(--blue-700); font-weight: 500; }
+.draft-indicator[data-kind="saved"]::before { content: "✓ "; color: #16a34a; }
+
+/* Sidebar drag-reorder. */
+.sidebar li[draggable="true"] { cursor: grab; }
+.sidebar li[draggable="true"]:hover::before { content: "⋮⋮ "; color: var(--ink-300); margin-right: 2px; }
+.sidebar li.dragging { opacity: .4; cursor: grabbing; }
+
+/* Breadcrumb. */
+.breadcrumb { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; margin-bottom: 8px; }
+.breadcrumb a { color: var(--ink-500); }
+.breadcrumb a:hover { color: var(--blue-700); }
+.breadcrumb .sep { color: var(--ink-300); }
+.breadcrumb strong { color: var(--ink-900); }
+
+/* Daily tip card. */
+.tip-card { border-left: 4px solid var(--yellow); }
+.tip-card kbd, .tip-card code {
+  background: var(--ink-100); border: 1px solid var(--ink-300);
+  padding: 1px 5px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 11px;
+}
+
+/* Empty states improved: bigger icon, looser spacing. Selectively applied
+   to ``.empty.illustrated`` so we don't break compact table cells. */
+.empty.illustrated {
+  text-align: center; padding: 40px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.empty.illustrated::before {
+  content: attr(data-icon);
+  font-size: 40px; line-height: 1;
+  opacity: .55;
+}
+.empty.illustrated p { margin: 0; color: var(--ink-500); font-size: 13px; }
+.empty.illustrated .empty-cta { margin-top: 8px; }
+
+/* Reactions quick-bar: hidden until comment hover. */
+.reactions { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.reactions-quick {
+  display: inline-flex; gap: 2px;
+  opacity: 0; visibility: hidden;
+  transition: opacity .15s, visibility .15s;
+}
+.comment:hover .reactions-quick,
+.reactions-quick:focus-within { opacity: 1; visibility: visible; }
+.reactions-quick form { display: inline; margin: 0; }
+.reactions-quick-btn {
+  background: var(--ink-50); border: 1px solid var(--surface-border);
+  border-radius: 6px; padding: 1px 6px; font-size: 14px; cursor: pointer;
+  line-height: 1.2;
+}
+.reactions-quick-btn:hover { background: var(--blue-50); transform: scale(1.1); }
+
+/* Markdown editor tabs mode. */
+.md-editor.tabs-mode { display: block; }
+.md-tabs { display: flex; gap: 2px; margin-bottom: 4px; }
+.md-tab {
+  background: transparent; border: 1px solid transparent;
+  padding: 4px 12px; font-size: 12px; cursor: pointer; border-radius: 6px 6px 0 0;
+  color: var(--ink-700);
+}
+.md-tab.active { background: var(--surface); border-color: var(--surface-border); border-bottom-color: var(--surface); color: var(--surface-fg); font-weight: 600; }
+.md-editor.tabs-mode .md-preview-pane[hidden] { display: none; }
+
+/* Drag handle hint on hover. */
+.kanban .card-issue { position: relative; }
+.kanban .card-issue::before {
+  content: "⋮⋮"; position: absolute; left: -14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-300); font-size: 14px; opacity: 0;
+  transition: opacity .15s;
+  pointer-events: none;
+}
+.kanban .card-issue:hover::before { opacity: 1; }
+
+/* Collapsible sprint groups in backlog. */
+details.sprint-group { padding: 14px 20px; }
+details.sprint-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+details.sprint-group summary::-webkit-details-marker { display: none; }
+details.sprint-group .sprint-caret { transition: transform .15s; display: inline-block; color: var(--ink-500); }
+details.sprint-group:not([open]) .sprint-caret { transform: rotate(-90deg); }
+details.sprint-group[open] summary { margin-bottom: 8px; }
+
+/* My-day widget. */
+.my-day-card { border-left: 4px solid var(--blue-600); }
+/* Avatar ring on high-priority issues. */
+.avatar.priority-ring { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--red); }
+
+/* Estimate progress bar. */
+.estimate-bar { height: 6px; background: var(--ink-100); border-radius: 999px; margin: 4px 0; overflow: hidden; }
+.estimate-bar-fill { height: 100%; border-radius: 999px; transition: width .3s; }
+
+/* Inline validation visual. */
+input.invalid, textarea.invalid {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, .12);
+}
+
+/* Board presentation mode (toggle with F). */
+body.presentation .topbar,
+body.presentation .sidebar,
+body.presentation #bulk-bar,
+body.presentation .breadcrumb { display: none !important; }
+body.presentation .layout { grid-template-columns: 1fr; padding: 0; max-width: none; }
+body.presentation .main { padding: 16px; }
+body.presentation .kanban { gap: 20px; }
+body.presentation .kanban .card-issue { font-size: 15px; padding: 14px 16px; }
+body.presentation .kanban .column h3 { font-size: 18px; }
+body.presentation::before {
+  content: "📺 Modo presentación · pulsa F para salir";
+  position: fixed; top: 10px; right: 14px; z-index: 200;
+  background: var(--ink-900); color: white; padding: 4px 10px;
+  border-radius: 999px; font-size: 11px; opacity: .7;
+}
+
+/* Sticky tabs on issue detail so they stay visible while scrolling. */
+.issue-detail .tabs {
+  position: sticky; top: 60px; z-index: 30;
+  background: var(--surface);
+  margin: 14px 0;
+  padding-top: 2px;
+}

@@ -177,10 +177,12 @@ class CommentTests(TestCase):
         c.refresh_from_db()
         self.assertEqual(c.body, "Editado")
         self.assertTrue(c.edited)
-        # delete
+        # delete (soft): row remains but deleted_at is set, undo URL exposed
         r = self.c.post(reverse("issues:comment_delete", args=[c.pk]))
         self.assertEqual(r.status_code, 200)
-        self.assertFalse(Comment.objects.filter(pk=c.pk).exists())
+        self.assertTrue(r.has_header("X-Undo-URL"))
+        c.refresh_from_db()
+        self.assertIsNotNone(c.deleted_at)
 
 
 class APITests(TestCase):

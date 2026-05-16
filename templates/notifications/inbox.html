@@ -8,7 +8,7 @@
     <form hx-post="{% url 'accounts:notifications_mark_read' %}"
           hx-target="#notif-list" hx-swap="outerHTML">
       {% csrf_token %}
-      <button class="btn ghost small" type="submit">{% trans "Marcar todas como leídas" %}</button>
+      <button class="btn small" type="submit" data-toast="{% trans 'Todas marcadas como leídas' %}">✓ {% trans "Marcar todas como leídas" %}</button>
     </form>
   </div>
   <div id="notif-list" style="margin-top:14px;">

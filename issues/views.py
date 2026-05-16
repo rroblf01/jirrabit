@@ -217,6 +217,18 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["custom_fields"] = [
             f async for f in self.object.project.custom_fields.all()
         ]
+        # Previous / next issue in the same project (ordered by key) for the
+        # ‹ / › navigation in the issue header.
+        ctx["prev_issue"] = await (
+            self.object.project.issues
+            .filter(archived=False, key__lt=self.object.key)
+            .order_by("-key").only("key").afirst()
+        )
+        ctx["next_issue"] = await (
+            self.object.project.issues
+            .filter(archived=False, key__gt=self.object.key)
+            .order_by("key").only("key").afirst()
+        )
         # N+1 fix: pre-evaluate related collections.
         comments_qs = self.object.comments.select_related("author").filter(deleted_at__isnull=True)
         if not (self.request.user.is_staff or self.request.user.is_superuser):
@@ -788,9 +800,10 @@ class IssueCloneView(AsyncLoginRequiredMixin, View):
             key=f"{src.project.key}-{num}",
         )
         await clone.asave()
-        # Copy labels (M2M).
-        async for lab in src.labels.all():
-            await clone.labels.aadd(lab)
+        # Copy labels in one round trip instead of N aadd calls.
+        labels = [lab async for lab in src.labels.all()]
+        if labels:
+            await clone.labels.aset(labels)
         return redirect(clone.get_absolute_url())
 
 

@@ -52,6 +52,12 @@
     bar.id = "htmx-spinner";
     document.body.appendChild(bar);
   }
+  if (!document.getElementById("htmx-corner")) {
+    const c = document.createElement("div");
+    c.id = "htmx-corner";
+    c.setAttribute("aria-hidden", "true");
+    document.body.appendChild(c);
+  }
   document.body.addEventListener("htmx:beforeRequest", () => {
     document.body.classList.add("htmx-busy");
   });
@@ -128,6 +134,47 @@
     jirrabit.toast("Sin conexión con el servidor", "err");
   });
 
+  // --- Sidebar drag-reorder (persisted to localStorage) ----------------
+  (function () {
+    const ul = document.getElementById("nav-projects-list");
+    if (!ul) return;
+    const KEY = "sidebar_project_order";
+
+    function applyOrder() {
+      try {
+        const order = JSON.parse(localStorage.getItem(KEY) || "[]");
+        if (!order.length) return;
+        const items = Array.from(ul.querySelectorAll("li[data-key]"));
+        const byKey = new Map(items.map(li => [li.dataset.key, li]));
+        order.forEach(k => { if (byKey.has(k)) ul.appendChild(byKey.get(k)); });
+        items.forEach(li => { if (!order.includes(li.dataset.key)) ul.appendChild(li); });
+      } catch (_e) {}
+    }
+    function persist() {
+      const order = Array.from(ul.querySelectorAll("li[data-key]")).map(li => li.dataset.key);
+      try { localStorage.setItem(KEY, JSON.stringify(order)); } catch (_e) {}
+    }
+
+    let dragged = null;
+    ul.querySelectorAll("li[data-key]").forEach(li => {
+      li.addEventListener("dragstart", e => {
+        dragged = li;
+        e.dataTransfer.effectAllowed = "move";
+        li.classList.add("dragging");
+      });
+      li.addEventListener("dragend", () => { li.classList.remove("dragging"); dragged = null; });
+      li.addEventListener("dragover", e => {
+        if (!dragged || dragged === li) return;
+        e.preventDefault();
+        const rect = li.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        ul.insertBefore(dragged, before ? li : li.nextSibling);
+      });
+      li.addEventListener("drop", e => { e.preventDefault(); persist(); });
+    });
+    applyOrder();
+  })();
+
   // --- Optimistic UI helper --------------------------------------------
   // Any element with ``data-optimistic="<selector>"`` (or just ``data-optimistic``)
   // triggers a class swap on the closest ``.card-issue``/``.comment`` while
@@ -167,6 +214,31 @@
   if (!navigator.onLine) setOnlineState(false);
 
   // --- Desktop notifications (opt-in) ----------------------------------
+  function playBeep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine"; osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.25);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.28);
+    } catch (_e) {}
+  }
+  jirrabit.toggleNotifSound = function () {
+    const cur = localStorage.getItem("notif_sound") === "1";
+    if (cur) {
+      localStorage.removeItem("notif_sound");
+      jirrabit.toast("Sonido desactivado", "info");
+    } else {
+      localStorage.setItem("notif_sound", "1");
+      playBeep();
+      jirrabit.toast("Sonido activado", "ok");
+    }
+  };
   jirrabit.enableDesktopNotifications = async function () {
     if (!("Notification" in window)) {
       jirrabit.toast("Tu navegador no soporta notificaciones de escritorio", "err");
@@ -193,13 +265,18 @@
       : (e.target.querySelector ? e.target.querySelector(".notif-link") : null);
     if (!link) return;
     const n = parseInt(link.dataset.count || "0", 10);
-    if (n > _lastUnread && Notification.permission === "granted") {
-      try {
-        new Notification("Jirrabit", {
-          body: `Tienes ${n} notificaciones sin leer`,
-          tag: "jirrabit-unread",
-        });
-      } catch (_e) { /* ignore */ }
+    if (n > _lastUnread) {
+      if (Notification.permission === "granted") {
+        try {
+          new Notification("Jirrabit", {
+            body: `Tienes ${n} notificaciones sin leer`,
+            tag: "jirrabit-unread",
+          });
+        } catch (_e) { /* ignore */ }
+      }
+      if (localStorage.getItem("notif_sound") === "1") {
+        try { playBeep(); } catch (_e) {}
+      }
     }
     _lastUnread = n;
   });
@@ -414,6 +491,20 @@
       if (key) { e.preventDefault(); go(`/issues/projects/${key}/new/`); }
       return;
     }
+    // Board presentation mode (F): hide chrome and zoom the kanban.
+    if ((e.key === "F" || e.key === "f") && location.pathname.match(/^\/board\//)) {
+      e.preventDefault();
+      document.body.classList.toggle("presentation");
+      return;
+    }
+    // Comment-hovered shortcut: E to edit the comment under the cursor.
+    if (e.key === "E" || e.key === "e") {
+      const hovered = document.querySelector(".comment:hover");
+      if (hovered) {
+        const btn = hovered.querySelector("button[hx-get*='comment_edit'], button[hx-get*='comment/']");
+        if (btn) { e.preventDefault(); btn.click(); return; }
+      }
+    }
     // Issue-level shortcuts: only when viewing an issue detail page.
     const issueMatch = location.pathname.match(/^\/issues\/([A-Z0-9_-]+-\d+)\//i);
     if (issueMatch) {
@@ -623,14 +714,23 @@
     if (textarea.dataset.mdPreviewBound === "1") return;
     textarea.dataset.mdPreviewBound = "1";
     const wrap = document.createElement("div");
-    wrap.className = "md-editor";
+    wrap.className = "md-editor tabs-mode";
     textarea.parentNode.insertBefore(wrap, textarea);
+
+    const tabs = document.createElement("div");
+    tabs.className = "md-tabs";
+    tabs.innerHTML = `
+      <button type="button" class="md-tab active" data-tab="edit">Editar</button>
+      <button type="button" class="md-tab" data-tab="preview">Vista previa</button>`;
+    wrap.appendChild(tabs);
     wrap.appendChild(textarea);
     const pane = document.createElement("div");
     pane.className = "md-preview-pane";
     pane.setAttribute("aria-live", "polite");
+    pane.hidden = true;
     pane.innerHTML = '<div class="md-preview-empty">Vista previa…</div>';
     wrap.appendChild(pane);
+
     let t = null;
     async function update() {
       const fd = new FormData();
@@ -647,7 +747,15 @@
       clearTimeout(t);
       t = setTimeout(update, 250);
     });
-    update();
+    tabs.addEventListener("click", e => {
+      const btn = e.target.closest(".md-tab");
+      if (!btn) return;
+      const mode = btn.dataset.tab;
+      tabs.querySelectorAll(".md-tab").forEach(b => b.classList.toggle("active", b === btn));
+      textarea.hidden = mode !== "edit";
+      pane.hidden = mode !== "preview";
+      if (mode === "preview") update();
+    });
   }
 
   // Slash commands: typing "/" at the start of a line opens a tiny menu.
@@ -775,11 +883,21 @@
         li.addEventListener("mouseenter", () => { qsActive = parseInt(li.dataset.idx); renderItems(); });
       });
     }
+    function loadRecent() {
+      try {
+        const r = JSON.parse(localStorage.getItem("recent_issues") || "[]");
+        qsItems = r.slice(0, 5).map(it => ({ ...it, hint: it.hint || "Reciente" }));
+      } catch (_e) { qsItems = []; }
+      qsActive = 0;
+      renderItems();
+    }
+    // Show recent issues immediately when the modal opens.
+    loadRecent();
     input.addEventListener("input", () => {
       clearTimeout(qsTimer);
       qsTimer = setTimeout(async () => {
         const q = input.value.trim();
-        if (!q) { qsItems = []; qsActive = 0; renderItems(); return; }
+        if (!q) { loadRecent(); return; }
         const res = await fetch("/search/quickswitch/?q=" + encodeURIComponent(q));
         const json = await res.json();
         qsItems = json.items || [];
@@ -823,6 +941,37 @@
       jirrabit.toast("No se pudo copiar al portapapeles", "err");
     }
   });
+
+  // --- Inline validation for required text fields ----------------------
+  // Mark ``input[required]`` / ``textarea[required]`` red while empty and
+  // restore the normal state as soon as the user types something.
+  function scanValidation(root) {
+    (root || document).querySelectorAll("input[required], textarea[required]").forEach(el => {
+      if (el.dataset.validateBound === "1") return;
+      el.dataset.validateBound = "1";
+      const refresh = () => el.classList.toggle("invalid", !el.value.trim());
+      el.addEventListener("input", refresh);
+      el.addEventListener("blur", refresh);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", () => scanValidation(document));
+  document.body.addEventListener("htmx:afterSwap", e => scanValidation(e.target));
+
+  // --- Auto-trim + spellcheck on text fields ---------------------------
+  function scanTextFields(root) {
+    (root || document).querySelectorAll("textarea, input[type='text'], input[name='summary']").forEach(el => {
+      if (!el.hasAttribute("spellcheck")) el.setAttribute("spellcheck", "true");
+    });
+  }
+  document.addEventListener("DOMContentLoaded", () => scanTextFields(document));
+  document.body.addEventListener("htmx:afterSwap", (e) => scanTextFields(e.target));
+  document.body.addEventListener("submit", (e) => {
+    const f = e.target;
+    if (!f || !f.querySelectorAll) return;
+    f.querySelectorAll("input[name='summary'], textarea").forEach((el) => {
+      if (typeof el.value === "string") el.value = el.value.trim();
+    });
+  }, true);
 })();
 
 // --- Inline edit save indicator ------------------------------------------

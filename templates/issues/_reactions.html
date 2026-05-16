@@ -11,33 +11,12 @@
       </button>
     </form>
   {% endfor %}
-  <details class="reaction-add" style="display:inline-block; position:relative;">
-    <summary class="chip" style="list-style:none; cursor:pointer;">+ 😀</summary>
-    <div style="position:absolute; background:white; border:1px solid var(--ink-100); border-radius:6px; padding:6px; box-shadow:var(--shadow); z-index:20; display:flex; gap:4px;">
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="+1">
-        <button class="chip" type="submit" style="font-size:18px;">👍</button>
-      </form>
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="-1">
-        <button class="chip" type="submit" style="font-size:18px;">👎</button>
-      </form>
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="heart">
-        <button class="chip" type="submit" style="font-size:18px;">❤️</button>
-      </form>
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="tada">
-        <button class="chip" type="submit" style="font-size:18px;">🎉</button>
-      </form>
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="eyes">
-        <button class="chip" type="submit" style="font-size:18px;">👀</button>
-      </form>
-      <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML">
-        {% csrf_token %}<input type="hidden" name="emoji" value="rocket">
-        <button class="chip" type="submit" style="font-size:18px;">🚀</button>
-      </form>
-    </div>
-  </details>
+
+  <span class="reactions-quick" aria-label="{% trans 'Reacciones rápidas' %}">
+    <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML"><input type="hidden" name="emoji" value="+1">{% csrf_token %}<button type="submit" class="reactions-quick-btn" title="👍">👍</button></form>
+    <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML"><input type="hidden" name="emoji" value="heart">{% csrf_token %}<button type="submit" class="reactions-quick-btn" title="❤️">❤️</button></form>
+    <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML"><input type="hidden" name="emoji" value="tada">{% csrf_token %}<button type="submit" class="reactions-quick-btn" title="🎉">🎉</button></form>
+    <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML"><input type="hidden" name="emoji" value="rocket">{% csrf_token %}<button type="submit" class="reactions-quick-btn" title="🚀">🚀</button></form>
+    <form hx-post="{% url 'issues:react' c.pk %}" hx-target="closest .reactions" hx-swap="outerHTML"><input type="hidden" name="emoji" value="eyes">{% csrf_token %}<button type="submit" class="reactions-quick-btn" title="👀">👀</button></form>
+  </span>
 </div>

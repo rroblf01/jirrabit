@@ -1,11 +1,39 @@
 {% extends "base.html" %}
 {% load i18n jirrabit_extras %}
+{% block title %}{{ issue.key }} · {{ issue.summary|truncatechars:60 }}{% endblock %}
 {% block content %}
+<script>
+  (function () {
+    try {
+      const KEY = "recent_issues";
+      const item = {
+        url: "{{ issue.get_absolute_url }}",
+        label: "{{ issue.key|escapejs }} — {{ issue.summary|escapejs }}",
+        hint: "{{ issue.status|escapejs }}",
+        type: "issue",
+      };
+      const list = JSON.parse(localStorage.getItem(KEY) || "[]");
+      const filtered = list.filter(it => it.url !== item.url);
+      filtered.unshift(item);
+      localStorage.setItem(KEY, JSON.stringify(filtered.slice(0, 8)));
+    } catch (_e) {}
+  })();
+</script>
 <div class="card">
+  <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+    {% if prev_issue %}<a class="btn ghost small" href="{% url 'issues:detail' prev_issue.key %}" title="{% trans 'Anterior' %}">‹ {{ prev_issue.key }}</a>{% endif %}
+    {% if next_issue %}<a class="btn ghost small" href="{% url 'issues:detail' next_issue.key %}" title="{% trans 'Siguiente' %}">{{ next_issue.key }} ›</a>{% endif %}
+  </div>
+  <nav class="breadcrumb" aria-label="breadcrumb">
+    <a href="{{ issue.project.get_absolute_url }}">{{ issue.project.key }}</a>
+    {% if issue.sprint %}<span class="sep">›</span><a href="{{ issue.sprint.get_absolute_url|default:issue.project.get_absolute_url }}">{{ issue.sprint.name }}</a>{% endif %}
+    {% if issue.epic %}<span class="sep">›</span><a href="{{ issue.epic.get_absolute_url|default:'#' }}">{{ issue.epic.name }}</a>{% endif %}
+    {% if issue.parent %}<span class="sep">›</span><a href="{{ issue.parent.get_absolute_url }}">{{ issue.parent.key }}</a>{% endif %}
+    <span class="sep">›</span><strong>{{ issue.key }}</strong>
+    <button class="copy-btn" type="button" data-copy="{{ request.build_absolute_uri }}" title="{% trans 'Copiar enlace' %}">⎘</button>
+  </nav>
   <div class="row">
-    <a href="{{ issue.project.get_absolute_url }}" style="color:var(--ink-500);">{{ issue.project.key }}</a>
-    <span style="color:var(--ink-500);">/</span>
-    <strong>{{ issue.key }}</strong>
+    <strong style="display:none;">{{ issue.key }}</strong>
     {% include "issues/_inline/issue_type_display.html" %}
     <div class="spacer"></div>
     {% include "issues/_pin_button.html" with kind="issue" pk=issue.pk pinned=is_pinned %}
@@ -24,6 +52,9 @@
     <a class="btn ghost small" href="{% url 'issues:edit' issue.key %}">{% trans "Editar todo" %}</a>
   </div>
   <div id="presence-viewers" style="margin-top:6px; font-size:11px; color:var(--ink-500);"></div>
+  <div class="last-updated" style="margin-top:4px; font-size:11px; color:var(--ink-500);">
+    {% trans "Actualizada" %}: {{ issue.updated_at|rel_time }}
+  </div>
 
   {% include "issues/_inline/summary_display.html" %}
 
@@ -38,6 +69,7 @@
       </nav>
 
       <section class="tab-panel active" id="tab-desc">
+        <div id="reading-time-hint" style="font-size:11px; color:var(--ink-500); margin-bottom:6px;"></div>
         {% include "issues/_inline/description_display.html" %}
         {% include "issues/_subtasks.html" with issue=issue subtasks=subtasks %}
         {% include "issues/_branch_links.html" with issue=issue branches=branches %}
@@ -46,7 +78,10 @@
       <section class="tab-panel" id="tab-comments">
         <div class="comments" id="comments">
           {% for c in comments %}{% include "issues/_comment.html" with c=c %}{% empty %}
-            <div class="empty" style="padding:24px;">{% trans "Sé el primero en comentar." %}</div>
+            <div class="empty illustrated" data-icon="💬">
+              <p>{% trans "Sin comentarios todavía." %}</p>
+              <p style="font-size:12px;">{% trans "Sé el primero en comentar — usa @nombre para mencionar a alguien." %}</p>
+            </div>
           {% endfor %}
         </div>
         <form hx-post="{% url 'issues:add_comment' issue.key %}" hx-target="#comments" hx-swap="beforeend"
@@ -95,7 +130,10 @@
       <section class="tab-panel" id="tab-attach">
         <div id="attachments">
           {% for a in attachments %}{% include "issues/_attachment.html" with a=a %}{% empty %}
-            <div class="empty" style="padding:24px;">{% trans "Sin adjuntos." %}</div>
+            <div class="empty illustrated" data-icon="📎">
+              <p>{% trans "Sin adjuntos." %}</p>
+              <p style="font-size:12px;">{% trans "Arrastra archivos aquí o usa el botón Subir." %}</p>
+            </div>
           {% endfor %}
         </div>
         <form hx-post="{% url 'issues:upload' issue.key %}" hx-target="#attachments" hx-swap="beforeend"
@@ -142,7 +180,24 @@
       <dt>{% trans "Estimación" %}</dt>
       <dd>{% include "issues/_inline/estimate_display.html" %}</dd>
       <dt>{% trans "Tiempo registrado" %}</dt>
-      <dd>{{ issue.time_spent_minutes }} min</dd>
+      <dd>
+        {{ issue.time_spent_minutes }} min
+        {% if issue.estimate_minutes %}
+          {% with remaining=issue.estimate_minutes|add:0 %}
+          {% widthratio issue.time_spent_minutes issue.estimate_minutes 100 as pct %}
+          <div class="estimate-bar" title="{{ issue.time_spent_minutes }} / {{ issue.estimate_minutes }} min">
+            <div class="estimate-bar-fill" style="width: {{ pct }}%; background: {% if pct|add:0 > 100 %}var(--red){% else %}var(--blue-500){% endif %};"></div>
+          </div>
+          <span style="font-size:11px; color:var(--ink-500);">
+            {% if issue.estimate_minutes > issue.time_spent_minutes %}
+              {% trans "Restante" %}: {{ issue.estimate_minutes|add:0 }} − {{ issue.time_spent_minutes|add:0 }} min
+            {% else %}
+              {% trans "Excedido" %}: +{{ issue.time_spent_minutes|add:0 }} − {{ issue.estimate_minutes|add:0 }} min
+            {% endif %}
+          </span>
+          {% endwith %}
+        {% endif %}
+      </dd>
       <dt>{% trans "Etiquetas" %}</dt>
       <dd>{% for l in labels %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
 
@@ -216,6 +271,18 @@
       render();
     };
   } catch (e) { /* channels not configured */ }
+})();
+(function () {
+  // Reading time for the description body.
+  const desc = document.querySelector("#tab-desc .description, #tab-desc .markdown, #tab-desc .md-rendered, #tab-desc [data-md-rendered], #tab-desc");
+  const hint = document.getElementById("reading-time-hint");
+  if (desc && hint) {
+    const words = (desc.innerText || "").trim().split(/\s+/).filter(Boolean).length;
+    if (words > 80) {
+      const mins = Math.max(1, Math.round(words / 220));
+      hint.textContent = `≈ ${mins} min de lectura · ${words} palabras`;
+    }
+  }
 })();
 (function () {
   const tabs = document.querySelectorAll("#issue-tabs a[data-tab]");

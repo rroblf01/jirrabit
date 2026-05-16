@@ -157,6 +157,21 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ]
         ctx["mentions"] = mention_notifs
 
+        # "Mi día" — issues assigned to user, in an active sprint, ordered by
+        # priority weight then due date. Top of dashboard for quick triage.
+        from datetime import timedelta
+
+        from django.utils import timezone as dj_tz
+
+        soon = dj_tz.now().date() + timedelta(days=2)
+        my_day_qs = (
+            Issue.objects.filter(assignee=user)
+            .exclude(status__category="done")
+            .filter(Q(sprint__status="active") | Q(due_date__lte=soon))
+            .select_related(*common).order_by("-priority__weight", "due_date")[:8]
+        )
+        ctx["my_day"] = [i async for i in my_day_qs]
+
         # Pinned issues + projects
         ctx["pinned_issues"] = [
             p.issue async for p in

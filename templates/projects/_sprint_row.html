@@ -8,7 +8,7 @@
     {% if sprint.status == "future" %}
       <button class="btn small" hx-post="{% url 'projects:start_sprint' sprint.pk %}" hx-target="#sprint-{{ sprint.pk }}" hx-swap="outerHTML">Iniciar</button>
     {% elif sprint.status == "active" %}
-      <button class="btn small danger" hx-post="{% url 'projects:close_sprint' sprint.pk %}" hx-target="#sprint-{{ sprint.pk }}" hx-swap="outerHTML">Cerrar</button>
+      <button class="btn small danger" hx-post="{% url 'projects:close_sprint' sprint.pk %}" hx-target="#sprint-{{ sprint.pk }}" hx-swap="outerHTML" data-celebrate="1" data-toast="🎉 Sprint cerrado">Cerrar</button>
     {% endif %}
   </td>
 </tr>

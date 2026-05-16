@@ -1,6 +1,39 @@
 {% extends "base.html" %}
 {% load i18n jirrabit_extras %}
 {% block content %}
+<div class="card tip-card" id="tip-card" style="display:none;">
+  <div style="display:flex; gap:10px; align-items:center;">
+    <span style="font-size:22px;">💡</span>
+    <div style="flex:1;"><strong>{% trans "Pista" %}:</strong> <span id="tip-text"></span></div>
+    <button type="button" class="btn ghost small" id="tip-next" title="{% trans 'Otra pista' %}">↻</button>
+  </div>
+</div>
+<script>
+(function () {
+  const tips = [
+    "Pulsa <kbd>?</kbd> para ver todos los atajos de teclado.",
+    "Estando en una tarea, pulsa <kbd>s</kbd> para asignártela y arrancar el timer en un click.",
+    "Pulsa <kbd>e</kbd> para avanzar el estado de la tarea actual.",
+    "Ctrl+K abre la paleta de comandos con un buscador global.",
+    "Usa <kbd>g</kbd>+<kbd>b</kbd> para saltar al board del proyecto actual.",
+    "Escribe <code>@usuario</code> en un comentario para mencionarlo.",
+    "Escribe <code>@team:slug</code> para avisar a todo un equipo.",
+    "En el editor markdown, prueba <code>/</code> para insertar plantillas.",
+    "Crea plantillas de tarea desde el menú del proyecto.",
+    "Los comentarios borrados se pueden deshacer en la barra de notificaciones.",
+    "Los borradores se autoguardan: si cierras la pestaña, vuelven al volver."
+  ];
+  const day = new Date().toISOString().slice(0, 10);
+  const seed = day.split("-").reduce((a, b) => a + parseInt(b, 10), 0);
+  let idx = seed % tips.length;
+  function show() {
+    document.getElementById("tip-text").innerHTML = tips[idx];
+    document.getElementById("tip-card").style.display = "";
+  }
+  document.getElementById("tip-next").onclick = () => { idx = (idx + 1) % tips.length; show(); };
+  show();
+})();
+</script>
 <div class="card onboarding-card" id="onboarding-card" style="display:none;">
   <div style="display:flex; gap:16px; align-items:flex-start;">
     <div style="font-size:32px;">👋</div>
@@ -40,6 +73,28 @@
     {% trans "Tu trabajo en un vistazo. Pulsa" %} <kbd>Ctrl</kbd>+<kbd>K</kbd> {% trans "para buscar rápido." %}
   </p>
 </div>
+
+{% if my_day %}
+<div class="card my-day-card">
+  <h2 style="margin-top:0;">☀ {% trans "Mi día" %} <span class="badge">{{ my_day|length }}</span></h2>
+  <p style="color:var(--ink-500); margin:4px 0 10px; font-size:12px;">
+    {% trans "Tareas asignadas en sprint activo o con fecha próxima." %}
+  </p>
+  <ul style="list-style:none; padding:0; margin:0;">
+    {% for i in my_day %}
+    <li style="padding:8px 0; border-bottom:1px solid var(--ink-100); display:flex; gap:10px; align-items:center;">
+      <span class="avatar{% if i.priority.weight >= 3 %} priority-ring{% endif %}" title="{{ i.priority.name }}" style="background:{{ i.priority.color }};">{{ forloop.counter }}</span>
+      <a href="{{ i.get_absolute_url }}" style="flex:1;">
+        <strong>{{ i.key }}</strong>
+        <span class="badge {{ i.status.category }}" style="font-size:9px;">{{ i.status.name }}</span>
+        {{ i.summary|truncatechars:70 }}
+      </a>
+      {% if i.due_date %}<span style="font-size:11px; color:var(--ink-500);">📅 {{ i.due_date|date:"d M" }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
 
 <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(360px, 1fr)); gap:14px;">
 
