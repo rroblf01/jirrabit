@@ -53,6 +53,7 @@ def _on_comment(sender, instance, created, **kwargs):
 
 def connect() -> None:
     from django.db.models.signals import post_save
+
     from issues.models import Comment, Issue
 
     post_save.connect(_on_issue, sender=Issue, dispatch_uid="rt_issue", weak=False)

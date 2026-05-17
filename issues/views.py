@@ -126,7 +126,7 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
             initial["description"] = tpl.description
             if tpl.priority_id:
                 initial["priority"] = tpl.priority
-            initial["labels"] = [l async for l in tpl.labels.all()]
+            initial["labels"] = [lb async for lb in tpl.labels.all()]
             return IssueForm(project=self.project, initial=initial)
 
         type_param = self.request.GET.get("type")
@@ -240,7 +240,7 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
             c.reactions_agg = await _sta(_aggregate_reactions, thread_sensitive=True)(
                 c.pk, self.request.user.pk,
             )
-        ctx["labels"] = [l async for l in self.object.labels.all()]
+        ctx["labels"] = [lb async for lb in self.object.labels.all()]
         ctx["attachments"] = [
             a async for a in self.object.attachments.select_related("uploaded_by").all()
         ]
@@ -248,7 +248,7 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
             h async for h in self.object.history.select_related("actor")[:50]
         ]
         ctx["links"] = [
-            l async for l in self.object.links_out.select_related("target", "target__status")
+            lk async for lk in self.object.links_out.select_related("target", "target__status")
         ]
         worklogs_qs = self.object.worklogs.select_related("author").order_by("-logged_at")
         page = max(int(self.request.GET.get("page", "1")), 1)
@@ -558,7 +558,7 @@ class IssueLinkCreateView(AsyncLoginRequiredMixin, View):
             source=target, target=issue, type=IssueLink.INVERSE[link_type],
             defaults={"created_by": request.user},
         )
-        links = [l async for l in issue.links_out.select_related("target", "target__status")]
+        links = [lk async for lk in issue.links_out.select_related("target", "target__status")]
         return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
 
 
@@ -573,7 +573,7 @@ class IssueLinkDeleteView(AsyncLoginRequiredMixin, View):
                 source=link.target, target=issue, type=IssueLink.INVERSE[link.type]
             ).adelete()
             await link.adelete()
-        links = [l async for l in issue.links_out.select_related("target", "target__status")]
+        links = [lk async for lk in issue.links_out.select_related("target", "target__status")]
         return await arender(request, "issues/_links.html", {"issue": issue, "links": links})
 
 
@@ -656,6 +656,7 @@ class SnoozeView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from datetime import timedelta
+
         from .models import NotificationSnooze
         issue = await _aget_issue(key)
         try:
@@ -700,6 +701,7 @@ class StartWorkView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         import json
+
         from .models import Timer
 
         issue = await _aget_issue(key)
@@ -900,7 +902,6 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
             await Reaction.objects.acreate(comment=comment, user=request.user, emoji=emoji)
         # Broadcast to the project group so other viewers see it live.
         try:
-            from asgiref.sync import sync_to_async as _sta
             from channels.layers import get_channel_layer
             layer = get_channel_layer()
             if layer:
@@ -1096,26 +1097,25 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
     )
 
     def _row(self, i, columns):
-        out = []
-        for c in columns:
-            if c == "key": out.append(i.key)
-            elif c == "summary": out.append(i.summary)
-            elif c == "status": out.append(str(i.status))
-            elif c == "priority": out.append(str(i.priority))
-            elif c == "type": out.append(str(i.issue_type))
-            elif c == "assignee": out.append(getattr(i.assignee, "username", "") or "")
-            elif c == "reporter": out.append(getattr(i.reporter, "username", "") or "")
-            elif c == "sprint": out.append(getattr(i.sprint, "name", "") or "")
-            elif c == "epic": out.append(getattr(i.epic, "name", "") or "")
-            elif c == "story_points": out.append(i.story_points if i.story_points is not None else "")
-            elif c == "estimate_minutes": out.append(i.estimate_minutes if i.estimate_minutes is not None else "")
-            elif c == "time_spent_minutes": out.append(i.time_spent_minutes or 0)
-            elif c == "due_date": out.append(i.due_date.isoformat() if i.due_date else "")
-            elif c == "resolved_at": out.append(i.resolved_at.isoformat() if i.resolved_at else "")
-            elif c == "created_at": out.append(i.created_at.isoformat())
-            elif c == "updated_at": out.append(i.updated_at.isoformat())
-            else: out.append("")
-        return out
+        getters = {
+            "key": lambda: i.key,
+            "summary": lambda: i.summary,
+            "status": lambda: str(i.status),
+            "priority": lambda: str(i.priority),
+            "type": lambda: str(i.issue_type),
+            "assignee": lambda: getattr(i.assignee, "username", "") or "",
+            "reporter": lambda: getattr(i.reporter, "username", "") or "",
+            "sprint": lambda: getattr(i.sprint, "name", "") or "",
+            "epic": lambda: getattr(i.epic, "name", "") or "",
+            "story_points": lambda: i.story_points if i.story_points is not None else "",
+            "estimate_minutes": lambda: i.estimate_minutes if i.estimate_minutes is not None else "",
+            "time_spent_minutes": lambda: i.time_spent_minutes or 0,
+            "due_date": lambda: i.due_date.isoformat() if i.due_date else "",
+            "resolved_at": lambda: i.resolved_at.isoformat() if i.resolved_at else "",
+            "created_at": lambda: i.created_at.isoformat(),
+            "updated_at": lambda: i.updated_at.isoformat(),
+        }
+        return [getters.get(c, lambda: "")() for c in columns]
 
     async def get(self, request, key):
         import csv

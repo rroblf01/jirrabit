@@ -22,7 +22,6 @@ from datetime import datetime
 from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
-from django.utils.text import slugify
 
 from accounts.models import User
 from issues.models import Comment, Issue, IssueType, Label, Priority, Status
@@ -55,15 +54,15 @@ class Command(BaseCommand):
             raise CommandError(f"File not found: {path}")
         try:
             project = Project.objects.get(key=opts["project"])
-        except Project.DoesNotExist:
-            raise CommandError(f"Project '{opts['project']}' not found. Create it first.")
+        except Project.DoesNotExist as exc:
+            raise CommandError(f"Project '{opts['project']}' not found. Create it first.") from exc
 
         fallback_reporter = None
         if opts["reporter"]:
             try:
                 fallback_reporter = User.objects.get(username=opts["reporter"])
-            except User.DoesNotExist:
-                raise CommandError(f"Fallback reporter '{opts['reporter']}' not found.")
+            except User.DoesNotExist as exc:
+                raise CommandError(f"Fallback reporter '{opts['reporter']}' not found.") from exc
         if fallback_reporter is None:
             fallback_reporter = User.objects.filter(is_superuser=True).first()
         if fallback_reporter is None:
@@ -74,7 +73,7 @@ class Command(BaseCommand):
         status_cache = {s.name.lower(): s for s in Status.objects.all()}
         priority_cache = {p.name.lower(): p for p in Priority.objects.all()}
         sprint_cache = {s.name.lower(): s for s in project.sprints.all()}
-        label_cache = {l.name.lower(): l for l in Label.objects.all()}
+        label_cache = {lb.name.lower(): lb for lb in Label.objects.all()}
 
         # ``utf-8-sig`` peels the BOM Jira's exporter adds, otherwise the
         # first header is read as ``﻿Issue key`` and never matches.
@@ -86,14 +85,14 @@ class Command(BaseCommand):
                 if not row:
                     continue
                 cells = {h: [] for h in set(headers)}
-                for header, value in zip(headers, row):
+                for header, value in zip(headers, row, strict=False):
                     cells[header].append(value or "")
 
-                def first(col):
+                def first(col, cells=cells):
                     vals = cells.get(col, [])
                     return vals[0].strip() if vals else ""
 
-                def all_of(col):
+                def all_of(col, cells=cells):
                     return [v.strip() for v in cells.get(col, []) if v.strip()]
 
                 summary = first("summary")

@@ -299,6 +299,7 @@ class APIKeyCreateView(AsyncLoginRequiredMixin, View):
 class APIKeyRevokeView(AsyncLoginRequiredMixin, View):
     async def post(self, request, pk):
         from django.utils import timezone
+
         from .models import APIKey
 
         k = await APIKey.objects.filter(pk=pk, owner=request.user).afirst()
@@ -325,6 +326,7 @@ class PalettePreviewView(View):
 
     async def get(self, request):
         from django.http import HttpResponse
+
         from core.palettes import palette_css
 
         slug = request.GET.get("p", "blue")

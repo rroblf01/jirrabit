@@ -254,7 +254,7 @@ class Command(BaseCommand):
         )
         ProjectMembership.objects.filter(project=project).delete()
         roles = ["admin", "member", "member", "member", "member"]
-        for user, role in zip(users, roles):
+        for user, role in zip(users, roles, strict=False):
             ProjectMembership.objects.create(project=project, user=user, role=role)
         return project
 
@@ -381,7 +381,7 @@ class Command(BaseCommand):
             f"-----------------------\n"
             f"Resumen: {issue.summary}\n"
             f"Generado por seed_demo.\n"
-        ).encode("utf-8")
+        ).encode()
         Attachment.objects.create(
             issue=issue,
             uploaded_by=user,

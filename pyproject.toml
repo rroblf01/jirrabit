@@ -52,6 +52,14 @@ include = ["accounts", "board", "core", "issues", "jirrabit", "projects", "realt
 exclude = ["**/migrations/**", "**/.venv/**", "staticfiles"]
 
 [tool.ty.rules]
-# Django adds many dynamic attributes; ty would complain noisily.
+# Django Field descriptors (CharField/TextField/IntegerField/...) confuse ty:
+# it sees the field class instead of the str/int/bool the descriptor returns.
+# Silence the noisy rules until ty ships a django-stubs equivalent.
 unresolved-attribute = "ignore"
 unresolved-reference = "ignore"
+invalid-argument-type = "ignore"
+invalid-assignment = "ignore"
+invalid-return-type = "ignore"
+not-subscriptable = "ignore"
+missing-argument = "ignore"
+unsupported-operator = "ignore"

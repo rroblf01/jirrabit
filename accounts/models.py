@@ -85,7 +85,7 @@ class APIKey(models.Model):
         return hashlib.sha256(plain.encode("utf-8")).hexdigest()
 
     @classmethod
-    def create_for(cls, *, owner, name: str) -> tuple["APIKey", str]:
+    def create_for(cls, *, owner, name: str) -> tuple[APIKey, str]:
         """Create a new key. Returns ``(model, plaintext_token)``.
 
         The plaintext token is **only** available here.
@@ -101,7 +101,7 @@ class APIKey(models.Model):
         return instance, plain
 
     @classmethod
-    async def acreate_for(cls, *, owner, name: str) -> tuple["APIKey", str]:
+    async def acreate_for(cls, *, owner, name: str) -> tuple[APIKey, str]:
         import secrets
         plain = secrets.token_urlsafe(36)
         instance = await cls.objects.acreate(
@@ -175,6 +175,9 @@ class Notification(models.Model):
     class Meta:
         ordering = ("-created_at",)
         indexes = [models.Index(fields=["recipient", "read", "-created_at"])]
+
+    def __str__(self):
+        return f"{self.kind} → {self.recipient_id}"
 
 
 class Team(models.Model):
@@ -252,3 +255,6 @@ class MentionReceipt(models.Model):
     class Meta:
         unique_together = ("mentioned", "comment")
         indexes = [models.Index(fields=["mentioned", "seen_at"])]
+
+    def __str__(self):
+        return f"mention comment={self.comment_id} → user={self.mentioned_id}"

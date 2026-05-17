@@ -223,6 +223,7 @@ class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from collections import defaultdict
+
         from core.permissions import aassert_can_view
         from issues.models import Issue
         ctx = await super().aget_context_data(**kwargs)
@@ -317,7 +318,7 @@ class ProjectDependencyGraphView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         # Layout: simple level-by-level BFS from "sources" (no incoming edges).
         in_deg = {n["key"]: 0 for n in nodes}
-        for s, t in links:
+        for _s, t in links:
             in_deg[t] = in_deg.get(t, 0) + 1
         levels: dict[str, int] = {}
         frontier = [k for k, d in in_deg.items() if d == 0]
@@ -376,11 +377,9 @@ class ProjectRoadmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/roadmap.html"
 
     async def aget_context_data(self, **kwargs):
-        from datetime import timedelta
-        from django.db.models import Max, Min
         from django.utils import timezone
+
         from core.permissions import aassert_can_view
-        from issues.models import Issue
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
@@ -419,8 +418,10 @@ class ProjectRoadmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
 def _compute_roadmap_range(project):
     from datetime import timedelta
+
     from django.db.models import Max, Min
     from django.utils import timezone
+
     from issues.models import Issue
     qs = Issue.objects.filter(project=project)
     agg = qs.aggregate(
@@ -464,7 +465,9 @@ class ProjectSlaView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from datetime import timedelta
+
         from django.utils import timezone
+
         from core.permissions import aassert_can_view
         from issues.models import HistoryEntry, Issue
         ctx = await super().aget_context_data(**kwargs)
@@ -510,7 +513,8 @@ class ProjectWikiView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request, key):
         from core.markdown import render_markdown
-        from core.permissions import aassert_can_view, can_admin, aget_role
+        from core.permissions import aassert_can_view, aget_role, can_admin
+
         from .models import ProjectWiki
         project = await _aget_project(key)
         await aassert_can_view(request.user, project)
@@ -530,6 +534,7 @@ class ProjectWikiView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from core.permissions import aassert_can_admin
+
         from .models import ProjectWiki
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
@@ -554,7 +559,9 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
     async def aget_context_data(self, **kwargs):
         from collections import defaultdict
         from datetime import timedelta
+
         from django.utils import timezone
+
         from core.permissions import aassert_can_view
         from issues.models import Issue
         ctx = await super().aget_context_data(**kwargs)
@@ -584,7 +591,8 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
             elif i.due_date and start <= i.due_date <= today + timedelta(days=days_back):
                 day = i.due_date
             if day and start <= day <= today + timedelta(days=days_back):
-                if day < start: continue
+                if day < start:
+                    continue
                 load[i.assignee_id][day] += sp
 
         max_load = max(
@@ -613,7 +621,9 @@ class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from datetime import timedelta
+
         from django.utils import timezone
+
         from issues.models import HistoryEntry, Issue, Status
 
         ctx = await super().aget_context_data(**kwargs)
@@ -741,6 +751,7 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from datetime import timedelta
+
         from django.utils import timezone
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
@@ -854,6 +865,7 @@ class ProjectMembersView(AsyncLoginRequiredMixin, AsyncTemplateView):
 class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
         from django.http import HttpResponseBadRequest
+
         from accounts.models import User
         from projects.models import ProjectMembership
         project = await _aget_project(key)
@@ -877,6 +889,7 @@ class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
 class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from django.http import Http404
+
         from projects.models import ProjectMembership
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
@@ -902,7 +915,6 @@ class ProjectCustomFieldsView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/custom_fields.html"
 
     async def aget_context_data(self, **kwargs):
-        from projects.models import CustomFieldDef
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_admin(self.request.user, project)
@@ -914,6 +926,7 @@ class ProjectCustomFieldsView(AsyncLoginRequiredMixin, AsyncTemplateView):
 class ProjectCustomFieldCreateView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
         from django.utils.text import slugify
+
         from projects.models import CustomFieldDef
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
@@ -946,7 +959,6 @@ class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/webhooks.html"
 
     async def aget_context_data(self, **kwargs):
-        from projects.models import Webhook
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_admin(self.request.user, project)

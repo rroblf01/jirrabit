@@ -4,7 +4,6 @@ Each handler exposes the templates and an ``apply`` coroutine that mutates
 ``issue`` in-place. The view does the actual ``await issue.asave()``.
 """
 from datetime import date as date_cls
-from typing import Tuple
 
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models
@@ -43,7 +42,7 @@ class _Base:
     async def context(self, issue):
         return {}
 
-    async def apply(self, issue, request) -> Tuple[str, str]:
+    async def apply(self, issue, request) -> tuple[str, str]:
         raise NotImplementedError
 
 

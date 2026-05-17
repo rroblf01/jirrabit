@@ -45,6 +45,7 @@ async def _filtered_issues_qs(project, request):
     stale = request.GET.get("stale")
     if stale and stale.isdigit():
         from datetime import timedelta
+
         from django.utils import timezone
         cutoff = timezone.now() - timedelta(days=int(stale))
         qs = qs.filter(updated_at__lt=cutoff).exclude(status__category="done")
@@ -136,9 +137,8 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
     """
 
     async def post(self, request, key):
-        from issues.models import Label
+        from issues.models import Label, Priority, Status
         from projects.models import Epic, Sprint
-        from issues.models import Priority, Status
 
         project = await _aget_project(key)
         await aassert_can_edit(request.user, project)
@@ -156,8 +156,9 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             await qs.aupdate(status_id=int(value))
         elif action == "assignee":
             if value:
-                from accounts.models import User
                 from django.db.models import Q as _Q
+
+                from accounts.models import User
                 ok = await User.objects.filter(pk=value).filter(
                     _Q(memberships__project=project) | _Q(led_projects=project)
                 ).aexists()

@@ -2,7 +2,7 @@ from django import forms
 
 from core.dates import parse_due_date
 
-from .models import Comment, Issue, IssueTemplate, IssueType, Label, Priority, Status
+from .models import Comment, Issue, IssueTemplate, Status
 
 
 class IssueForm(forms.ModelForm):

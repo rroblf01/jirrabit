@@ -5,7 +5,6 @@ saved (see :mod:`realtime.broadcast`), every member of the group receives a
 small JSON message. Front-end can swap an HTMX fragment or refresh the
 board on receipt.
 """
-import json
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 

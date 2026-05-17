@@ -5,7 +5,7 @@ workflow validation, permissions, REST API, JQL search. Each test owns
 its setup; no shared fixtures.
 """
 from django.contrib.auth import get_user_model
-from django.test import TestCase, Client
+from django.test import Client, TestCase
 from django.urls import reverse
 
 from issues.models import Issue, IssueType, Priority, Status
@@ -286,7 +286,9 @@ class WorkflowEditorTests(TestCase):
             data={"order": [str(s3.pk), str(s1.pk), str(s2.pk)]},
         )
         self.assertEqual(r.status_code, 302)
-        s1.refresh_from_db(); s2.refresh_from_db(); s3.refresh_from_db()
+        s1.refresh_from_db()
+        s2.refresh_from_db()
+        s3.refresh_from_db()
         self.assertEqual(s3.order, 0)
         self.assertEqual(s1.order, 1)
         self.assertEqual(s2.order, 2)
@@ -351,7 +353,8 @@ class ProductivityTests(TestCase):
         # Make a second user; comment as them; they should now be a watcher.
         bob = _make_user("bob")
         ProjectMembership.objects.create(project=self.project, user=bob, role="member")
-        c2 = Client(); c2.login(username="bob", password="pw")
+        c2 = Client()
+        c2.login(username="bob", password="pw")
         r = c2.post(
             reverse("issues:add_comment", args=[self.issue.key]),
             data={"body": "hola"}, HTTP_HX_REQUEST="true",
@@ -445,6 +448,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_smart_due_date_parser(self):
         from datetime import date, timedelta
+
         from core.dates import parse_due_date
         today = date(2026, 5, 18)  # Monday
         self.assertEqual(parse_due_date("tomorrow", today), today + timedelta(days=1))
@@ -469,7 +473,6 @@ class AdvancedFeatureTests(TestCase):
 
     def test_team_mention_expansion(self):
         from accounts.models import Notification, Team
-        from issues.models import Comment
         bob = _make_user("bob")
         ProjectMembership.objects.create(project=self.project, user=bob, role="member")
         team = Team.objects.create(slug="qa", name="QA")
@@ -556,8 +559,10 @@ class AdvancedFeatureTests(TestCase):
 
     def test_auto_archive_command(self):
         from datetime import timedelta
+
         from django.core.management import call_command
         from django.utils import timezone
+
         from issues.models import Issue, Status
         done = Status.objects.get(name="Done")
         old = _make_issue(self.project, self.user, summary="old done")

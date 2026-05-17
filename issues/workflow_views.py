@@ -12,15 +12,14 @@ Deletion of an entity that's still referenced by issues is refused (the FK is
 ``PROTECT``-bound), so the views surface a friendly error instead of letting
 ``IntegrityError`` bubble up.
 """
+from asgiref.sync import sync_to_async
 from django.db.models import ProtectedError
 from django.http import HttpResponseBadRequest
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
 from django.views import View
 
-from asgiref.sync import sync_to_async
-
-from core.aio import aform, arender, avalid
+from core.aio import aform, arender
 from core.async_views import (
     AsyncCreateView,
     AsyncListView,
@@ -37,7 +36,6 @@ from .workflow_forms import (
     StatusForm,
     StatusTransitionsForm,
 )
-
 
 # --- overview ----------------------------------------------------------------
 

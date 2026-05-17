@@ -7,7 +7,7 @@ audit is the *historical record*, notifications are the *unread inbox*.
 import logging
 
 from django.db import DatabaseError
-from django.db.models.signals import post_save, post_delete
+from django.db.models.signals import post_delete, post_save
 
 logger = logging.getLogger("jirrabit.audit")
 

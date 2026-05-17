@@ -3,11 +3,14 @@
 Requires the requesting user to be a Django superuser. Distinct from
 project-scoped roles (those live in ``projects.ProjectMembership``).
 """
+import secrets
+from datetime import timedelta
+
 from django.contrib.auth.hashers import make_password
 from django.core.exceptions import PermissionDenied
 from django.http import Http404
 from django.shortcuts import redirect
-from django.urls import reverse_lazy
+from django.utils import timezone
 from django.views import View
 
 from core.aio import arender, avalid
@@ -15,7 +18,7 @@ from core.async_views import AsyncListView
 from core.mixins import AsyncLoginRequiredMixin
 
 from .forms import RegisterForm
-from .models import Team, User
+from .models import InviteToken, Team, User
 
 
 class AsyncSuperuserRequiredMixin(AsyncLoginRequiredMixin):
@@ -104,13 +107,6 @@ class AdminUserToggleActiveView(AsyncSuperuserRequiredMixin, View):
 
 # --- invite tokens ---
 
-import secrets
-from datetime import timedelta
-
-from django.utils import timezone
-
-from .models import InviteToken
-
 
 class AdminInviteListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "accounts/admin/invites.html"
@@ -168,8 +164,8 @@ class AdminTeamCreateView(AsyncSuperuserRequiredMixin, View):
         )
 
     async def post(self, request):
-        from django.utils.text import slugify
         from django.http import HttpResponseBadRequest
+        from django.utils.text import slugify
         name = request.POST.get("name", "").strip()
         if not name:
             return HttpResponseBadRequest("nombre requerido")

@@ -47,7 +47,7 @@ class Status(models.Model):
     def __str__(self):
         return self.name
 
-    def can_transition_to(self, target: "Status") -> bool:
+    def can_transition_to(self, target: Status) -> bool:
         if target.pk == self.pk:
             return True
         rules = list(self.allowed_next.all())
@@ -144,9 +144,6 @@ class Issue(models.Model):
     def __str__(self):
         return f"{self.key} {self.summary}"
 
-    def get_absolute_url(self):
-        return reverse("issues:detail", args=[self.key])
-
     def save(self, *args, **kwargs):
         if not self.key:
             num = self.project.next_issue_number()
@@ -154,6 +151,9 @@ class Issue(models.Model):
         from core.markdown import render_markdown
         self.description_html_cache = render_markdown(self.description)
         super().save(*args, **kwargs)
+
+    def get_absolute_url(self):
+        return reverse("issues:detail", args=[self.key])
 
     @property
     def description_html(self) -> str:
@@ -288,6 +288,9 @@ class HistoryEntry(models.Model):
         ordering = ("-created_at",)
         verbose_name_plural = "history entries"
 
+    def __str__(self):
+        return f"{self.issue_id}.{self.field}"
+
 
 class Visit(models.Model):
     """Per-user record of the last time they opened an issue.
@@ -307,6 +310,9 @@ class Visit(models.Model):
         unique_together = ("user", "issue")
         ordering = ("-viewed_at",)
         indexes = [models.Index(fields=["user", "-viewed_at"])]
+
+    def __str__(self):
+        return f"visit user={self.user_id} issue={self.issue_id}"
 
 
 class Pin(models.Model):
@@ -338,6 +344,9 @@ class Pin(models.Model):
             ),
         ]
 
+    def __str__(self):
+        return f"pin user={self.user_id} issue={self.issue_id} project={self.project_id}"
+
 
 class NotificationSnooze(models.Model):
     """Mute notifications for an issue until ``until`` for this user."""
@@ -352,6 +361,9 @@ class NotificationSnooze(models.Model):
     class Meta:
         unique_together = ("user", "issue")
 
+    def __str__(self):
+        return f"snooze user={self.user_id} issue={self.issue_id}"
+
 
 class Timer(models.Model):
     """A user's currently-running timer on an issue.
@@ -365,6 +377,9 @@ class Timer(models.Model):
     )
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="timers")
     started_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"timer user={self.user_id} issue={self.issue_id}"
 
 
 class Reaction(models.Model):
@@ -387,6 +402,9 @@ class Reaction(models.Model):
         unique_together = ("comment", "user", "emoji")
         indexes = [models.Index(fields=["comment", "emoji"])]
 
+    def __str__(self):
+        return f"reaction {self.emoji} user={self.user_id} comment={self.comment_id}"
+
 
 class CommentEdit(models.Model):
     """Snapshot of a comment body before an edit. Powers the edit-history viewer."""
@@ -398,6 +416,9 @@ class CommentEdit(models.Model):
 
     class Meta:
         ordering = ("-edited_at",)
+
+    def __str__(self):
+        return f"edit comment={self.comment_id} at {self.edited_at:%Y-%m-%d}"
 
 
 class BranchLink(models.Model):
@@ -420,6 +441,9 @@ class BranchLink(models.Model):
     class Meta:
         ordering = ("-created_at",)
         unique_together = ("issue", "branch", "commit_sha")
+
+    def __str__(self):
+        return f"{self.branch} ({self.issue_id})"
 
 
 class IssueTemplate(models.Model):
@@ -470,3 +494,6 @@ class AuditEntry(models.Model):
         ordering = ("-created_at",)
         indexes = [models.Index(fields=["project", "-created_at"])]
         verbose_name_plural = "audit entries"
+
+    def __str__(self):
+        return f"{self.verb} {self.target_type}={self.target_id}"

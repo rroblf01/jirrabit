@@ -13,14 +13,13 @@ async views that need them call them from inside ``arender``/``avalid``
 already running in a thread pool, or fetch the ``ProjectMembership`` row
 explicitly with ``await ... .aget()``.
 """
-from typing import Optional
 
 
 def is_super(user) -> bool:
     return bool(user and user.is_authenticated and user.is_superuser)
 
 
-async def aget_role(user, project) -> Optional[str]:
+async def aget_role(user, project) -> str | None:
     """Return the user's role in ``project`` or ``None`` if not a member.
 
     Superusers and project leads always come back as ``"admin"``.
@@ -38,15 +37,15 @@ async def aget_role(user, project) -> Optional[str]:
     return membership.role if membership else None
 
 
-def can_view(role: Optional[str]) -> bool:
+def can_view(role: str | None) -> bool:
     return role in {"admin", "member", "viewer"}
 
 
-def can_edit(role: Optional[str]) -> bool:
+def can_edit(role: str | None) -> bool:
     return role in {"admin", "member"}
 
 
-def can_admin(role: Optional[str]) -> bool:
+def can_admin(role: str | None) -> bool:
     return role == "admin"
 
 

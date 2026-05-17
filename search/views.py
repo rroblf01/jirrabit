@@ -16,6 +16,7 @@ class SearchSuggestView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request):
         from django.db.models import Q
+
         from projects.models import Project
         q = request.GET.get("q", "").strip()
         if len(q) < 2:
@@ -40,8 +41,10 @@ class QuickSwitchView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request):
         import json
+
         from django.db.models import Q
         from django.http import HttpResponse
+
         from projects.models import Project
         q = request.GET.get("q", "").strip()
         items: list[dict] = []

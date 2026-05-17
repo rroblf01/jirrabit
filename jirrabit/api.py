@@ -12,11 +12,9 @@ List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 200) query params and wrap items in a ``Page`` envelope.
 """
 from datetime import date as _date
-from typing import Generic, List, Optional, TypeVar
 
 from django.db import models
 from django.http import Http404
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from ninja import ModelSchema, NinjaAPI, Schema
 from ninja.security import HttpBearer, django_auth
@@ -82,19 +80,16 @@ api = NinjaAPI(
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
-T = TypeVar("T")
-
-
-class Page(Schema, Generic[T]):
+class Page[T](Schema):
     """Generic list-envelope returned by list endpoints."""
 
     count: int
     page: int
     size: int
     pages: int
-    next: Optional[int] = None
-    previous: Optional[int] = None
-    items: List[T]
+    next: int | None = None
+    previous: int | None = None
+    items: list[T]
 
 
 def paginate(queryset, builder, page: int, size: int) -> dict:
@@ -140,17 +135,17 @@ class SprintOut(ModelSchema):
 
 
 class SprintIn(Schema):
-    name: Optional[str] = None
-    goal: Optional[str] = None
-    start_date: Optional[_date] = None
-    end_date: Optional[_date] = None
-    retro_notes: Optional[str] = None
+    name: str | None = None
+    goal: str | None = None
+    start_date: _date | None = None
+    end_date: _date | None = None
+    retro_notes: str | None = None
 
 
 class ProjectIn(Schema):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    archived: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    archived: bool | None = None
 
 
 class WorkLogOut(Schema):
@@ -162,7 +157,7 @@ class WorkLogOut(Schema):
     logged_at: str
 
     @staticmethod
-    def from_log(w: WorkLog) -> "WorkLogOut":
+    def from_log(w: WorkLog) -> WorkLogOut:
         return WorkLogOut(
             id=w.pk, issue=w.issue.key, author=str(w.author),
             minutes=w.minutes, comment=w.comment, logged_at=w.logged_at.isoformat(),
@@ -183,15 +178,15 @@ class IssueOut(Schema):
     priority: str
     type: str
     project: str
-    assignee: Optional[str] = None
-    reporter: Optional[str] = None
-    story_points: Optional[int] = None
-    due_date: Optional[_date] = None
-    estimate_minutes: Optional[int] = None
+    assignee: str | None = None
+    reporter: str | None = None
+    story_points: int | None = None
+    due_date: _date | None = None
+    estimate_minutes: int | None = None
     time_spent_minutes: int = 0
 
     @staticmethod
-    def from_issue(i: Issue) -> "IssueOut":
+    def from_issue(i: Issue) -> IssueOut:
         return IssueOut(
             id=i.pk, key=i.key, summary=i.summary, description=i.description,
             status=str(i.status), priority=str(i.priority), type=str(i.issue_type),
@@ -206,24 +201,24 @@ class IssueOut(Schema):
 class IssueIn(Schema):
     summary: str
     description: str = ""
-    issue_type_id: Optional[int] = None
-    status_id: Optional[int] = None
-    priority_id: Optional[int] = None
-    assignee_id: Optional[int] = None
-    sprint_id: Optional[int] = None
-    story_points: Optional[int] = None
-    due_date: Optional[_date] = None
+    issue_type_id: int | None = None
+    status_id: int | None = None
+    priority_id: int | None = None
+    assignee_id: int | None = None
+    sprint_id: int | None = None
+    story_points: int | None = None
+    due_date: _date | None = None
 
 
 class IssuePatch(Schema):
-    summary: Optional[str] = None
-    description: Optional[str] = None
-    status_id: Optional[int] = None
-    priority_id: Optional[int] = None
-    assignee_id: Optional[int] = None
-    sprint_id: Optional[int] = None
-    story_points: Optional[int] = None
-    due_date: Optional[_date] = None
+    summary: str | None = None
+    description: str | None = None
+    status_id: int | None = None
+    priority_id: int | None = None
+    assignee_id: int | None = None
+    sprint_id: int | None = None
+    story_points: int | None = None
+    due_date: _date | None = None
 
 
 class CommentOut(Schema):
@@ -235,7 +230,7 @@ class CommentOut(Schema):
     edited: bool
 
     @staticmethod
-    def from_comment(c: Comment) -> "CommentOut":
+    def from_comment(c: Comment) -> CommentOut:
         return CommentOut(
             id=c.pk, issue=c.issue.key, author=str(c.author),
             body=c.body, created_at=c.created_at.isoformat(), edited=c.edited,
@@ -271,8 +266,8 @@ def list_issues(
     key: str,
     page: int = 1,
     size: int = DEFAULT_PAGE_SIZE,
-    status: Optional[str] = None,
-    assignee: Optional[str] = None,
+    status: str | None = None,
+    assignee: str | None = None,
 ):
     project = _visible_project(request, key)
     qs = project.issues.select_related(
