@@ -90,7 +90,15 @@ TEMPLATES = [
 WSGI_APPLICATION = "jirrabit.wsgi.application"
 ASGI_APPLICATION = "jirrabit.asgi.application"
 
-if os.environ.get("JIRRABIT_DB_ENGINE", "sqlite") == "postgres":
+if os.environ.get("JIRRABIT_DB_ENGINE", "postgres") == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
+else:
     _url = urlparse(os.environ.get("JIRRABIT_DATABASE_URI", ""))
     if _url.scheme not in ("postgres", "postgresql"):
         raise ValueError(
@@ -108,13 +116,6 @@ if os.environ.get("JIRRABIT_DB_ENGINE", "sqlite") == "postgres":
             "OPTIONS": {
                 "application_name": "jirrabit",
             },
-        }
-    }
-else:
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -139,9 +140,15 @@ LOCALE_PATHS = [BASE_DIR / "locale"]
 LANGUAGES = [("es", "Español"), ("en", "English")]
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# STATIC_ROOT lives outside the source tree so a bind-mounted /app in dev
+# does not shadow the collected files baked into the image at build time.
+STATIC_ROOT = Path(os.environ.get("JIRRABIT_STATIC_ROOT", BASE_DIR / "staticfiles"))
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if not DEBUG
+    else "django.contrib.staticfiles.storage.StaticFilesStorage"
+)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -181,12 +188,14 @@ SECURE_REFERRER_POLICY = "same-origin"
 X_FRAME_OPTIONS = "DENY"
 
 if not DEBUG:
-    SECURE_SSL_REDIRECT = True
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # SSL redirect/HSTS/secure cookies can be disabled via env when running
+    # prod-like locally without a TLS-terminating proxy in front.
+    SECURE_SSL_REDIRECT = os.environ.get("JIRRABIT_SECURE_SSL_REDIRECT", "1") == "1"
+    SESSION_COOKIE_SECURE = os.environ.get("JIRRABIT_SECURE_COOKIES", "1") == "1"
+    CSRF_COOKIE_SECURE = os.environ.get("JIRRABIT_SECURE_COOKIES", "1") == "1"
     SECURE_HSTS_SECONDS = int(os.environ.get("JIRRABIT_HSTS_SECONDS", "31536000"))
-    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
-    SECURE_HSTS_PRELOAD = True
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
+    SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_HTTPONLY = False  # HTMX needs the token in JS
 else:

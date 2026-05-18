@@ -35,9 +35,14 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      # Bind-mount is safe: STATIC_ROOT lives at /opt/staticfiles (outside /app),
+      # so the host source tree no longer shadows the collected static files.
+      # Remove this volume for an immutable prod deploy.
       - ./:/app
-      - /app/.venv
-    command: ["runserver"]
+    # Defaults to "daphne": entrypoint runs migrate + collectstatic + daphne.
+    # For dev with auto-reload, override with `command: ["runserver"]`
+    # (and set JIRRABIT_DEBUG=1).
+    command: ["daphne"]
 
 volumes:
   jirrabitdata:
