@@ -11,6 +11,7 @@ Two modes selected by ``JIRRABIT_DEBUG``:
 
 import os
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,14 +26,10 @@ if not SECRET_KEY:
         raise RuntimeError("JIRRABIT_SECRET_KEY must be set when JIRRABIT_DEBUG=0.")
 
 ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "*" if DEBUG else "").split(",")
-    if h.strip()
+    h.strip() for h in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "*" if DEBUG else "").split(",") if h.strip()
 ]
 if not DEBUG and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
-    raise RuntimeError(
-        "JIRRABIT_ALLOWED_HOSTS must be an explicit list when JIRRABIT_DEBUG=0."
-    )
+    raise RuntimeError("JIRRABIT_ALLOWED_HOSTS must be an explicit list when JIRRABIT_DEBUG=0.")
 
 INSTALLED_APPS = [
     "daphne",
@@ -94,16 +91,19 @@ WSGI_APPLICATION = "jirrabit.wsgi.application"
 ASGI_APPLICATION = "jirrabit.asgi.application"
 
 if os.environ.get("JIRRABIT_DB_ENGINE", "sqlite") == "postgres":
+    _url = urlparse(os.environ.get("JIRRABIT_DATABASE_URI", ""))
+    if _url.scheme not in ("postgres", "postgresql"):
+        raise ValueError(
+            f"JIRRABIT_DATABASE_URI must use postgres:// or postgresql:// scheme, got: {_url.scheme}"
+        )
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": os.environ.get("POSTGRES_DB", "jirrabit"),
-            "USER": os.environ.get("POSTGRES_USER", "jirrabit"),
-            "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
-            "HOST": os.environ.get("POSTGRES_HOST", "127.0.0.1"),
-            "PORT": os.environ.get("POSTGRES_PORT", "5432"),
-            # CONN_MAX_AGE=0 when fronted by PgBouncer (transaction pooling),
-            # otherwise long-lived connections amortise the TCP handshake.
+            "NAME": (_url.path or "/").lstrip("/") or "jirrabit",
+            "USER": unquote(_url.username) if _url.username else "",
+            "PASSWORD": unquote(_url.password) if _url.password else "",
+            "HOST": _url.hostname or "127.0.0.1",
+            "PORT": str(_url.port) if _url.port else "5432",
             "CONN_MAX_AGE": int(os.environ.get("JIRRABIT_DB_CONN_MAX_AGE", "600")),
             "OPTIONS": {
                 "application_name": "jirrabit",
@@ -121,9 +121,7 @@ else:
 AUTH_USER_MODEL = "accounts.User"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {
-        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
-    },
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -208,6 +206,4 @@ JIRRABIT_API_RATE_WINDOW = int(os.environ.get("JIRRABIT_API_RATE_WINDOW", "60"))
 
 # --- registration -------------------------------------------------------
 # When True, ``/accounts/register/`` requires a valid invite token.
-JIRRABIT_INVITE_ONLY = (
-    os.environ.get("JIRRABIT_INVITE_ONLY", "0" if DEBUG else "1") == "1"
-)
+JIRRABIT_INVITE_ONLY = os.environ.get("JIRRABIT_INVITE_ONLY", "0" if DEBUG else "1") == "1"
