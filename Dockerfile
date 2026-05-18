@@ -12,7 +12,8 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Create a non-root user for the runtime. Devcontainer overrides this via
 # ``remoteUser: root`` in devcontainer.json when needed.
-RUN addgroup -S app && adduser -S -G app -h /home/app -s /bin/sh app \
+RUN groupadd --system app \
+    && useradd --system --gid app --home-dir /home/app --shell /bin/bash --create-home app \
     && mkdir -p /opt/venv /opt/staticfiles /app \
     && chown -R app:app /opt/venv /opt/staticfiles /app /home/app
 
