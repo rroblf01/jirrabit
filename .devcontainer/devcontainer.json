@@ -25,7 +25,7 @@
     "6379": { "label": "redis" }
   },
 
-  "postCreateCommand": "apk add git",
+  "postCreateCommand": "apt-get update && apt-get install -y git",
 
   "customizations": {
     "vscode": {
