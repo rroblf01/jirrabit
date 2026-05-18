@@ -51,10 +51,10 @@ jobs:
         # ``ty`` is still pre-release; don't fail the build on its findings.
 
       - name: Django system check
-        run: uv run python manage.py check
+        run: JIRRABIT_DB_ENGINE=sqlite uv run python manage.py check
 
       - name: Django migrations consistency
-        run: uv run python manage.py makemigrations --check --dry-run
+        run: JIRRABIT_DB_ENGINE=sqlite uv run python manage.py makemigrations --check --dry-run
 
       - name: Run tests
-        run: uv run python manage.py test tests
+        run: JIRRABIT_DB_ENGINE=sqlite uv run python manage.py test tests
