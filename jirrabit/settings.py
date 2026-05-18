@@ -25,11 +25,7 @@ if not SECRET_KEY:
     else:
         raise RuntimeError("JIRRABIT_SECRET_KEY must be set when JIRRABIT_DEBUG=0.")
 
-ALLOWED_HOSTS = [
-    h.strip() for h in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "*" if DEBUG else "").split(",") if h.strip()
-]
-if not DEBUG and (not ALLOWED_HOSTS or "*" in ALLOWED_HOSTS):
-    raise RuntimeError("JIRRABIT_ALLOWED_HOSTS must be an explicit list when JIRRABIT_DEBUG=0.")
+ALLOWED_HOSTS = ["https://jirrabit.ricardorobles.es", "*", "localhost", "127.0.0.1"]
 
 INSTALLED_APPS = [
     "daphne",
