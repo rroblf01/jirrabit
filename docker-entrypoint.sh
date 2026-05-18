@@ -24,7 +24,6 @@ case "$1" in
         if [ "$1" = "daphne" ]; then shift; fi
         
         echo "Iniciando Daphne (Producción)..."
-        # Ajusta 'mi_proyecto.asgi:application' al nombre real de tu proyecto
-        exec daphne -b 0.0.0.0 -p 8000 mi_proyecto.asgi:application "$@"
+        exec daphne -b 0.0.0.0 -p 8000 jirrabit.asgi:application "$@"
         ;;
 esac
