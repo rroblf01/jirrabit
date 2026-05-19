@@ -1,5 +1,5 @@
 {% load i18n jirrabit_extras %}
-<div id="notif-list">
+<div id="notif-list" style="margin-top:14px;">
 {% for n in notifications %}
   <div style="display:flex; gap:10px; padding:10px; border-bottom:1px solid var(--ink-100); {% if n.read %}background:var(--ink-50); opacity:.75;{% else %}background:var(--blue-50);{% endif %}">
     {% if n.actor %}{% include "_avatar.html" with u=n.actor %}{% else %}<span class="avatar">•</span>{% endif %}
