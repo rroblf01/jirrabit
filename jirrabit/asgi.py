@@ -1,13 +1,16 @@
 """ASGI config for jirrabit (HTTP + WebSocket)."""
-import os
 
+import os
+from pathlib import Path
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
+from blacknoise import BlackNoise
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jirrabit.settings")
-
-django_asgi = get_asgi_application()
+BASE_DIR = Path(__file__).resolve().parent.parent
+django_asgi = BlackNoise(get_asgi_application())
+django_asgi.add(BASE_DIR / "static", "/static")
 
 from realtime.routing import websocket_urlpatterns  # noqa: E402
 

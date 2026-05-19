@@ -35,6 +35,38 @@ class ProjectConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json({"type": "reaction", **event["payload"]})
 
 
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    """Per-user channel for the topbar bell badge.
+
+    Each authenticated client joins ``user.<pk>`` on connect and gets a
+    ``{"type": "unread", "count": N}`` message every time the unread
+    count changes (creation, mark-as-read). Replaces the old 30s
+    polling so the badge updates instantly.
+    """
+
+    async def connect(self):
+        user = self.scope.get("user")
+        if not user or not user.is_authenticated:
+            await self.close()
+            return
+        self.user = user
+        self.group = f"user.{user.pk}"
+        await self.channel_layer.group_add(self.group, self.channel_name)
+        await self.accept()
+        # Push the current count immediately so the badge syncs on every
+        # reconnect (refresh, tab regain focus, etc.).
+        from accounts.models import Notification
+        count = await Notification.objects.filter(recipient=user, read=False).acount()
+        await self.send_json({"type": "unread", "count": count})
+
+    async def disconnect(self, code):
+        if getattr(self, "group", None):
+            await self.channel_layer.group_discard(self.group, self.channel_name)
+
+    async def notif_unread(self, event):
+        await self.send_json({"type": "unread", "count": event["count"]})
+
+
 class IssuePresenceConsumer(AsyncJsonWebsocketConsumer):
     """Live presence for an issue detail page.
 

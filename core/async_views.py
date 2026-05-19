@@ -4,7 +4,7 @@ Django's built-in generic views (``TemplateView``, ``FormView``, ``ListView``,
 ``DetailView``, ``CreateView``, ``UpdateView``) have sync ``get``/``post``
 handlers and call ``get_context_data``, ``get_object``, ``get_queryset`` and
 ``form_valid``/``form_invalid`` synchronously. We can't just swap them in an
-ASGI/daphne stack because any DB access inside those hooks raises
+ASGI/saltare stack because any DB access inside those hooks raises
 ``SynchronousOnlyOperation``.
 
 The classes here keep the same public surface (``template_name``,
@@ -14,6 +14,7 @@ runs on the event loop. The hooks subclasses override are named
 ``aget_*``/``aform_*``/``aget_context_data``. Defaults call the sync
 counterparts for backward compatibility when no DB is involved.
 """
+
 from django.shortcuts import redirect
 from django.views.generic import (
     CreateView,

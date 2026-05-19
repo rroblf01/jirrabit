@@ -28,7 +28,6 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = ["https://jirrabit.ricardorobles.es", "*", "localhost", "127.0.0.1"]
 
 INSTALLED_APPS = [
-    "daphne",
     "channels",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -48,7 +47,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -140,11 +138,8 @@ STATIC_URL = "static/"
 # does not shadow the collected files baked into the image at build time.
 STATIC_ROOT = Path(os.environ.get("JIRRABIT_STATIC_ROOT", BASE_DIR / "staticfiles"))
 STATICFILES_DIRS = [BASE_DIR / "static"]
-STATICFILES_STORAGE = (
-    "whitenoise.storage.CompressedManifestStaticFilesStorage"
-    if not DEBUG
-    else "django.contrib.staticfiles.storage.StaticFilesStorage"
-)
+STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

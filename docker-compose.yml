@@ -12,7 +12,6 @@ services:
       retries: 10
 
   redis:
-    # Backs Channels group fanout so multi-process daphne stays in sync.
     image: redis:8.6.3-alpine3.23
     env_file:
       - .env
@@ -36,7 +35,8 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-    command: ["runserver"]
+    command: ["daphne"]
+    # command: ["saltare", "--reload"]
 
 volumes:
   jirrabitdata:

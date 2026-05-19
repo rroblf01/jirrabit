@@ -32,9 +32,8 @@ USER app
 # Collect static at build time into /opt/staticfiles (outside /app so a
 # bind-mounted source tree in dev does not shadow it). Force DEBUG=1 and a
 # throwaway SECRET_KEY so settings.py prod guards do not fire during build.
-RUN JIRRABIT_DEBUG=1 JIRRABIT_SECRET_KEY=build-time-only  JIRRABIT_DB_ENGINE=sqlite python manage.py collectstatic --noinput --clear
-
+RUN JIRRABIT_DEBUG=1 JIRRABIT_SECRET_KEY=build-time-only  JIRRABIT_DB_ENGINE=sqlite python manage.py collectstatic --noinput --clear && python -m blacknoise.compress static/
 EXPOSE 8000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["daphne"]
+CMD ["saltare"]

@@ -4,7 +4,7 @@ Use ``enqueue(coro_callable, *args, **kwargs)`` from anywhere; the worker
 loop runs the coroutine in the background without blocking the HTTP
 request. There is no persistence: queued tasks are lost on process
 restart. Good enough for emails and webhook delivery in a single-process
-daphne setup; swap for Celery/RQ when you outgrow it.
+saltare setup; swap for Celery/RQ when you outgrow it.
 
 Calls from sync contexts (signals fired inside
 ``sync_to_async(thread_sensitive=True)`` blocks, management commands)
@@ -65,7 +65,7 @@ def enqueue(coro: Callable[..., Awaitable[Any]], *args, **kwargs) -> None:
         return
 
     # No loop in this thread. If the worker is already running on the
-    # main daphne loop, hand off to it thread-safely — no new DB
+    # main saltare loop, hand off to it thread-safely — no new DB
     # connections, no new threads.
     if _main_loop is not None and _main_loop.is_running() and _queue is not None:
         _main_loop.call_soon_threadsafe(_queue.put_nowait, (coro, args, kwargs))
@@ -82,6 +82,7 @@ def enqueue(coro: Callable[..., Awaitable[Any]], *args, **kwargs) -> None:
         finally:
             try:
                 from django.db import connections
+
                 connections.close_all()
             except Exception:
                 logger.exception("Failed to close connections after task")

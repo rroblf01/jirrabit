@@ -20,7 +20,7 @@
 
   "forwardPorts": [8000, 5432, 6379],
   "portsAttributes": {
-    "8000": { "label": "jirrabit (daphne)", "onAutoForward": "openBrowser" },
+    "8000": { "label": "jirrabit (saltare)", "onAutoForward": "openBrowser" },
     "5432": { "label": "postgres" },
     "6379": { "label": "redis" }
   },

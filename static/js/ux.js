@@ -257,15 +257,17 @@
     }
   };
 
-  // After a bell-badge swap, fire a Notification if count went up.
-  let _lastUnread = parseInt(document.querySelector(".notif-link")?.dataset.count || "0", 10);
-  document.body.addEventListener("htmx:afterSwap", (e) => {
-    const link = e.target && e.target.classList && e.target.classList.contains("notif-link")
-      ? e.target
-      : (e.target.querySelector ? e.target.querySelector(".notif-link") : null);
-    if (!link) return;
-    const n = parseInt(link.dataset.count || "0", 10);
-    if (n > _lastUnread) {
+  // --- Bell badge live updates via WebSocket -----------------------------
+  // Replaces the old 30s polling. The server pushes the current unread
+  // count whenever a notification is created or marked as read.
+  function applyUnread(n) {
+    const link = document.querySelector(".notif-link");
+    if (!link) return false;
+    const prev = parseInt(link.dataset.count || "0", 10);
+    link.dataset.count = String(n);
+    const span = link.querySelector(".notif-badge");
+    if (span) span.textContent = String(n);
+    if (n > prev) {
       if (Notification.permission === "granted") {
         try {
           new Notification("Jirrabit", {
@@ -278,7 +280,43 @@
         try { playBeep(); } catch (_e) {}
       }
     }
-    _lastUnread = n;
+    return true;
+  }
+
+  let _notifSocket = null;
+  let _notifRetry = 0;
+  const NOTIF_MAX_RETRIES = 5;
+  function connectNotifSocket() {
+    if (document.hidden) return;  // pause while tab is in background
+    if (_notifRetry >= NOTIF_MAX_RETRIES) return;  // stop after too many failures
+    const link = document.querySelector(".notif-link");
+    if (!link) return;  // anonymous page
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    try {
+      _notifSocket = new WebSocket(`${proto}://${location.host}/ws/notifications/`);
+    } catch (_e) { return; }
+    _notifSocket.addEventListener("message", (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data && data.type === "unread") applyUnread(parseInt(data.count, 10) || 0);
+      } catch (_e) {}
+    });
+    _notifSocket.addEventListener("open", () => { _notifRetry = 0; });
+    _notifSocket.addEventListener("close", () => {
+      // Exponential backoff capped at ~30s; cap total retries to avoid
+      // spamming the server if the WS endpoint isn't available
+      // (e.g. running behind a server without WS support).
+      const delay = Math.min(30000, 1000 * Math.pow(2, _notifRetry++));
+      setTimeout(connectNotifSocket, delay);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", connectNotifSocket);
+  // Resume the socket when the user comes back to the tab.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && (!_notifSocket || _notifSocket.readyState >= 2)) {
+      _notifRetry = 0;
+      connectNotifSocket();
+    }
   });
 
   // --- Topbar user-menu dropdown --------------------------------------

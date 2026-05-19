@@ -16,6 +16,29 @@ from django.db.models.signals import post_save
 logger = logging.getLogger("jirrabit.notifications")
 
 
+def _broadcast_unread(user_id: int) -> None:
+    """Push the current unread count to ``user.<id>`` for the bell badge.
+
+    Best-effort: if the channel layer is down (no Redis in tests, etc.)
+    we swallow the error — the next page render or reconnect will sync.
+    """
+    from asgiref.sync import async_to_sync
+    from channels.layers import get_channel_layer
+
+    from accounts.models import Notification
+
+    layer = get_channel_layer()
+    if layer is None:
+        return
+    try:
+        count = Notification.objects.filter(recipient_id=user_id, read=False).count()
+        async_to_sync(layer.group_send)(
+            f"user.{user_id}", {"type": "notif.unread", "count": count},
+        )
+    except (ConnectionError, OSError, RuntimeError):
+        logger.exception("Failed to broadcast unread count for user %s", user_id)
+
+
 def _send(subject: str, body: str, recipients: list[str]) -> None:
     import smtplib
     recipients = [r for r in recipients if r]
@@ -98,6 +121,7 @@ def _on_issue(sender, instance, created, **kwargs):
             text=f"{instance.key} {_action(created)}: {instance.summary}",
             url=f"/issues/{instance.key}/",
         )
+        _broadcast_unread(instance.assignee_id)
 
 
 def _on_comment(sender, instance, created, **kwargs):
@@ -152,6 +176,7 @@ def _create_in_app_notifications_for_comment(comment):
 
     url = f"/issues/{issue.key}/"
     body = comment.body[:140]
+    touched: set[int] = set()
     for user_id in recipients:
         if user_id in snoozed_ids:
             continue
@@ -163,6 +188,7 @@ def _create_in_app_notifications_for_comment(comment):
             text=f"{comment.author} comentó en {issue.key}: {body}",
             url=url,
         )
+        touched.add(user_id)
     # Mentions for users that are NOT watchers/assignee/reporter
     for user_id in mentioned_ids - recipients - {comment.author_id}:
         if user_id in snoozed_ids:
@@ -174,6 +200,9 @@ def _create_in_app_notifications_for_comment(comment):
             text=f"{comment.author} te mencionó en {issue.key}",
             url=url,
         )
+        touched.add(user_id)
+    for uid in touched:
+        _broadcast_unread(uid)
 
     # Read receipts: one row per @mention to track if/when the recipient sees it.
     from accounts.models import MentionReceipt

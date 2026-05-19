@@ -274,6 +274,18 @@ class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
         if ids:
             qs = qs.filter(pk__in=ids)
         await qs.aupdate(read=True)
+        # Push new unread count to the user's WS group so the bell badge
+        # clears reactively without waiting for the next page render.
+        count = await Notification.objects.filter(recipient=request.user, read=False).acount()
+        try:
+            from channels.layers import get_channel_layer
+            layer = get_channel_layer()
+            if layer is not None:
+                await layer.group_send(
+                    f"user.{request.user.pk}", {"type": "notif.unread", "count": count},
+                )
+        except (ConnectionError, OSError, RuntimeError):
+            pass
         notifs = [
             n async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[:100]
         ]
