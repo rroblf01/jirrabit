@@ -11,7 +11,7 @@ import time, inspect
 from collections import defaultdict
 from threading import Lock
 
-from asgiref.sync import iscoroutinefunction
+from inspect import iscoroutinefunction
 from django.conf import settings
 from django.http import HttpResponse
 from django.utils.decorators import sync_and_async_middleware
@@ -27,30 +27,40 @@ def user_language_middleware(get_response):
 
     Runs after Django's ``LocaleMiddleware`` so the per-user setting
     overrides whatever the Accept-Language header would have selected.
-    Falls back to whatever LocaleMiddleware already activated when the
-    user is anonymous or has no preference.
+    Always deactivates after the response so the per-thread translation
+    state does not bleed across requests (e.g. user A's language
+    sticking to user B's response inside the same daphne worker).
     """
     from django.utils import translation
 
-    def _apply(user, request):
+    def _apply(user, request) -> bool:
         lang = getattr(user, "language", None) if user and user.is_authenticated else None
         if not lang:
-            return
+            return False
         translation.activate(lang)
         request.LANGUAGE_CODE = lang
+        return True
 
-    if inspect.iscoroutinefunction(get_response):
+    if iscoroutinefunction(get_response):
 
         async def middleware(request):
             user = await request.auser()
-            _apply(user, request)
-            return await get_response(request)
+            activated = _apply(user, request)
+            try:
+                return await get_response(request)
+            finally:
+                if activated:
+                    translation.deactivate()
 
         return middleware
 
     def middleware(request):
-        _apply(getattr(request, "user", None), request)
-        return get_response(request)
+        activated = _apply(getattr(request, "user", None), request)
+        try:
+            return get_response(request)
+        finally:
+            if activated:
+                translation.deactivate()
 
     return middleware
 
@@ -64,7 +74,7 @@ def user_language_middleware(get_response):
 def nav_context_middleware(get_response):
     from projects.models import Project
 
-    if inspect.iscoroutinefunction(get_response):
+    if iscoroutinefunction(get_response):
 
         async def middleware(request):
             user = await request.auser()
