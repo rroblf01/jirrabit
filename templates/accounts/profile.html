@@ -18,51 +18,75 @@
       {% if field.help_text %}<div style="font-size:12px;color:var(--ink-500)">{{ field.help_text|safe }}</div>{% endif %}
       {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
       {% if field.name == "palette" %}
-      <div id="palette-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
+      <div id="palette-chips" data-current="{{ user.palette }}"
+           style="display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;">
         {% for slug, label, swatch in palette_chips %}
           <label data-palette="{{ slug }}" data-swatch="{{ swatch }}"
                  style="cursor:pointer; display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:2px solid {% if slug == user.palette %}{{ swatch }}{% else %}var(--ink-300){% endif %}; border-radius:999px; font-size:12px;">
-            <input type="radio" name="palette" value="{{ slug }}" {% if slug == user.palette %}checked{% endif %} style="display:none;">
+            <input type="radio" name="palette_chip" value="{{ slug }}" {% if slug == user.palette %}checked{% endif %} style="position:absolute; opacity:0; pointer-events:none;">
             <span style="width:14px; height:14px; border-radius:999px; background:{{ swatch }};"></span>
             {{ label }}
           </label>
         {% endfor %}
       </div>
-      <script>
-      (function () {
-        const select = document.querySelector('select[name="palette"]');
-        if (select) select.style.display = 'none';
-        const chips = document.querySelectorAll('#palette-chips label');
-        chips.forEach(chip => {
-          chip.addEventListener('click', async () => {
-            const slug = chip.dataset.palette;
-            const swatch = chip.dataset.swatch;
-            // visual selection
-            chips.forEach(c => c.style.borderColor = c === chip ? swatch : 'var(--ink-300)');
-            if (select) select.value = slug;
-            // live preview: fetch CSS for this palette and swap the <style> tag
-            try {
-              const res = await fetch(`/accounts/palette-preview/?p=${encodeURIComponent(slug)}`);
-              if (res.ok) {
-                const css = await res.text();
-                let style = document.getElementById('palette-preview-live');
-                if (!style) {
-                  style = document.createElement('style');
-                  style.id = 'palette-preview-live';
-                  document.head.appendChild(style);
-                }
-                style.textContent = css;
-              }
-            } catch (e) { /* ignore */ }
-          });
-        });
-      })();
-      </script>
       {% endif %}
     </div>
     {% endfor %}
     <button class="btn" type="submit">{% trans "Guardar" %}</button>
   </form>
+
+  <script>
+  (function () {
+    const chipsRoot = document.getElementById('palette-chips');
+    if (!chipsRoot) return;
+    const select = document.querySelector('select[name="palette"]');
+    if (select) select.style.display = 'none';
+    const chips = Array.from(chipsRoot.querySelectorAll('label'));
+    const initial = chipsRoot.dataset.current;
+    let inflight = 0;
+
+    function paintBorders(activeSlug) {
+      chips.forEach(c => {
+        c.style.borderColor = (c.dataset.palette === activeSlug) ? c.dataset.swatch : 'var(--ink-300)';
+      });
+    }
+
+    async function preview(slug) {
+      if (select) select.value = slug;
+      const ticket = ++inflight;
+      try {
+        const res = await fetch('/accounts/palette-preview/?p=' + encodeURIComponent(slug), {credentials: 'same-origin'});
+        if (!res.ok || ticket !== inflight) return;
+        const css = await res.text();
+        // Disable any pre-rendered palette style so its !important extras
+        // (midnight/contrast) don't bleed through the preview.
+        document.querySelectorAll('head style[id^="palette-"]').forEach(s => {
+          if (s.id !== 'palette-preview-live') s.disabled = true;
+        });
+        let live = document.getElementById('palette-preview-live');
+        if (!live) {
+          live = document.createElement('style');
+          live.id = 'palette-preview-live';
+          document.head.appendChild(live);
+        }
+        live.textContent = css;
+      } catch (e) { /* ignore */ }
+    }
+
+    chips.forEach(chip => {
+      chip.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        const slug = chip.dataset.palette;
+        const radio = chip.querySelector('input[type=radio]');
+        if (radio) radio.checked = true;
+        paintBorders(slug);
+        preview(slug);
+      });
+    });
+
+    paintBorders(initial);
+  })();
+  </script>
 
   <hr style="border:none; border-top:1px solid var(--ink-300); margin:20px 0;">
   <h3>{% trans "Borradores guardados localmente" %}</h3>
