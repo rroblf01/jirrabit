@@ -5,7 +5,6 @@
   <div class="row">
     <h1 style="margin:0;">Tablero · {{ project.key }}</h1>
     <div class="spacer"></div>
-    <a class="btn ghost" href="{% url 'board:backlog' project.key %}">Backlog</a>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ Tarea</a>
   </div>
   <div class="last-updated" style="margin-top:4px; font-size:11px; color:var(--ink-500);" id="board-last-updated">

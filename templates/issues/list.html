@@ -6,7 +6,6 @@
     <h1 style="margin:0;">{{ project.key }} — {% trans "Tareas" %}</h1>
     <div class="spacer"></div>
     <a class="btn" href="{% url 'issues:create' project.key %}">+ {% trans "Tarea" %}</a>
-    <a class="btn ghost" href="{% url 'board:board' project.key %}">{% trans "Tablero" %}</a>
     <details style="display:inline-block; position:relative;">
       <summary class="btn ghost" style="list-style:none; cursor:pointer;">⬇ CSV</summary>
       <form action="{% url 'issues:export_csv' project.key %}" method="get"

@@ -1,0 +1,24 @@
+{% load i18n %}
+{% if project %}
+<h3 title="{{ project.name }}">{{ project.key }}</h3>
+<ul class="project-nav">
+  {% url 'projects:detail' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Resumen" %}</a></li>
+  {% url 'board:board' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Tablero" %}</a></li>
+  {% url 'board:backlog' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Backlog" %}</a></li>
+  {% url 'issues:list' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Lista" %}</a></li>
+  {% url 'projects:planning' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Planning" %}</a></li>
+  {% url 'projects:roadmap' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Roadmap" %}</a></li>
+  {% url 'projects:burndown' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Burndown" %}</a></li>
+  {% url 'projects:reports' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Reportes" %}</a></li>
+  {% url 'projects:activity' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Actividad" %}</a></li>
+  {% url 'projects:dependencies' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Dependencias" %}</a></li>
+  {% url 'projects:heatmap' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Heatmap" %}</a></li>
+  {% url 'projects:sla' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">SLA</a></li>
+  {% url 'projects:wiki' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">Wiki</a></li>
+  <li class="project-nav-sep" style="border-top:1px solid var(--ink-100); margin:8px 0;"></li>
+  {% url 'projects:members' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Miembros" %}</a></li>
+  {% url 'projects:custom_fields' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Campos" %}</a></li>
+  {% url 'projects:webhooks' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Webhooks" %}</a></li>
+  {% url 'projects:edit' project.key as u %}<li{% if request.path == u %} class="active" style="background:var(--blue-50); font-weight:600;"{% endif %}><a href="{{ u }}">{% trans "Editar" %}</a></li>
+</ul>
+{% endif %}
