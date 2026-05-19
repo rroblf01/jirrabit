@@ -21,8 +21,16 @@
 </script>
 <div class="card">
   <div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
-    {% if prev_issue %}<a class="btn ghost small" href="{% url 'issues:detail' prev_issue.key %}" title="{% trans 'Anterior' %}">‹ {{ prev_issue.key }}</a>{% endif %}
-    {% if next_issue %}<a class="btn ghost small" href="{% url 'issues:detail' next_issue.key %}" title="{% trans 'Siguiente' %}">{{ next_issue.key }} ›</a>{% endif %}
+    {% if prev_issue %}
+      <a class="btn ghost small" href="{% url 'issues:detail' prev_issue.key %}" title="{% trans 'Anterior' %}">‹ {{ prev_issue.key }}</a>
+    {% else %}
+      <span class="btn ghost small" aria-hidden="true" style="visibility:hidden;">‹ {{ next_issue.key|default:issue.key }}</span>
+    {% endif %}
+    {% if next_issue %}
+      <a class="btn ghost small" href="{% url 'issues:detail' next_issue.key %}" title="{% trans 'Siguiente' %}">{{ next_issue.key }} ›</a>
+    {% else %}
+      <span class="btn ghost small" aria-hidden="true" style="visibility:hidden;">{{ prev_issue.key|default:issue.key }} ›</span>
+    {% endif %}
   </div>
   <nav class="breadcrumb" aria-label="breadcrumb">
     <a href="{{ issue.project.get_absolute_url }}">{{ issue.project.key }}</a>
@@ -40,7 +48,11 @@
     {% include "issues/_snooze_button.html" with issue=issue snoozed_until=snoozed_until %}
     {% include "issues/_timer_button.html" with issue=issue running=timer_running %}
     {% include "issues/_watch_button.html" %}
-    <form method="post" action="{% url 'issues:advance_status' issue.key %}" style="display:inline;">
+    <form hx-post="{% url 'issues:advance_status' issue.key %}"
+          hx-target="#status-badge" hx-swap="outerHTML"
+          hx-boost="false"
+          data-toast="{% trans 'Estado avanzado' %}"
+          style="display:inline;">
       {% csrf_token %}
       <button class="btn small" type="submit" title="{% trans 'Avanzar al siguiente estado' %}">→</button>
     </form>
@@ -199,7 +211,7 @@
         {% endif %}
       </dd>
       <dt>{% trans "Etiquetas" %}</dt>
-      <dd>{% for l in labels %}<span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span> {% empty %}—{% endfor %}</dd>
+      <dd>{% include "issues/_inline/labels_display.html" %}</dd>
 
       {% if custom_fields %}
         <hr style="border:none; border-top:1px solid var(--ink-300); margin:14px 0;">

@@ -9,6 +9,7 @@ daphne setup; swap for Celery/RQ when you outgrow it.
 
 import asyncio
 import logging
+import threading
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -45,9 +46,20 @@ async def _run():
 
 def enqueue(coro: Callable[..., Awaitable[Any]], *args, **kwargs) -> None:
     """Schedule ``coro(*args, **kwargs)`` on the worker. Fire-and-forget."""
-    if not _ensure_started():
-        # No event loop (mgmt command, etc.). Run synchronously via asyncio.run.
-        asyncio.run(coro(*args, **kwargs))
+    if _ensure_started():
+        assert _queue is not None
+        _queue.put_nowait((coro, args, kwargs))
         return
-    assert _queue is not None
-    _queue.put_nowait((coro, args, kwargs))
+    # No running event loop in this thread. We could be inside a
+    # ``sync_to_async(thread_sensitive=True)`` block — calling
+    # ``asyncio.run`` here would create a loop on the same thread that
+    # holds the CurrentThreadExecutor, and the coroutine's nested
+    # ``sync_to_async`` calls would deadlock. Spawn an OS thread with its
+    # own loop instead.
+    def _bootstrap():
+        try:
+            asyncio.run(coro(*args, **kwargs))
+        except Exception:
+            logger.exception("Background task failed")
+
+    threading.Thread(target=_bootstrap, daemon=True).start()

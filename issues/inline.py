@@ -11,7 +11,7 @@ from django.db import models
 from accounts.models import User
 from projects.models import Epic, Sprint
 
-from .models import IssueType, Priority
+from .models import IssueType, Label, Priority
 
 INLINE_FIELDS = {}
 
@@ -274,6 +274,40 @@ class _DueDateField(_Base):
         else:
             issue.due_date = None
         return old, (issue.due_date.isoformat() if issue.due_date else "—")
+
+
+@register("labels")
+class _LabelsField(_Base):
+    """Multi-select M2M editor.
+
+    The base ``apply`` contract returns ``(old, new)`` strings for the
+    history entry; we also mutate ``issue.labels`` here since the view's
+    ``await issue.asave()`` does not touch M2M tables.
+    """
+
+    label = "Etiquetas"
+    form_template = "issues/_inline/labels_form.html"
+    display_template = "issues/_inline/labels_display.html"
+
+    async def context(self, issue):
+        current_ids = {lb.pk async for lb in issue.labels.all()}
+        return {
+            "field": "labels",
+            "options": [lb async for lb in Label.objects.order_by("name")],
+            "current_ids": current_ids,
+        }
+
+    async def apply(self, issue, request):
+        old_names = sorted([lb.name async for lb in issue.labels.all()])
+        raw_ids = [v for v in request.POST.getlist("value") if v]
+        try:
+            pks = [int(v) for v in raw_ids]
+        except ValueError as exc:
+            raise ValidationError("ids inválidos") from exc
+        new_labels = [lb async for lb in Label.objects.filter(pk__in=pks)]
+        await issue.labels.aset(new_labels)
+        new_names = sorted(lb.name for lb in new_labels)
+        return ",".join(old_names) or "—", ",".join(new_names) or "—"
 
 
 @register("estimate")

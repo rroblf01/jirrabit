@@ -1,0 +1,6 @@
+{% load i18n %}
+<span id="labels-cell" class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'labels' %}" hx-target="this" hx-swap="outerHTML" style="cursor:pointer;" title="{% trans 'Editar etiquetas' %}">
+  {% for l in issue.labels.all %}
+    <span class="badge" style="background:{{ l.color }}1a; color:{{ l.color }};">{{ l.name }}</span>
+  {% empty %}<span style="color:var(--ink-500);">— <small>{% trans "(click para añadir)" %}</small></span>{% endfor %}
+</span>

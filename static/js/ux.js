@@ -1029,12 +1029,11 @@
   }
   document.body.addEventListener("htmx:afterSwap", (e) => {
     const t = e.detail && e.detail.target;
-    if (!t) return;
-    if (t.classList && t.classList.contains("inline-edit")) {
-      flashSaved(t);
-    } else if (t.querySelector) {
-      const ie = t.querySelector(".inline-edit");
-      if (ie) flashSaved(ie);
-    }
+    if (!t || !t.classList) return;
+    // Only flash when the *target itself* is an inline-edit display.
+    // The previous fallback that searched inside the target produced
+    // false-positives on hx-boost page swaps (the new <main> contains
+    // plenty of inline-edit elements that weren't actually saved).
+    if (t.classList.contains("inline-edit")) flashSaved(t);
   });
 })();

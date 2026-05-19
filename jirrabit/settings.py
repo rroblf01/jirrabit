@@ -108,7 +108,7 @@ else:
             "PASSWORD": unquote(_url.password) if _url.password else "",
             "HOST": _url.hostname or "127.0.0.1",
             "PORT": str(_url.port) if _url.port else "5432",
-            "CONN_MAX_AGE": int(os.environ.get("JIRRABIT_DB_CONN_MAX_AGE", "600")),
+            "CONN_MAX_AGE": int(os.environ.get("JIRRABIT_DB_CONN_MAX_AGE", "20")),
             "OPTIONS": {
                 "application_name": "jirrabit",
             },

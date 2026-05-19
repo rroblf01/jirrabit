@@ -217,16 +217,18 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["custom_fields"] = [
             f async for f in self.object.project.custom_fields.all()
         ]
-        # Previous / next issue in the same project (ordered by key) for the
-        # ‹ / › navigation in the issue header.
+        # Previous / next issue in the same sprint (ordered by key) for the
+        # ‹ / › navigation in the issue header. Issues with no sprint
+        # (backlog) only navigate within the backlog bucket of the project.
+        _sibling_qs = self.object.project.issues.filter(
+            archived=False, sprint_id=self.object.sprint_id,
+        )
         ctx["prev_issue"] = await (
-            self.object.project.issues
-            .filter(archived=False, key__lt=self.object.key)
+            _sibling_qs.filter(key__lt=self.object.key)
             .order_by("-key").only("key").afirst()
         )
         ctx["next_issue"] = await (
-            self.object.project.issues
-            .filter(archived=False, key__gt=self.object.key)
+            _sibling_qs.filter(key__gt=self.object.key)
             .order_by("key").only("key").afirst()
         )
         # N+1 fix: pre-evaluate related collections.
@@ -605,7 +607,7 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
         )(issue.pk, target.pk, request.user.pk)
         if not ok:
             return HttpResponseBadRequest("transición no permitida")
-        if request.htmx:
+        if request.htmx and not request.headers.get("HX-Boosted"):
             if request.headers.get("X-Source") == "board":
                 return await arender(
                     request, "board/_card_advance.html", {"issue": issue},
@@ -615,7 +617,15 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
                 request, "issues/_status_badge.html",
                 {"issue": issue, "statuses": statuses},
             )
-        return redirect(issue.get_absolute_url())
+        # Plain POST (or hx-boost form submit): full-page redirect so the
+        # browser lands back on the issue detail with its layout intact.
+        target_url = issue.get_absolute_url()
+        if request.htmx:
+            from django.http import HttpResponse
+            resp = HttpResponse(status=204)
+            resp["HX-Redirect"] = target_url
+            return resp
+        return redirect(target_url)
 
 
 class PinToggleView(AsyncLoginRequiredMixin, View):

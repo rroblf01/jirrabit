@@ -1,0 +1,21 @@
+{% load i18n %}
+<form hx-post="{% url 'issues:inline_edit' issue.key 'labels' %}" hx-target="this" hx-swap="outerHTML"
+      style="display:inline-block; max-width:340px;">
+  {% csrf_token %}
+  <div style="display:flex; flex-wrap:wrap; gap:6px; padding:6px; border:1px solid var(--ink-300); border-radius:6px; background:var(--surface, white);">
+    {% for opt in options %}
+      <label style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-size:12px; background:{{ opt.color }}1a; color:{{ opt.color }}; cursor:pointer;">
+        <input type="checkbox" name="value" value="{{ opt.pk }}" {% if opt.pk in current_ids %}checked{% endif %} style="width:auto; margin:0;">
+        {{ opt.name }}
+      </label>
+    {% empty %}
+      <span style="color:var(--ink-500); font-size:12px;">{% trans "No hay etiquetas. Créalas desde admin." %}</span>
+    {% endfor %}
+  </div>
+  <div style="margin-top:6px; display:flex; gap:6px;">
+    <button class="btn small" type="submit">{% trans "Guardar" %}</button>
+    <a href="#" class="btn ghost small"
+       hx-get="{% url 'issues:inline_edit_form' issue.key 'labels' %}?cancel=1"
+       hx-target="closest form" hx-swap="outerHTML">{% trans "Cancelar" %}</a>
+  </div>
+</form>
