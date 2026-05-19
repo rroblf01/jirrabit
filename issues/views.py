@@ -79,7 +79,10 @@ async def _aget_project(key):
 
 
 async def _aget_issue(key):
-    qs = Issue.objects.select_related("project", "status", "priority", "issue_type", "assignee", "reporter")
+    qs = Issue.objects.select_related(
+        "project", "status", "priority", "issue_type",
+        "assignee", "reporter", "epic", "sprint", "parent",
+    )
     try:
         return await qs.aget(key=key)
     except Issue.DoesNotExist as exc:
