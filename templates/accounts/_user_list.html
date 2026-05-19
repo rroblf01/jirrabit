@@ -1,5 +1,6 @@
+{% load i18n %}
 <table>
-  <thead><tr><th>Usuario</th><th>Email</th><th>Cargo</th><th></th></tr></thead>
+  <thead><tr><th>{% trans "Usuario" %}</th><th>Email</th><th>{% trans "Cargo" %}</th><th></th></tr></thead>
   <tbody>
   {% for u in users %}
     <tr>
@@ -9,7 +10,24 @@
       <td>{% if u.is_superuser %}<span class="badge">admin</span>{% endif %}</td>
     </tr>
   {% empty %}
-    <tr><td colspan="4" class="empty">Sin resultados</td></tr>
+    <tr><td colspan="4" class="empty">{% trans "Sin resultados" %}</td></tr>
   {% endfor %}
   </tbody>
 </table>
+{% if prev_page or next_page %}
+<div class="row" style="justify-content:flex-end; gap:8px; margin-top:10px;">
+  {% if prev_page %}
+    <a class="btn ghost small"
+       href="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ prev_page }}"
+       hx-get="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ prev_page }}"
+       hx-target="#user-list" hx-swap="innerHTML">‹ {% trans "Anterior" %}</a>
+  {% endif %}
+  <span style="font-size:12px; color:var(--ink-500); align-self:center;">{% trans "Página" %} {{ page }}</span>
+  {% if next_page %}
+    <a class="btn ghost small"
+       href="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ next_page }}"
+       hx-get="?{% if q %}q={{ q|urlencode }}&{% endif %}page={{ next_page }}"
+       hx-target="#user-list" hx-swap="innerHTML">{% trans "Siguiente" %} ›</a>
+  {% endif %}
+</div>
+{% endif %}

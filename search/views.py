@@ -91,7 +91,9 @@ class QuickSwitchView(AsyncLoginRequiredMixin, View):
 
 class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
     def get_template_names(self):
-        if self.request.htmx:
+        # Boosted navigation must receive the full page (body-level
+        # ``hx-select="main.main"`` would otherwise have nothing to swap).
+        if self.request.htmx and not self.request.headers.get("HX-Boosted"):
             return ["search/_results.html"]
         return ["search/search.html"]
 

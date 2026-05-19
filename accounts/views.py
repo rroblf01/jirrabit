@@ -187,20 +187,47 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
     context_object_name = "users"
 
     def get_template_names(self):
-        if self.request.htmx:
+        # Boosted requests (clicks on topbar links with hx-boost) need the
+        # full page so the body-level ``hx-select="main.main"`` can extract
+        # the new ``<main>``. Only widget calls (search, pagination) come
+        # in as plain htmx without ``HX-Boosted``; those want the partial.
+        if self.request.htmx and not self.request.headers.get("HX-Boosted"):
             return ["accounts/_user_list.html"]
         return ["accounts/user_list.html"]
 
+    PAGE_SIZE = 50
+
     async def aget_queryset(self):
-        qs = User.objects.defer("avatar").order_by("username")
+        # ``defer("avatar")`` triggered an N+1 in the template — each row's
+        # ``{% if u.avatar %}`` re-fetched the deferred base64 blob.
+        # Loading it up front is one big SELECT instead of N small ones.
+        # Paginate so a list of thousands doesn't transfer megabytes of
+        # base64 data at once.
+        qs = User.objects.order_by("username")
         q = self.request.GET.get("q", "").strip()
         if q:
-            qs = qs.filter(Q(username__icontains=q) | Q(display_name__icontains=q) | Q(email__icontains=q))
-        return qs
+            qs = qs.filter(
+                Q(username__icontains=q)
+                | Q(display_name__icontains=q)
+                | Q(email__icontains=q)
+            )
+        try:
+            page = max(int(self.request.GET.get("page", "1")), 1)
+        except ValueError:
+            page = 1
+        offset = (page - 1) * self.PAGE_SIZE
+        self._page = page
+        return qs[offset : offset + self.PAGE_SIZE + 1]
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
         ctx["q"] = self.request.GET.get("q", "")
+        items = list(ctx.get("users") or [])
+        ctx["has_more"] = len(items) > self.PAGE_SIZE
+        ctx["users"] = items[: self.PAGE_SIZE]
+        ctx["page"] = getattr(self, "_page", 1)
+        ctx["next_page"] = ctx["page"] + 1 if ctx["has_more"] else None
+        ctx["prev_page"] = ctx["page"] - 1 if ctx["page"] > 1 else None
         return ctx
 
 
@@ -238,7 +265,7 @@ class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
     PAGE_SIZE = 50
 
     def get_template_names(self):
-        if self.request.htmx:
+        if self.request.htmx and not self.request.headers.get("HX-Boosted"):
             return ["notifications/_list.html"]
         return [self.template_name]
 

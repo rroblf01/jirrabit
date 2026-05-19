@@ -28,6 +28,7 @@ if not SECRET_KEY:
 ALLOWED_HOSTS = ["https://jirrabit.ricardorobles.es", "*", "localhost", "127.0.0.1"]
 
 INSTALLED_APPS = [
+    "daphne",
     "channels",
     "django.contrib.admin",
     "django.contrib.auth",
