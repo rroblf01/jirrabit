@@ -1,13 +1,17 @@
 """Populate the database with a fully-featured demo project.
 
+Designed to run once a day on a public demo instance: every invocation
+wipes the database clean and rebuilds the demo state from scratch so
+visitors find a pristine sandbox.
+
 Usage::
 
-    python manage.py seed_demo            # idempotent: skips already-created bits
-    python manage.py seed_demo --clear    # wipe the DEMO project first, then reseed
+    python manage.py seed_demo               # wipe + reseed (default)
+    python manage.py seed_demo --no-clear    # additive only, keep existing data
 
 What it creates:
-- Issue types, statuses, priorities (if missing — same as ``seed_jirrabit``).
-- 5 demo users with stable passwords and avatars.
+- Issue types, statuses, priorities.
+- 5 demo users with stable passwords and avatars (``alice_pm`` is superuser).
 - A project ``DEMO`` ("Plataforma e-commerce") with all users as members.
 - 6 labels (frontend/backend/db/ux/qa/devops).
 - 3 sprints (closed, active, future) plus 2 epics ("Pricing engine",
@@ -15,6 +19,8 @@ What it creates:
 - ~14 issues spread across the sprints with realistic types, priorities,
   statuses, story points, due dates, watchers, subtasks, comments, history
   entries and a couple of text attachments.
+- A handful of webhooks wired to in-process actions so the demo shows the
+  integrations panel in action.
 
 Signals that send notification emails are temporarily disconnected so the
 console backend doesn't flood stdout while the demo is loading.
@@ -26,6 +32,8 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.utils import timezone
+
+from django.core.management import call_command
 
 from accounts.models import User
 from core import notifications
@@ -39,7 +47,7 @@ from issues.models import (
     Priority,
     Status,
 )
-from projects.models import Epic, Project, Sprint
+from projects.models import Epic, Project, Sprint, Webhook
 
 PROJECT_KEY = "DEMO"
 
@@ -106,6 +114,26 @@ COMMENT_TEMPLATES = [
     "QA: probado en staging, OK. Pasa a Done.",
     "Esto tiene impacto en performance, abramos un spike antes.",
     "@alice_pm ¿confirmas el copy del botón?",
+]
+
+# (name, entity, event, state_filter csv, action code)
+DEMO_WEBHOOKS = [
+    ("Avisar al director cuando una issue se cierra",
+     "issue", "issue.status_changed", "Done", "email.director"),
+    ("Llamar al oncall si una issue se bloquea",
+     "issue", "issue.status_changed", "Blocked", "pagerduty.page_oncall"),
+    ("Postear en #incidents cuando un bug pasa a en curso",
+     "issue", "issue.status_changed", "In Progress", "slack.post_incidents"),
+    ("Asignar al lead cuando se crea una issue",
+     "issue", "issue.created", "", "jira.auto_assign_lead"),
+    ("Crear reunión cuando nace una epic",
+     "epic", "epic.created", "", "calendar.create_meeting"),
+    ("Snapshot de KPI cuando una epic se completa",
+     "epic", "epic.status_changed", "done", "kpi.snapshot"),
+    ("Borrador de post-mortem si una issue queda bloqueada",
+     "issue", "issue.status_changed", "Blocked", "postmortem.draft"),
+    ("Loggear cualquier comentario nuevo",
+     "comment", "issue.commented", "", "log.info"),
 ]
 
 
@@ -178,18 +206,18 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
-            "--clear",
+            "--no-clear",
             action="store_true",
-            help="Wipe the DEMO project before reseeding.",
+            help="Skip the wipe step (additive seed, leaves existing data).",
         )
 
     def handle(self, *args, **opts):
         random.seed(42)
         _disconnect_notifications()
         try:
+            if not opts["no_clear"]:
+                self._wipe()
             with transaction.atomic():
-                if opts["clear"]:
-                    self._clear()
                 _ensure_base_lookups()
                 users = self._users()
                 project = self._project(users)
@@ -197,6 +225,7 @@ class Command(BaseCommand):
                 sprints = self._sprints(project)
                 epics = self._epics(project, users[0])
                 self._issues(project, users, labels, sprints, epics)
+                self._webhooks(project)
         finally:
             _reconnect_notifications()
         self.stdout.write(self.style.SUCCESS(
@@ -204,15 +233,15 @@ class Command(BaseCommand):
         ))
 
     # ------------------------------------------------------------------
-    def _clear(self):
-        try:
-            project = Project.objects.get(key=PROJECT_KEY)
-        except Project.DoesNotExist:
-            return
-        Issue.objects.filter(project=project).delete()
-        Epic.objects.filter(project=project).delete()
-        Sprint.objects.filter(project=project).delete()
-        project.delete()
+    def _wipe(self):
+        """Nuke the database (data only — schema and migrations stay).
+
+        ``flush`` deletes every row from every table and resets sequences.
+        Sessions, notifications, users — everything goes. The seed steps
+        below rebuild what the demo needs.
+        """
+        self.stdout.write("Limpiando base de datos…")
+        call_command("flush", "--noinput", verbosity=0)
 
     def _users(self) -> list[User]:
         created = []
@@ -390,6 +419,28 @@ class Command(BaseCommand):
             size=len(content),
             data=base64.b64encode(content).decode("ascii"),
         )
+
+    def _webhooks(self, project: Project):
+        """Pre-load demo webhooks so visitors see the integrations page populated.
+
+        Skips entries whose ``action`` code is not registered (e.g. if a
+        demo action was removed from ``core/webhooks.py``).
+        """
+        from core.webhook_registry import get as get_event_spec, get_action
+
+        Webhook.objects.filter(project=project).delete()
+        for name, entity, event, states, action in DEMO_WEBHOOKS:
+            if not get_event_spec(event) or not get_action(action):
+                continue
+            Webhook.objects.create(
+                project=project,
+                name=name,
+                entity=entity,
+                event=event,
+                state_filter=states,
+                action=action,
+                active=True,
+            )
 
     def _subtasks(self, parent: Issue, users, type_map, prio_map, status_map, sprints, project):
         subtasks = [
