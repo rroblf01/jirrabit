@@ -16,7 +16,6 @@ dependencies = [
     "channels-redis>=4.3.0",
     "saltare==1.7.1",
     "blacknoise>=1.2.0",
-    "daphne>=4.2.1",
 ]
 
 [dependency-groups]
