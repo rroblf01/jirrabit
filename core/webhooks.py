@@ -129,16 +129,43 @@ def _emit_comment_created(instance):
     )
 
 
+def _epic_state(instance) -> str:
+    return "done" if instance.done else "active"
+
+
 @webhook_event("epic.created", "Epic creada", entity="epic")
 def _emit_epic_created(instance):
-    fan_out_event("epic.created", instance.project,
-                  {"name": instance.name, "key": str(instance.pk)})
+    fan_out_event(
+        "epic.created",
+        instance.project,
+        {"name": instance.name, "key": str(instance.pk), "state": _epic_state(instance)},
+        current_state=_epic_state(instance),
+    )
 
 
 @webhook_event("epic.updated", "Epic actualizada", entity="epic")
 def _emit_epic_updated(instance):
-    fan_out_event("epic.updated", instance.project,
-                  {"name": instance.name, "key": str(instance.pk)})
+    fan_out_event(
+        "epic.updated",
+        instance.project,
+        {"name": instance.name, "key": str(instance.pk), "state": _epic_state(instance)},
+        current_state=_epic_state(instance),
+    )
+
+
+@webhook_event(
+    "epic.status_changed",
+    "Epic cambia de estado",
+    entity="epic",
+    state_filterable=True,
+)
+def _emit_epic_status_changed(instance):
+    fan_out_event(
+        "epic.status_changed",
+        instance.project,
+        {"name": instance.name, "key": str(instance.pk), "state": _epic_state(instance)},
+        current_state=_epic_state(instance),
+    )
 
 
 def _on_issue_pre_save(sender, instance, **kwargs):
@@ -167,11 +194,23 @@ def _on_comment_save(sender, instance, created, **kwargs):
     _emit_comment_created(instance)
 
 
+def _on_epic_pre_save(sender, instance, **kwargs):
+    if not instance.pk:
+        instance._old_done = None
+        return
+    instance._old_done = (
+        sender.objects.filter(pk=instance.pk).values_list("done", flat=True).first()
+    )
+
+
 def _on_epic_save(sender, instance, created, **kwargs):
     if created:
         _emit_epic_created(instance)
-    else:
-        _emit_epic_updated(instance)
+        return
+    _emit_epic_updated(instance)
+    old = getattr(instance, "_old_done", None)
+    if old is not None and bool(old) != bool(instance.done):
+        _emit_epic_status_changed(instance)
 
 
 def connect() -> None:
@@ -183,6 +222,7 @@ def connect() -> None:
     pre_save.connect(_on_issue_pre_save, sender=Issue, dispatch_uid="webhook_issue_pre", weak=False)
     post_save.connect(_on_issue_save, sender=Issue, dispatch_uid="webhook_issue", weak=False)
     post_save.connect(_on_comment_save, sender=Comment, dispatch_uid="webhook_comment", weak=False)
+    pre_save.connect(_on_epic_pre_save, sender=Epic, dispatch_uid="webhook_epic_pre", weak=False)
     post_save.connect(_on_epic_save, sender=Epic, dispatch_uid="webhook_epic", weak=False)
 
 

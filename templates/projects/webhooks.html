@@ -74,14 +74,8 @@
     </label>
 
     <fieldset id="webhook-states" style="display:none; grid-column:1/-1; border:1px solid var(--ink-100); border-radius:6px; padding:8px 12px;">
-      <legend style="font-size:12px; color:var(--ink-500);">{% trans "Estados que disparan (vacío = todos)" %}</legend>
-      <div style="display:flex; flex-wrap:wrap; gap:8px 14px;">
-        {% for s in available_states %}
-          <label style="display:flex; align-items:center; gap:4px; font-size:13px;">
-            <input type="checkbox" name="state_filter" value="{{ s }}" style="width:auto;"> {{ s }}
-          </label>
-        {% endfor %}
-      </div>
+      <legend style="font-size:12px; color:var(--ink-500);">{% trans "Disparar solo cuando pase a estos estados (vacío = cualquiera)" %}</legend>
+      <div id="webhook-states-list" style="display:flex; flex-wrap:wrap; gap:8px 14px;"></div>
     </fieldset>
 
     <div style="grid-column:1/-1; display:flex; justify-content:flex-end;">
@@ -91,12 +85,15 @@
 </div>
 
 {{ event_specs|json_script:"webhook-event-specs" }}
+{{ states_by_entity|json_script:"webhook-states-by-entity" }}
 <script>
 (function () {
   const specs = JSON.parse(document.getElementById('webhook-event-specs').textContent);
+  const statesByEntity = JSON.parse(document.getElementById('webhook-states-by-entity').textContent);
   const entitySel = document.getElementById('webhook-entity');
   const eventSel = document.getElementById('webhook-event');
   const statesBox = document.getElementById('webhook-states');
+  const statesList = document.getElementById('webhook-states-list');
 
   function refreshEvents() {
     const ent = entitySel.value;
@@ -114,7 +111,25 @@
 
   function refreshStates() {
     const opt = eventSel.selectedOptions[0];
-    statesBox.style.display = (opt && opt.dataset.stateFilterable === '1') ? '' : 'none';
+    const filterable = !!(opt && opt.dataset.stateFilterable === '1');
+    const ent = entitySel.value;
+    const states = (statesByEntity[ent] || []);
+    statesList.innerHTML = '';
+    if (filterable) {
+      for (const s of states) {
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:flex; align-items:center; gap:4px; font-size:13px;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = 'state_filter';
+        cb.value = s;
+        cb.style.width = 'auto';
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(' ' + s));
+        statesList.appendChild(lbl);
+      }
+    }
+    statesBox.style.display = (filterable && states.length) ? '' : 'none';
   }
 
   entitySel.addEventListener('change', refreshEvents);

@@ -1026,7 +1026,14 @@ class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
             for s in all_events()
         ]
         ctx["actions"] = [{"code": a.code, "label": a.label} for a in all_actions()]
-        ctx["available_states"] = [s.name async for s in Status.objects.order_by("order", "id")]
+        # State options per entity. Issues use the workflow statuses;
+        # epics only have done/active. Anything not listed shows no
+        # checkboxes (event will fire on any state).
+        issue_states = [s.name async for s in Status.objects.order_by("order", "id")]
+        ctx["states_by_entity"] = {
+            "issue": issue_states,
+            "epic": ["active", "done"],
+        }
         return ctx
 
 
