@@ -120,6 +120,54 @@ class _ScopedToProjectMixin:
         return await _aget_project(self.kwargs["key"])
 
 
+class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
+    template_name = "projects/epic_detail.html"
+
+    async def aget_context_data(self, **kwargs):
+        from collections import Counter
+
+        from core.permissions import aassert_can_view
+        from issues.models import Issue
+        from projects.models import Epic
+
+        ctx = await super().aget_context_data(**kwargs)
+        project = await _aget_project(self.kwargs["key"])
+        await aassert_can_view(self.request.user, project)
+        try:
+            epic = await Epic.objects.select_related("created_by").aget(
+                pk=self.kwargs["pk"], project=project
+            )
+        except Epic.DoesNotExist:
+            from django.http import Http404
+            raise Http404("Epic")
+
+        issues_qs = (
+            Issue.objects.filter(epic=epic)
+            .select_related("status", "priority", "issue_type", "assignee", "sprint")
+            .order_by("status__order", "-priority__weight", "key")
+        )
+        issues = [i async for i in issues_qs]
+
+        by_category = Counter(i.status.category for i in issues)
+        total = len(issues)
+        done = by_category.get("done", 0)
+        in_progress = by_category.get("in_progress", 0)
+        todo = by_category.get("todo", 0)
+        percent_done = int(round(done * 100 / total)) if total else 0
+
+        ctx.update({
+            "project": project,
+            "epic": epic,
+            "issues": issues,
+            "total": total,
+            "done_count": done,
+            "in_progress_count": in_progress,
+            "todo_count": todo,
+            "percent_done": percent_done,
+        })
+        return ctx
+
+
 class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreateView):
     form_class = EpicForm
     template_name = "projects/epic_form.html"

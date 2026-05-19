@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{{ epic.name }} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row" style="align-items:center;">
+    <span aria-hidden="true" style="display:inline-block; width:28px; height:28px; border-radius:6px; border:1px solid var(--ink-100); background:{{ epic.color }};"></span>
+    <h1 style="margin:0;">{{ epic.name }}</h1>
+    {% if epic.done %}
+      <span class="badge" style="background:var(--green-50); color:var(--green-700);">{% trans "hecha" %}</span>
+    {% else %}
+      <span class="badge">{% trans "en curso" %}</span>
+    {% endif %}
+    <div class="spacer"></div>
+    <a class="btn ghost small" href="{% url 'projects:detail' project.key %}">{% trans "Volver" %}</a>
+  </div>
+
+  {% if epic.summary %}
+    <p style="color:var(--ink-700); margin-top:12px;">{{ epic.summary|linebreaksbr }}</p>
+  {% endif %}
+
+  <div class="row" style="gap:18px; margin-top:10px; color:var(--ink-500); font-size:13px;">
+    <span><strong>{% trans "Proyecto" %}:</strong> {{ project.key }}</span>
+    <span><strong>{% trans "Creada por" %}:</strong> {{ epic.created_by|default:"—" }}</span>
+    <span><strong>{% trans "Creada" %}:</strong> {{ epic.created_at|date:"d M Y H:i" }}</span>
+    <span><strong>{% trans "Color" %}:</strong> <code>{{ epic.color }}</code></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row" style="align-items:baseline;">
+    <h2 style="margin:0;">{% trans "Progreso" %}</h2>
+    <div class="spacer"></div>
+    <span style="color:var(--ink-500); font-size:13px;">
+      {{ done_count }} / {{ total }} {% trans "completadas" %} · {{ percent_done }}%
+    </span>
+  </div>
+
+  <div style="display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--ink-50); margin-top:10px; border:1px solid var(--ink-100);">
+    {% if total %}
+      <div title="{% trans 'Hecho' %}: {{ done_count }}" style="flex:{{ done_count }}; background:var(--green-500, #16a34a);"></div>
+      <div title="{% trans 'En curso' %}: {{ in_progress_count }}" style="flex:{{ in_progress_count }}; background:var(--blue-500, #1e6fff);"></div>
+      <div title="{% trans 'Por hacer' %}: {{ todo_count }}" style="flex:{{ todo_count }}; background:var(--ink-200, #cbd5e1);"></div>
+    {% endif %}
+  </div>
+
+  <div class="row" style="gap:14px; margin-top:8px; font-size:13px;">
+    <span><strong>{{ todo_count }}</strong> {% trans "To Do" %}</span>
+    <span><strong>{{ in_progress_count }}</strong> {% trans "In Progress" %}</span>
+    <span><strong>{{ done_count }}</strong> {% trans "Done" %}</span>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 10px;">{% trans "Tareas asociadas" %} <span style="color:var(--ink-500); font-weight:400; font-size:14px;">({{ total }})</span></h2>
+  <table>
+    <thead><tr>
+      <th>{% trans "Clave" %}</th>
+      <th>{% trans "Tipo" %}</th>
+      <th>{% trans "Resumen" %}</th>
+      <th>{% trans "Estado" %}</th>
+      <th>{% trans "Prio" %}</th>
+      <th>{% trans "Asignado" %}</th>
+      <th>{% trans "Sprint" %}</th>
+    </tr></thead>
+    <tbody>
+    {% for i in issues %}
+      <tr>
+        <td><a href="{{ i.get_absolute_url }}"><code>{{ i.key }}</code></a></td>
+        <td>{{ i.issue_type }}</td>
+        <td>{{ i.summary|truncatechars:80 }}</td>
+        <td><span class="badge">{{ i.status }}</span></td>
+        <td>{{ i.priority }}</td>
+        <td>{{ i.assignee|default:"—" }}</td>
+        <td>{{ i.sprint|default:"—" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="empty">{% trans "Sin tareas asociadas todavía." %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

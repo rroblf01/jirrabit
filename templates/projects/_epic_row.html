@@ -1,5 +1,14 @@
 <tr>
-  <td><span class="priority-dot" style="background:{{ epic.color }}"></span>{{ epic.name }}</td>
+  <td>
+    <span class="priority-dot" style="background:{{ epic.color }}; border:1px solid var(--ink-100);"></span>
+    <a href="{% url 'projects:epic_detail' project.key epic.pk %}">{{ epic.name }}</a>
+    {% if epic.done %}<span class="badge" style="margin-left:6px;">hecha</span>{% endif %}
+  </td>
   <td>{{ epic.summary|truncatechars:80 }}</td>
-  <td><code>{{ epic.color }}</code></td>
+  <td>
+    <span style="display:inline-flex; align-items:center; gap:6px;">
+      <span aria-hidden="true" style="display:inline-block; width:18px; height:18px; border-radius:4px; border:1px solid var(--ink-100); background:{{ epic.color }};"></span>
+      <code style="font-size:11px; color:var(--ink-500);">{{ epic.color }}</code>
+    </span>
+  </td>
 </tr>
