@@ -28,12 +28,11 @@ console backend doesn't flood stdout while the demo is loading.
 import random
 from datetime import timedelta
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.utils import timezone
-
-from django.core.management import call_command
 
 from accounts.models import User
 from core import notifications
@@ -437,7 +436,8 @@ class Command(BaseCommand):
         Skips entries whose ``action`` code is not registered (e.g. if a
         demo action was removed from ``core/webhooks.py``).
         """
-        from core.webhook_registry import get as get_event_spec, get_action
+        from core.webhook_registry import get as get_event_spec
+        from core.webhook_registry import get_action
 
         Webhook.objects.filter(project=project).delete()
         for name, entity, event, states, action in DEMO_WEBHOOKS:

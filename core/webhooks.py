@@ -13,7 +13,6 @@ The worker resolves the webhook's ``action`` code against the registry
 and runs the callable. Failures land on the ``Webhook`` row
 (``last_status``, ``last_error``).
 """
-import asyncio
 import inspect
 import logging
 
@@ -22,7 +21,6 @@ from django.utils import timezone
 
 from . import worker
 from .webhook_registry import (
-    get as get_event_spec,
     get_action,
     webhook_action,
     webhook_event,

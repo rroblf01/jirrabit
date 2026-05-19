@@ -18,10 +18,10 @@ Action signature::
 """
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Union
 
-ActionFn = Callable[[str, dict, "str | None"], Union[None, Awaitable[None]]]
+ActionFn = Callable[[str, dict, "str | None"], None | Awaitable[None]]
 
 
 @dataclass(frozen=True)

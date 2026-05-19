@@ -7,11 +7,11 @@
   process restart. For multi-instance deploys swap the cache for Redis.
 """
 
-import time, inspect
+import time
 from collections import defaultdict
+from inspect import iscoroutinefunction
 from threading import Lock
 
-from inspect import iscoroutinefunction
 from django.conf import settings
 from django.http import HttpResponse
 from django.utils.decorators import sync_and_async_middleware

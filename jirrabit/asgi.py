@@ -2,10 +2,11 @@
 
 import os
 from pathlib import Path
+
+from blacknoise import BlackNoise
 from channels.auth import AuthMiddlewareStack
 from channels.routing import ProtocolTypeRouter, URLRouter
 from django.core.asgi import get_asgi_application
-from blacknoise import BlackNoise
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jirrabit.settings")
 BASE_DIR = Path(__file__).resolve().parent.parent

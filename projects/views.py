@@ -137,9 +137,9 @@ class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
             epic = await Epic.objects.select_related("created_by").aget(
                 pk=self.kwargs["pk"], project=project
             )
-        except Epic.DoesNotExist:
+        except Epic.DoesNotExist as exc:
             from django.http import Http404
-            raise Http404("Epic")
+            raise Http404("Epic") from exc
 
         issues_qs = (
             Issue.objects.filter(epic=epic)
@@ -1039,7 +1039,8 @@ class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
 class ProjectWebhookCreateView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
-        from core.webhook_registry import get as get_event_spec, get_action
+        from core.webhook_registry import get as get_event_spec
+        from core.webhook_registry import get_action
         from projects.models import Webhook
 
         project = await _aget_project(key)

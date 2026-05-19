@@ -1,6 +1,5 @@
 from django.http import Http404, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import redirect
-from django.utils import timezone
 from django.views import View
 
 from core.aio import arender
