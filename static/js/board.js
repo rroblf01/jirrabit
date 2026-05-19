@@ -37,24 +37,44 @@
         const statusId = col.dataset.statusId;
         if (!key || !statusId) return;
         const dragged = document.querySelector(`.card-issue[data-key="${key}"]`);
-        if (dragged) col.appendChild(dragged);
+        if (!dragged) return;
+        // Optimistic: remember origin column so we can revert on failure.
+        const originCol = dragged.parentElement;
+        const originNext = dragged.nextElementSibling;
+        col.appendChild(dragged);
+        recountColumns();
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
         const form = new FormData();
         form.append('status', statusId);
-        const res = await fetch(`/board/card/${key}/move/`, {
-          method: 'POST',
-          headers: { 'X-CSRFToken': csrf, 'HX-Request': 'true' },
-          body: form,
-        });
-        if (res.ok && dragged) {
-          const html = await res.text();
-          const tmp = document.createElement('div');
-          tmp.innerHTML = html.trim();
-          const replacement = tmp.firstElementChild;
-          if (replacement) {
-            dragged.replaceWith(replacement);
-            attach(replacement.parentElement);
-          }
+        let res;
+        try {
+          res = await fetch(`/board/card/${key}/move/`, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': csrf, 'HX-Request': 'true' },
+            body: form,
+          });
+        } catch (e) {
+          if (originCol) originCol.insertBefore(dragged, originNext || null);
+          recountColumns();
+          if (window.jirrabit && window.jirrabit.toast)
+            window.jirrabit.toast('Sin conexión, movimiento cancelado', 'err');
+          return;
+        }
+        if (!res.ok) {
+          if (originCol) originCol.insertBefore(dragged, originNext || null);
+          recountColumns();
+          const msg = (await res.text().catch(() => '')) || ('Error ' + res.status);
+          if (window.jirrabit && window.jirrabit.toast)
+            window.jirrabit.toast(msg.slice(0, 140), 'err');
+          return;
+        }
+        const html = await res.text();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html.trim();
+        const replacement = tmp.firstElementChild;
+        if (replacement) {
+          dragged.replaceWith(replacement);
+          attach(replacement.parentElement);
         }
         recountColumns();
       });

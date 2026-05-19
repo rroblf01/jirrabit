@@ -773,3 +773,45 @@ body.presentation::before {
   margin: 14px 0;
   padding-top: 2px;
 }
+
+/* --- htmx in-flight visual feedback ------------------------------------- */
+/* Any element with class "htmx-request" gets a subtle pulse. Use along
+   with skeleton placeholders below for clearer perceived performance. */
+.htmx-request .pulse,
+main.main.htmx-request {
+  position: relative;
+}
+main.main.htmx-request::after {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--blue-500, #2563eb), transparent);
+  background-size: 200% 100%;
+  animation: htmx-progress 1.1s infinite linear;
+  z-index: 9999;
+}
+@keyframes htmx-progress {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Skeleton placeholder rows for lists rendered via htmx swap. Pages that
+   render a long list can drop in ``<div class="skeleton-row"></div>``
+   while waiting for the swap. */
+.skeleton-row {
+  height: 36px;
+  background: linear-gradient(90deg, var(--ink-50, #f1f5f9) 0%, var(--ink-100, #e2e8f0) 50%, var(--ink-50, #f1f5f9) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s infinite linear;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* WS status dot polls window.jirrabit.notifSocket every 1.5s and
+   updates the inline-style background; nothing extra needed here. */
+#ws-status-dot { transition: background 200ms ease; }

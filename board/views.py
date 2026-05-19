@@ -53,6 +53,15 @@ async def _filtered_issues_qs(project, request):
     if due == "overdue":
         from django.utils import timezone
         qs = qs.filter(due_date__lt=timezone.localdate()).exclude(status__category="done")
+    if request.GET.get("urgent"):
+        qs = qs.filter(priority__weight__gte=40)
+    if request.GET.get("review"):
+        qs = qs.filter(status__name__iexact="In Review")
+    if request.GET.get("recent"):
+        from datetime import timedelta
+
+        from django.utils import timezone
+        qs = qs.filter(updated_at__gte=timezone.now() - timedelta(hours=24))
     return qs
 
 
@@ -296,7 +305,10 @@ class BoardViewSaveView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("nombre requerido")
         # The set of params we know about — anything else is ignored to keep
         # links predictable when the schema evolves.
-        keys = ("assignee", "type", "priority", "epic", "sprint", "stale", "due", "text")
+        keys = (
+            "assignee", "type", "priority", "epic", "sprint",
+            "stale", "due", "text", "urgent", "review", "recent",
+        )
         filters = {k: request.POST.get(k, "") for k in keys if request.POST.get(k)}
         await SavedBoardView.objects.aupdate_or_create(
             user=request.user, project=project, name=name,

@@ -38,7 +38,7 @@ class ProfileForm(forms.ModelForm):
         model = User
         fields = (
             "display_name", "first_name", "last_name", "email",
-            "job_title", "timezone", "palette", "notify_email",
+            "job_title", "timezone", "language", "palette", "notify_email",
         )
         widgets = {
             "palette": forms.Select(choices=()),  # populated in __init__
@@ -49,6 +49,10 @@ class ProfileForm(forms.ModelForm):
         from core.palettes import palette_choices_simple
         self.fields["palette"].widget = forms.Select(choices=palette_choices_simple())
         self.fields["palette"].label = _("Paleta de colores")
+        from django.conf import settings as _s
+        self.fields["language"] = forms.ChoiceField(
+            choices=_s.LANGUAGES, label=_("Idioma"),
+        )
         self.fields["notify_email"].label = _("Recibir correos")
         self.fields["timezone"] = forms.ChoiceField(
             choices=_timezone_choices(), label=_("Zona horaria"),

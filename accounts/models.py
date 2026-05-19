@@ -26,6 +26,11 @@ class User(AbstractUser):
         default="blue",
         help_text=_("Paleta de colores aplicada al renderizar la UI."),
     )
+    language = models.CharField(
+        max_length=8,
+        default="es",
+        help_text=_("Idioma de la interfaz."),
+    )
     notify_email = models.BooleanField(
         default=True,
         help_text=_("Recibir correos. Si está desactivado, sólo verás avisos en la app."),

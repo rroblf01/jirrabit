@@ -1116,3 +1116,156 @@
     if (t.classList.contains("inline-edit")) flashSaved(t);
   });
 })();
+
+// --- WS status dot (visual indicator in topbar) -----------------------------
+(function () {
+  function ensureDot() {
+    let dot = document.getElementById("ws-status-dot");
+    if (dot) return dot;
+    const bell = document.querySelector(".notif-link");
+    if (!bell) return null;
+    dot = document.createElement("span");
+    dot.id = "ws-status-dot";
+    dot.title = "WebSocket";
+    dot.setAttribute("aria-hidden", "true");
+    dot.style.cssText = "display:inline-block; width:8px; height:8px; border-radius:999px; margin-right:6px; vertical-align:middle; background:#f59e0b;";
+    bell.parentNode.insertBefore(dot, bell);
+    return dot;
+  }
+  function setState(state) {
+    const dot = ensureDot();
+    if (!dot) return;
+    const colors = { open: "#16a34a", connecting: "#f59e0b", closed: "#dc2626" };
+    dot.style.background = colors[state] || "#94a3b8";
+    dot.title = "WebSocket: " + state;
+  }
+  function poll() {
+    const s = window.jirrabit && window.jirrabit.notifSocket;
+    if (!s) return setState("closed");
+    setState(s.readyState === 1 ? "open" : s.readyState === 0 ? "connecting" : "closed");
+  }
+  document.addEventListener("DOMContentLoaded", poll);
+  setInterval(poll, 1500);
+})();
+
+// --- Global keyboard shortcuts ---------------------------------------------
+// `c` create issue, `/` focus search, `e` edit summary inline, `j/k` next/prev,
+// `Ctrl/Cmd+K` palette. Ignored when typing in inputs.
+(function () {
+  function isTyping(t) {
+    if (!t) return false;
+    const tag = (t.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select" || t.isContentEditable;
+  }
+  document.addEventListener("keydown", (e) => {
+    // Palette: Cmd/Ctrl+K always opens, even while typing.
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      const ev = new CustomEvent("jirrabit:open-palette");
+      document.dispatchEvent(ev);
+      return;
+    }
+    if (isTyping(e.target)) return;
+    if (e.key === "/") {
+      const search = document.querySelector('header .search input[type="search"]');
+      if (search) { e.preventDefault(); search.focus(); search.select(); }
+      return;
+    }
+    if (e.key === "c") {
+      const key = (location.pathname.match(/\/projects\/([A-Z0-9]+)/) || [])[1]
+               || (location.pathname.match(/\/issues\/([A-Z0-9]+)-\d+/) || [])[1];
+      if (key) { location.href = "/issues/projects/" + key + "/new/"; }
+      return;
+    }
+    if (e.key === "e") {
+      const h1 = document.querySelector("h1.inline-edit");
+      if (h1 && window.htmx) { e.preventDefault(); window.htmx.trigger(h1, "click"); }
+      return;
+    }
+    if (e.key === "j" || e.key === "k") {
+      const a = document.querySelector(e.key === "j"
+        ? "a.btn.ghost.small[href*='/issues/'][title*='Siguiente']"
+        : "a.btn.ghost.small[href*='/issues/'][title*='Anterior']");
+      if (a) { e.preventDefault(); a.click(); }
+    }
+  });
+})();
+
+// --- Quick-switch palette (Ctrl/Cmd+K) -------------------------------------
+(function () {
+  let overlay = null;
+  function open() {
+    if (overlay) return;
+    overlay = document.createElement("div");
+    overlay.className = "modal-backdrop";
+    overlay.style.cssText = "position:fixed; inset:0; background:rgba(15,23,42,.4); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding-top:10vh;";
+    overlay.innerHTML = `
+      <div role="dialog" aria-label="Quick switch"
+           style="background:var(--surface, white); border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.3); width:min(620px, 90vw); padding:14px;">
+        <input type="search" autofocus placeholder="Buscar issue, proyecto, acción…"
+               style="width:100%; font-size:16px; padding:10px 12px; border:1px solid var(--ink-300); border-radius:6px;">
+        <div id="palette-results" style="margin-top:10px; max-height:50vh; overflow:auto;"></div>
+        <div style="margin-top:8px; font-size:11px; color:var(--ink-500);">Esc cerrar · Enter abrir · Ctrl/Cmd+K toggle</div>
+      </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector("input");
+    const results = overlay.querySelector("#palette-results");
+    function close() {
+      if (!overlay) return;
+      overlay.remove();
+      overlay = null;
+    }
+    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+    let abort;
+    async function search(q) {
+      if (abort) abort.abort();
+      abort = new AbortController();
+      if (!q.trim()) { results.innerHTML = ""; return; }
+      try {
+        const r = await fetch("/search/suggest/?q=" + encodeURIComponent(q),
+          { signal: abort.signal, headers: { "HX-Request": "true" } });
+        if (r.ok) results.innerHTML = await r.text();
+      } catch (_e) {}
+    }
+    input.addEventListener("input", (e) => search(e.target.value));
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { close(); return; }
+      if (e.key === "Enter") {
+        const first = results.querySelector("a[href]");
+        if (first) { close(); location.href = first.href; }
+      }
+    });
+  }
+  document.addEventListener("jirrabit:open-palette", open);
+})();
+
+// --- Custom confirm modal (replaces window.confirm + hx-confirm) -----------
+(function () {
+  if (!window.htmx) return;
+  // Override htmx's confirm dialog handler with a styled modal.
+  document.addEventListener("htmx:confirm", (e) => {
+    if (!e.detail.question) return;  // no hx-confirm on this request
+    e.preventDefault();
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed; inset:0; background:rgba(15,23,42,.5); z-index:9999; display:flex; align-items:center; justify-content:center;";
+    ov.innerHTML = `
+      <div role="alertdialog" style="background:var(--surface, white); border-radius:10px; box-shadow:0 20px 60px rgba(0,0,0,.3); width:min(420px, 90vw); padding:18px;">
+        <p style="margin:0 0 14px;">${e.detail.question.replace(/[<>&]/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;"}[c]))}</p>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button type="button" class="btn ghost small" data-action="cancel">Cancelar</button>
+          <button type="button" class="btn danger small" data-action="ok">Confirmar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector('[data-action="ok"]').focus();
+    ov.addEventListener("click", (ev) => {
+      const a = ev.target.dataset && ev.target.dataset.action;
+      if (a === "ok") { ov.remove(); e.detail.issueRequest(true); }
+      else if (a === "cancel" || ev.target === ov) ov.remove();
+    });
+    ov.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape") ov.remove();
+    });
+  });
+})();
+

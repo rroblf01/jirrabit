@@ -6,7 +6,8 @@
   ``/accounts/login/`` by IP+username. In-memory counters, reset on
   process restart. For multi-instance deploys swap the cache for Redis.
 """
-import time
+
+import time, inspect
 from collections import defaultdict
 from threading import Lock
 
@@ -16,21 +17,59 @@ from django.http import HttpResponse
 from django.utils.decorators import sync_and_async_middleware
 
 # ---------------------------------------------------------------------------
+# Per-user language
+# ---------------------------------------------------------------------------
+
+
+@sync_and_async_middleware
+def user_language_middleware(get_response):
+    """Activate the authenticated user's preferred ``language``.
+
+    Runs after Django's ``LocaleMiddleware`` so the per-user setting
+    overrides whatever the Accept-Language header would have selected.
+    Falls back to whatever LocaleMiddleware already activated when the
+    user is anonymous or has no preference.
+    """
+    from django.utils import translation
+
+    def _apply(user, request):
+        lang = getattr(user, "language", None) if user and user.is_authenticated else None
+        if not lang:
+            return
+        translation.activate(lang)
+        request.LANGUAGE_CODE = lang
+
+    if inspect.iscoroutinefunction(get_response):
+
+        async def middleware(request):
+            user = await request.auser()
+            _apply(user, request)
+            return await get_response(request)
+
+        return middleware
+
+    def middleware(request):
+        _apply(getattr(request, "user", None), request)
+        return get_response(request)
+
+    return middleware
+
+
+# ---------------------------------------------------------------------------
 # Nav projects
 # ---------------------------------------------------------------------------
+
 
 @sync_and_async_middleware
 def nav_context_middleware(get_response):
     from projects.models import Project
 
-    if iscoroutinefunction(get_response):
+    if inspect.iscoroutinefunction(get_response):
 
         async def middleware(request):
             user = await request.auser()
             if user.is_authenticated:
-                request.nav_projects = [
-                    p async for p in Project.objects.filter_visible(user)[:8]
-                ]
+                request.nav_projects = [p async for p in Project.objects.filter_visible(user)[:8]]
                 # ``unread_count`` is a denormalised field on User maintained
                 # by accounts.signals — no extra COUNT(*) per request.
                 request.unread_notifications = getattr(user, "unread_count", 0)
@@ -171,6 +210,7 @@ def login_throttle_middleware(get_response):
 # Content-Security-Policy header
 # ---------------------------------------------------------------------------
 
+
 @sync_and_async_middleware
 def csp_middleware(get_response):
     """Set a strict ``Content-Security-Policy`` on every response.
@@ -202,8 +242,10 @@ def csp_middleware(get_response):
         return response
 
     if iscoroutinefunction(get_response):
+
         async def middleware(request):
             return _apply(await get_response(request))
+
         return middleware
 
     def middleware(request):
@@ -262,6 +304,7 @@ def api_rate_limit_middleware(get_response):
 
     def _too_many() -> HttpResponse:
         from django.utils.translation import gettext as _
+
         retry = settings.JIRRABIT_API_RATE_WINDOW
         body = _("Rate limit exceeded. Retry in %(s)s seconds.") % {"s": retry}
         return HttpResponse(
@@ -272,6 +315,7 @@ def api_rate_limit_middleware(get_response):
         )
 
     if iscoroutinefunction(get_response):
+
         async def middleware(request):
             if request.path.startswith("/api/"):
                 auth = request.META.get("HTTP_AUTHORIZATION", "")
@@ -284,6 +328,7 @@ def api_rate_limit_middleware(get_response):
                 if key and _api_throttled(key):
                     return _too_many()
             return await get_response(request)
+
         return middleware
 
     def middleware(request):

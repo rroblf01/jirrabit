@@ -47,11 +47,17 @@
        href="?assignee=me">{% trans "Mías" %}</a>
     <a class="chip{% if filter_assignee == 'none' %} active{% endif %}"
        href="?assignee=none">{% trans "Sin asignar" %}</a>
-    <a class="chip{% if request.GET.stale %} active{% endif %}"
-       href="?stale=7">{% trans "Sin tocar 7d+" %}</a>
+    <a class="chip{% if request.GET.urgent %} active{% endif %}"
+       href="?urgent=1">{% trans "Urgentes" %}</a>
+    <a class="chip{% if request.GET.review %} active{% endif %}"
+       href="?review=1">{% trans "Por revisar" %}</a>
     <a class="chip{% if request.GET.due %} active{% endif %}"
        href="?due=overdue">{% trans "Vencidas" %}</a>
-    {% if filter_assignee or filter_type or filter_priority or filter_epic or filter_text or request.GET.stale or request.GET.due %}
+    <a class="chip{% if request.GET.recent %} active{% endif %}"
+       href="?recent=1">{% trans "Recientes (24h)" %}</a>
+    <a class="chip{% if request.GET.stale %} active{% endif %}"
+       href="?stale=7">{% trans "Sin tocar 7d+" %}</a>
+    {% if filter_assignee or filter_type or filter_priority or filter_epic or filter_text or request.GET.stale or request.GET.due or request.GET.urgent or request.GET.review or request.GET.recent %}
       <a class="chip clear" href="?">{% trans "Limpiar todo" %}</a>
     {% endif %}
   </div>

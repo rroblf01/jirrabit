@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-14 12:56+0200\n"
+"POT-Creation-Date: 2026-05-19 13:53+0200\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,397 +18,677 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: accounts/admin_views.py:26
 msgid "Solo administradores."
 msgstr "Solo administradores."
 
-#: accounts/forms.py:26
 msgid "Avatar"
 msgstr "Avatar"
 
-#: accounts/forms.py:27
 msgid "PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos."
 msgstr "PNG/JPEG/GIF/WebP. Se guarda como base64 en la base de datos."
 
-#: accounts/forms.py:29
 msgid "Quitar avatar actual"
 msgstr "Quitar avatar actual"
 
-#: accounts/forms.py:42
+msgid "Silenciar notificaciones por tipo"
+msgstr ""
+
+msgid "Los tipos marcados no generan correo (sí avisos en la app)."
+msgstr ""
+
 msgid "Paleta de colores"
 msgstr "Paleta de colores"
 
-#: accounts/forms.py:51
+msgid "Idioma"
+msgstr ""
+
+msgid "Recibir correos"
+msgstr ""
+
+msgid "Zona horaria"
+msgstr ""
+
 #, python-format
 msgid "Tipo no soportado: %(ct)s."
 msgstr "Tipo no soportado: %(ct)s."
 
-#: accounts/forms.py:51
 msgid "desconocido"
 msgstr "desconocido"
 
-#: accounts/forms.py:54
 msgid "La imagen supera el tamaño máximo permitido."
 msgstr "La imagen supera el tamaño máximo permitido."
 
-#: accounts/models.py:19
+#, fuzzy
+#| msgid "Asignación"
+msgid "Asignaciones"
+msgstr "Asignación"
+
+#, fuzzy
+#| msgid "Mención"
+msgid "Menciones @"
+msgstr "Mención"
+
+#, fuzzy
+#| msgid "Comentario"
+msgid "Comentarios"
+msgstr "Comentario"
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Cambios de estado"
+msgstr "Cambio de estado"
+
+#, fuzzy
+#| msgid "Cambio en seguidos"
+msgid "Cambios en seguidos"
+msgstr "Cambio en seguidos"
+
 msgid "Paleta de colores aplicada al renderizar la UI."
 msgstr "Paleta de colores aplicada al renderizar la UI."
 
-#: accounts/models.py:123
+msgid "Idioma de la interfaz."
+msgstr ""
+
+msgid "Recibir correos. Si está desactivado, sólo verás avisos en la app."
+msgstr ""
+
+msgid "Tipos de notificación silenciados (separados por comas)."
+msgstr ""
+
 msgid "Mención"
 msgstr "Mención"
 
-#: accounts/models.py:124
 msgid "Asignación"
 msgstr "Asignación"
 
-#: accounts/models.py:125
 msgid "Comentario"
 msgstr "Comentario"
 
-#: accounts/models.py:126
 msgid "Cambio de estado"
 msgstr "Cambio de estado"
 
-#: accounts/models.py:127
 msgid "Cambio en seguidos"
 msgstr "Cambio en seguidos"
 
-#: accounts/views.py:131
+msgid "Identificador para @team:slug"
+msgstr ""
+
+#, fuzzy
+#| msgid "Asignado"
+msgid "Asignadas a mí"
+msgstr "Asignado"
+
+msgid "Siguiendo"
+msgstr ""
+
+msgid "Menciones recientes"
+msgstr ""
+
+msgid "Anclados"
+msgstr ""
+
+#, fuzzy
+#| msgid "Vencimiento"
+msgid "Recientes"
+msgstr "Vencimiento"
+
+msgid "Mis proyectos"
+msgstr "Mis proyectos"
+
+msgid "Reacciones recientes"
+msgstr ""
+
+#, fuzzy
+#| msgid "Time tracking"
+msgid "Timer activo"
+msgstr "Time tracking"
+
+msgid "Vencidas"
+msgstr ""
+
 msgid "Necesitas una invitación válida para registrarte."
 msgstr "Necesitas una invitación válida para registrarte."
 
-#: core/middleware.py:271
 #, python-format
 msgid "Rate limit exceeded. Retry in %(s)s seconds."
 msgstr "Rate limit exceeded. Retry in %(s)s seconds."
 
-#: core/palettes.py:13
 msgid "Azul (predeterminada)"
 msgstr "Azul (predeterminada)"
 
-#: core/palettes.py:14
 msgid "Océano"
 msgstr "Océano"
 
-#: core/palettes.py:15
 #, fuzzy
 #| msgid "Búsqueda"
 msgid "Bosque"
 msgstr "Búsqueda"
 
-#: core/palettes.py:16
 msgid "Violeta"
 msgstr "Violeta"
 
-#: core/palettes.py:17
 msgid "Atardecer"
 msgstr "Atardecer"
 
-#: core/palettes.py:18
 msgid "Rosa"
 msgstr "Rosa"
 
-#: core/palettes.py:19
 msgid "Medianoche"
 msgstr "Medianoche"
 
-#: core/permissions.py:60
+msgid "Alto contraste"
+msgstr ""
+
 msgid "No tienes acceso a este proyecto."
 msgstr "No tienes acceso a este proyecto."
 
-#: core/permissions.py:71
 msgid "Necesitas rol 'member' o superior."
 msgstr "Necesitas rol 'member' o superior."
 
-#: core/permissions.py:82
 msgid "Necesitas rol 'admin' en el proyecto."
 msgstr "Necesitas rol 'admin' en el proyecto."
 
-#: issues/models.py:187 templates/issues/detail.html:55
 msgid "bloquea"
 msgstr "bloquea"
 
-#: issues/models.py:188 templates/issues/detail.html:56
 msgid "bloqueado por"
 msgstr "bloqueado por"
 
-#: issues/models.py:189 templates/issues/detail.html:57
 msgid "relacionado con"
 msgstr "relacionado con"
 
-#: issues/models.py:190 templates/issues/detail.html:58
 msgid "duplica"
 msgstr "duplica"
 
-#: issues/models.py:191 templates/issues/detail.html:59
 msgid "duplicado por"
 msgstr "duplicado por"
 
-#: projects/models.py:62 templates/base.html:23
+msgid "Categoría usada para colorear y para regla 'done → resolved_at'."
+msgstr ""
+
+msgid "Posición en columnas del board (menor = más a la izquierda)."
+msgstr ""
+
+msgid ""
+"Estados destino permitidos. Si la lista está vacía, se permite cualquier "
+"transición desde este estado."
+msgstr ""
+
+msgid "Más alto = más urgente. Se usa para ordenar."
+msgstr ""
+
+msgid "Un emoji o carácter corto (≤8 chars) usado en badges."
+msgstr ""
+
+msgid ""
+"Plantilla Markdown prerellenada al crear tareas de este tipo. Útil para bugs "
+"(pasos, esperado, real) o stories (como X quiero Y para Z)."
+msgstr ""
+
 msgid "Admin"
 msgstr "Admin"
 
-#: projects/models.py:63
 msgid "Member"
 msgstr "Member"
 
-#: projects/models.py:64
 msgid "Viewer"
 msgstr "Viewer"
 
-#: projects/models.py:80 templates/search/search.html:21
 msgid "Privado"
 msgstr "Privado"
 
-#: projects/models.py:80 templates/search/search.html:21
 msgid "Compartido"
 msgstr "Compartido"
 
-#: projects/models.py:126
 msgid "Texto corto"
 msgstr "Texto corto"
 
-#: projects/models.py:127
 msgid "Texto largo"
 msgstr "Texto largo"
 
-#: projects/models.py:128
 msgid "Número"
 msgstr "Número"
 
-#: projects/models.py:129 templates/projects/detail.html:11
 msgid "Lista"
 msgstr "Lista"
 
-#: projects/models.py:130
 msgid "Fecha"
 msgstr "Fecha"
 
-#: projects/models.py:131
 msgid "Usuario"
 msgstr "Usuario"
 
-#: projects/models.py:132
 msgid "Checkbox"
 msgstr "Checkbox"
 
-#: projects/models.py:176
 msgid "Future"
 msgstr "Future"
 
-#: projects/models.py:176
 msgid "Active"
 msgstr "Active"
 
-#: projects/models.py:176
 msgid "Closed"
 msgstr "Closed"
 
-#: search/views.py:84
+msgid "Notas de retrospectiva: qué fue bien, qué mejorar."
+msgstr ""
+
 msgid "No puedes borrar este filtro."
 msgstr "No puedes borrar este filtro."
 
-#: templates/_notif_badge.html:2 templates/notifications/inbox.html:6
+msgid "Solicitud inválida"
+msgstr ""
+
+msgid "La petición tiene datos malformados."
+msgstr ""
+
+#, fuzzy
+#| msgid "Inicio"
+msgid "Ir a inicio"
+msgstr "Inicio"
+
+msgid "Acceso denegado"
+msgstr ""
+
+#, fuzzy
+#| msgid "No tienes acceso a este proyecto."
+msgid "No tienes permisos para ver o modificar este recurso."
+msgstr "No tienes acceso a este proyecto."
+
+msgid "Volver"
+msgstr ""
+
+msgid "Iniciar sesión"
+msgstr ""
+
+msgid "Página no encontrada"
+msgstr ""
+
+msgid "El recurso que buscas no existe o ha sido movido."
+msgstr ""
+
+msgid "Error del servidor"
+msgstr ""
+
+msgid "Algo se rompió en el servidor"
+msgstr ""
+
+msgid "Hemos registrado el error. Vuelve a intentarlo en un momento."
+msgstr ""
+
 msgid "Notificaciones"
 msgstr "Notificaciones"
 
-#: templates/accounts/login.html:7
-msgid "Entra a tu cuenta."
-msgstr "Entra a tu cuenta."
+msgid "sin leer"
+msgstr ""
 
-#: templates/accounts/login.html:20
-msgid "Recuérdame en este dispositivo"
-msgstr "Recuérdame en este dispositivo"
+msgid "Usuario no encontrado."
+msgstr ""
 
-#: templates/accounts/login.html:22 templates/accounts/register.html:29
-msgid "Entrar"
-msgstr "Entrar"
+msgid "Email"
+msgstr ""
 
-#: templates/accounts/login.html:25
-msgid "¿Olvidaste la contraseña?"
-msgstr "¿Olvidaste la contraseña?"
+msgid "Estado"
+msgstr "Estado"
 
-#: templates/accounts/login.html:28
-msgid "¿Sin cuenta?"
-msgstr "¿Sin cuenta?"
+#, fuzzy
+#| msgid "Active"
+msgid "activo"
+msgstr "Active"
 
-#: templates/accounts/login.html:28
-msgid "Regístrate"
-msgstr "Regístrate"
+msgid "inactivo"
+msgstr ""
 
-#: templates/accounts/profile.html:5
-msgid "Mi perfil"
-msgstr "Mi perfil"
+#, fuzzy
+#| msgid "Sin tareas asignadas."
+msgid "Tareas recientes asignadas"
+msgstr "Sin tareas asignadas."
 
-#: templates/accounts/profile.html:10
-msgid "sin email"
-msgstr "sin email"
+msgid "Buscar más"
+msgstr ""
 
-#: templates/accounts/profile.html:64
+msgid "Cargo"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin resultados."
+msgid "Sin resultados"
+msgstr "Sin resultados."
+
+msgid "Anterior"
+msgstr ""
+
+msgid "Página"
+msgstr ""
+
+msgid "Siguiente"
+msgstr ""
+
+#, fuzzy
+#| msgid "Editar"
+msgid "Editar equipo"
+msgstr "Editar"
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Nuevo equipo"
+msgstr "Nuevo proyecto"
+
+msgid "Nombre"
+msgstr "Nombre"
+
+msgid "Slug (para @team:slug)"
+msgstr ""
+
+#, fuzzy
+#| msgid "Asignación"
+msgid "Descripción"
+msgstr "Asignación"
+
+msgid "Miembros"
+msgstr "Miembros"
+
 msgid "Guardar"
 msgstr "Guardar"
 
-#: templates/accounts/profile.html:68
-msgid "Sesiones"
-msgstr "Sesiones"
-
-#: templates/accounts/profile.html:70
-msgid ""
-"Si crees que alguien ha entrado en tu cuenta, cierra todas las sesiones "
-"activas (excepto la actual)."
+msgid "Cancelar"
 msgstr ""
 
-#: templates/accounts/profile.html:73
-msgid "¿Cerrar todas las sesiones excepto la actual?"
-msgstr "¿Cerrar todas las sesiones excepto la actual?"
-
-#: templates/accounts/profile.html:75
-msgid "Cerrar sesión en todos los dispositivos"
-msgstr "Cerrar sesión en todos los dispositivos"
-
-#: templates/accounts/register.html:6
-msgid "Crear cuenta"
-msgstr "Crear cuenta"
-
-#: templates/accounts/register.html:9
-msgid ""
-"El enlace de invitación es inválido, ha expirado o ya se usó. Pide uno nuevo "
-"a un admin."
+msgid "Equipos"
 msgstr ""
 
-#: templates/accounts/register.html:13
-msgid "Registro autorizado por invitación."
-msgstr "Registro autorizado por invitación."
+msgid "Slug"
+msgstr ""
 
-#: templates/accounts/register.html:26
-msgid "Registrarme"
-msgstr "Registrarme"
+msgid "Editar"
+msgstr "Editar"
 
-#: templates/accounts/register.html:29
-msgid "¿Ya tienes cuenta?"
-msgstr "¿Ya tienes cuenta?"
-
-#: templates/base.html:18 templates/core/help.html:189
-msgid "Home"
-msgstr "Home"
-
-#: templates/base.html:19 templates/base.html:38 templates/projects/list.html:6
-msgid "Proyectos"
-msgstr "Proyectos"
-
-#: templates/base.html:20
-msgid "Usuarios"
-msgstr "Usuarios"
-
-#: templates/base.html:21 templates/core/help.html:5
-msgid "Ayuda"
-msgstr "Ayuda"
-
-#: templates/base.html:27
-msgid "JQL-lite o texto..."
-msgstr "JQL-lite o texto..."
-
-#: templates/base.html:30
-msgid "API keys"
-msgstr "API keys"
-
-#: templates/base.html:31
 #, fuzzy
-#| msgid "Cambio de estado"
-msgid "Atajos de teclado (?)"
-msgstr "Cambio de estado"
+#| msgid "Borrar filtro"
+msgid "¿Borrar equipo?"
+msgstr "Borrar filtro"
 
-#: templates/base.html:33
-msgid "Perfil"
-msgstr "Perfil"
-
-#: templates/base.html:34
-msgid "Salir"
-msgstr "Salir"
-
-#: templates/board/board.html:45
-#, fuzzy
-#| msgid "Cambio en seguidos"
-msgid "Cambios aplicados"
-msgstr "Cambio en seguidos"
-
-#: templates/board/board.html:47
-msgid "seleccionadas"
-msgstr "seleccionadas"
-
-#: templates/board/board.html:49
-#, fuzzy
-#| msgid "Cambio de estado"
-msgid "Cambiar estado"
-msgstr "Cambio de estado"
-
-#: templates/board/board.html:50
-#, fuzzy
-#| msgid "Cambio de estado"
-msgid "Cambiar asignado"
-msgstr "Cambio de estado"
-
-#: templates/board/board.html:51
-#, fuzzy
-#| msgid "Planificar un sprint"
-msgid "Cambiar sprint"
-msgstr "Planificar un sprint"
-
-#: templates/board/board.html:52
-#, fuzzy
-#| msgid "Prioridad"
-msgid "Cambiar prioridad"
-msgstr "Prioridad"
-
-#: templates/board/board.html:53
 #, fuzzy
 #| msgid "Borrar filtro"
 msgid "Borrar"
 msgstr "Borrar filtro"
 
-#: templates/board/board.html:56
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Sin equipos. Crea el primero."
+msgstr "Nuevo proyecto"
+
+msgid "Entra a tu cuenta."
+msgstr "Entra a tu cuenta."
+
+msgid "Recuérdame en este dispositivo"
+msgstr "Recuérdame en este dispositivo"
+
+msgid "Entrar"
+msgstr "Entrar"
+
+msgid "¿Olvidaste la contraseña?"
+msgstr "¿Olvidaste la contraseña?"
+
+msgid "¿Sin cuenta?"
+msgstr "¿Sin cuenta?"
+
+msgid "Regístrate"
+msgstr "Regístrate"
+
+msgid "Mi perfil"
+msgstr "Mi perfil"
+
+msgid "sin email"
+msgstr "sin email"
+
+msgid "Borradores guardados localmente"
+msgstr ""
+
+msgid ""
+"Texto sin enviar que se guarda en este navegador. Al volver a la página "
+"correspondiente se recupera."
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin resultados."
+msgid "Sin borradores."
+msgstr "Sin resultados."
+
+msgid "Ruta"
+msgstr ""
+
+msgid "Vista previa"
+msgstr "Vista previa"
+
+msgid "Sesiones"
+msgstr "Sesiones"
+
+msgid ""
+"Si crees que alguien ha entrado en tu cuenta, cierra todas las sesiones "
+"activas (excepto la actual)."
+msgstr ""
+
+msgid "¿Cerrar todas las sesiones excepto la actual?"
+msgstr "¿Cerrar todas las sesiones excepto la actual?"
+
+msgid "Cerrar sesión en todos los dispositivos"
+msgstr "Cerrar sesión en todos los dispositivos"
+
+msgid "Crear cuenta"
+msgstr "Crear cuenta"
+
+msgid ""
+"El enlace de invitación es inválido, ha expirado o ya se usó. Pide uno nuevo "
+"a un admin."
+msgstr ""
+
+msgid "Registro autorizado por invitación."
+msgstr "Registro autorizado por invitación."
+
+msgid "Registrarme"
+msgstr "Registrarme"
+
+msgid "¿Ya tienes cuenta?"
+msgstr "¿Ya tienes cuenta?"
+
+msgid "Usuarios"
+msgstr "Usuarios"
+
+msgid "Buscar..."
+msgstr ""
+
+msgid "Home"
+msgstr "Home"
+
+msgid "Proyectos"
+msgstr "Proyectos"
+
+msgid "Entiende Jira"
+msgstr ""
+
+msgid "Workflow editor"
+msgstr ""
+
+msgid "Workflow"
+msgstr ""
+
+msgid "JQL-lite o texto..."
+msgstr "JQL-lite o texto..."
+
+msgid "Perfil"
+msgstr "Perfil"
+
+msgid "API keys"
+msgstr "API keys"
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Atajos de teclado"
+msgstr "Cambio de estado"
+
+msgid "Activar notificaciones de escritorio"
+msgstr ""
+
+msgid "Activar/desactivar sonido"
+msgstr ""
+
+msgid "Cerrar sesión"
+msgstr ""
+
+#, fuzzy
+#| msgid "Borrar filtro"
+msgid "Cerrar"
+msgstr "Borrar filtro"
+
+msgid "Click: abrir · Shift+click: vista previa lateral"
+msgstr ""
+
+msgid "Prioridad"
+msgstr "Prioridad"
+
+#, fuzzy
+#| msgid "Vencimiento"
+msgid "Vence"
+msgstr "Vencimiento"
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Avanzar estado"
+msgstr "Cambio de estado"
+
+msgid "Story points"
+msgstr "Story points"
+
+msgid "¿Borrar vista guardada?"
+msgstr ""
+
+#, fuzzy
+#| msgid "Guardar filtro"
+msgid "Guardar vista como…"
+msgstr "Guardar filtro"
+
+msgid "Cargado"
+msgstr ""
+
+msgid "Mías"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin tareas asignadas."
+msgid "Sin asignar"
+msgstr "Sin tareas asignadas."
+
+msgid "Urgentes"
+msgstr ""
+
+msgid "Por revisar"
+msgstr ""
+
+msgid "Recientes (24h)"
+msgstr ""
+
+msgid "Sin tocar 7d+"
+msgstr ""
+
+#, fuzzy
+#| msgid "Limpiar"
+msgid "Limpiar todo"
+msgstr "Limpiar"
+
+#, fuzzy
+#| msgid "Cambio en seguidos"
+msgid "Cambios aplicados"
+msgstr "Cambio en seguidos"
+
+msgid "seleccionadas"
+msgstr "seleccionadas"
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Cambiar estado"
+msgstr "Cambio de estado"
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "Cambiar asignado"
+msgstr "Cambio de estado"
+
+#, fuzzy
+#| msgid "Planificar un sprint"
+msgid "Cambiar sprint"
+msgstr "Planificar un sprint"
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "Cambiar prioridad"
+msgstr "Prioridad"
+
+#, fuzzy
+#| msgid "Planificar un sprint"
+msgid "Cambiar epic"
+msgstr "Planificar un sprint"
+
+msgid "Añadir etiqueta"
+msgstr ""
+
+msgid "Quitar etiqueta"
+msgstr ""
+
 #, fuzzy
 #| msgid "duplica"
 msgid "Aplicar"
 msgstr "duplica"
 
-#: templates/board/board.html:57
 msgid "Limpiar"
 msgstr "Limpiar"
 
-#: templates/core/help.html:6
+msgid "Arrastra tareas aquí"
+msgstr ""
+
+msgid "Tablero vacío. Sin sprint activo o sin tareas."
+msgstr ""
+
+msgid "Crear tarea"
+msgstr "Crear tarea"
+
+#, fuzzy
+#| msgid "Backlog"
+msgid "Ir a backlog"
+msgstr "Backlog"
+
+msgid "Configurar dashboard"
+msgstr ""
+
+msgid "Arrastra para reordenar y desactiva los widgets que no uses."
+msgstr ""
+
+msgid "Ayuda"
+msgstr "Ayuda"
+
 msgid "Guía rápida para entender los conceptos y empezar a trabajar."
 msgstr "Guía rápida para entender los conceptos y empezar a trabajar."
 
-#: templates/core/help.html:8
 msgid "Intro"
 msgstr "Intro"
 
-#: templates/core/help.html:9 templates/core/help.html:29
 #, fuzzy
 #| msgid "Usuario"
 msgid "Glosario"
 msgstr "Usuario"
 
-#: templates/core/help.html:10 templates/core/help.html:127
 msgid "Flujos típicos"
 msgstr "Flujos típicos"
 
-#: templates/core/help.html:11
 msgid "Atajos"
 msgstr "Atajos"
 
-#: templates/core/help.html:13
 msgid "Importar Jira"
 msgstr "Importar Jira"
 
-#: templates/core/help.html:19
 msgid "¿Qué es Jira (y qué es jirrabit)?"
 msgstr "¿Qué es Jira (y qué es jirrabit)?"
 
-#: templates/core/help.html:20
 msgid ""
 "\n"
 "    Jira es una herramienta para coordinar el trabajo de un equipo: anotar "
@@ -420,11 +700,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:31 templates/core/home.html:15
 msgid "Proyecto"
 msgstr "Proyecto"
 
-#: templates/core/help.html:32
 msgid ""
 "\n"
 "    Contenedor de todo el trabajo de un producto o equipo. Cada proyecto "
@@ -437,11 +715,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:39
 msgid "Issue (tarea)"
 msgstr "Issue (tarea)"
 
-#: templates/core/help.html:40
 msgid ""
 "\n"
 "    Unidad básica de trabajo: una cosa que alguien tiene que hacer. Cada "
@@ -452,43 +728,33 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:46
 msgid "Story"
 msgstr "Story"
 
-#: templates/core/help.html:46
 msgid "Funcionalidad nueva contada desde el punto de vista del usuario."
 msgstr "Funcionalidad nueva contada desde el punto de vista del usuario."
 
-#: templates/core/help.html:47
 msgid "Task"
 msgstr "Task"
 
-#: templates/core/help.html:47
 msgid "Tarea técnica o trabajo concreto sin valor directo de negocio."
 msgstr "Tarea técnica o trabajo concreto sin valor directo de negocio."
 
-#: templates/core/help.html:48
 msgid "Bug"
 msgstr "Bug"
 
-#: templates/core/help.html:48
 msgid "Algo que no funciona como debería."
 msgstr "Algo que no funciona como debería."
 
-#: templates/core/help.html:49
 msgid "Subtask"
 msgstr "Subtask"
 
-#: templates/core/help.html:49
 msgid "Pieza más pequeña que cuelga de otro issue (su parent)."
 msgstr "Pieza más pequeña que cuelga de otro issue (su parent)."
 
-#: templates/core/help.html:52
 msgid "Epic"
 msgstr "Epic"
 
-#: templates/core/help.html:53
 msgid ""
 "\n"
 "    Pieza grande de trabajo que agrupa varios issues relacionados. Una epic "
@@ -498,13 +764,11 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:58 templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Sin sprints."
 msgid "Sprint"
 msgstr "Sin sprints."
 
-#: templates/core/help.html:59
 msgid ""
 "\n"
 "    Ventana de tiempo (típicamente 1 a 4 semanas) en la que el equipo se "
@@ -515,11 +779,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:65
 msgid "Estado y workflow"
 msgstr "Estado y workflow"
 
-#: templates/core/help.html:66
 msgid ""
 "\n"
 "    El estado describe en qué punto está un issue: por ejemplo <em>To Do</"
@@ -534,12 +796,6 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:74 templates/core/home.html:15
-#: templates/issues/detail.html:103 templates/search/_results.html:6
-msgid "Prioridad"
-msgstr "Prioridad"
-
-#: templates/core/help.html:75
 msgid ""
 "\n"
 "    Indica la urgencia: <em>Highest</em>, <em>High</em>, <em>Medium</em>, "
@@ -548,11 +804,6 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:80 templates/issues/detail.html:109
-msgid "Story points"
-msgstr "Story points"
-
-#: templates/core/help.html:81
 msgid ""
 "\n"
 "    Estimación abstracta del esfuerzo de un issue (no de horas). Sirven para "
@@ -561,11 +812,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:86
 msgid "Etiquetas (labels)"
 msgstr "Etiquetas (labels)"
 
-#: templates/core/help.html:87
 msgid ""
 "\n"
 "    Tags libres que se pueden añadir a un issue para clasificarlo "
@@ -574,41 +823,32 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:92
 msgid "Asignado, reporter y watchers"
 msgstr "Asignado, reporter y watchers"
 
-#: templates/core/help.html:94 templates/issues/detail.html:101
 msgid "Reporter"
 msgstr "Reporter"
 
-#: templates/core/help.html:94
 msgid "quien creó el issue."
 msgstr "quien creó el issue."
 
-#: templates/core/help.html:95
 msgid "Asignado (assignee)"
 msgstr "Asignado (assignee)"
 
-#: templates/core/help.html:95
 msgid "persona responsable de avanzarlo."
 msgstr "persona responsable de avanzarlo."
 
-#: templates/core/help.html:96
 msgid "Watchers"
 msgstr "Watchers"
 
-#: templates/core/help.html:96
 msgid "gente suscrita a los cambios; reciben emails y notificaciones."
 msgstr "gente suscrita a los cambios; reciben emails y notificaciones."
 
-#: templates/core/help.html:99
 #, fuzzy
 #| msgid "Comentario"
-msgid "Comentarios y menciones"
+msgid "Comentarios, Markdown y menciones"
 msgstr "Comentario"
 
-#: templates/core/help.html:100
 msgid ""
 "\n"
 "    Cualquier miembro del proyecto puede comentar en un issue. Soporta "
@@ -618,11 +858,44 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:105 templates/issues/detail.html:23
+msgid "Sintaxis"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin resultados."
+msgid "Resultado"
+msgstr "Sin resultados."
+
+msgid "negrita"
+msgstr ""
+
+msgid "cursiva"
+msgstr ""
+
+msgid "código"
+msgstr ""
+
+msgid "Encabezado (1-6 niveles)"
+msgstr ""
+
+msgid "Lista numerada"
+msgstr ""
+
+msgid "Enlace"
+msgstr ""
+
+msgid "Bloque de cita"
+msgstr ""
+
+msgid "Bloque de código"
+msgstr ""
+
+msgid "Mención (autocompleta al escribir)"
+msgstr ""
+
 msgid "Adjuntos"
 msgstr "Adjuntos"
 
-#: templates/core/help.html:106
 msgid ""
 "\n"
 "    Archivos pequeños asociados al issue (capturas, logs, notas…). Se "
@@ -631,11 +904,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:111
 msgid "Time tracking"
 msgstr "Time tracking"
 
-#: templates/core/help.html:112
 msgid ""
 "\n"
 "    Cada issue tiene una estimación (en minutos) y se le pueden ir "
@@ -645,11 +916,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:117
 msgid "Issue links"
 msgstr "Issue links"
 
-#: templates/core/help.html:118
 msgid ""
 "\n"
 "    Relaciones entre issues: <em>bloquea</em>, <em>bloqueado por</em>, "
@@ -660,80 +929,63 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:129
 #, fuzzy
 #| msgid "Nuevo proyecto"
 msgid "Crear un proyecto"
 msgstr "Nuevo proyecto"
 
-#: templates/core/help.html:131
 msgid "Pulsa «Nuevo proyecto» en la lista de proyectos."
 msgstr "Pulsa «Nuevo proyecto» en la lista de proyectos."
 
-#: templates/core/help.html:132
 msgid "Asigna clave corta (3-5 letras) y nombre largo."
 msgstr "Asigna clave corta (3-5 letras) y nombre largo."
 
-#: templates/core/help.html:133
 msgid "Añade miembros desde la pestaña «Miembros» con su rol."
 msgstr "Añade miembros desde la pestaña «Miembros» con su rol."
 
-#: templates/core/help.html:136
 msgid "Crear y trabajar una tarea"
 msgstr "Crear y trabajar una tarea"
 
-#: templates/core/help.html:138
 msgid "Pulsa «+ Crear tarea» dentro de un proyecto."
 msgstr "Pulsa «+ Crear tarea» dentro de un proyecto."
 
-#: templates/core/help.html:139
 msgid "Rellena resumen, tipo, prioridad, sprint (opcional) y descripción."
 msgstr "Rellena resumen, tipo, prioridad, sprint (opcional) y descripción."
 
-#: templates/core/help.html:140
 msgid ""
 "Una vez creada, los campos se editan in-line haciendo click sobre ellos."
 msgstr ""
 
-#: templates/core/help.html:141
 msgid ""
 "Mueve el estado desde el tablero arrastrando la tarjeta o desde el detalle."
 msgstr ""
 
-#: templates/core/help.html:144
 msgid "Planificar un sprint"
 msgstr "Planificar un sprint"
 
-#: templates/core/help.html:146
 msgid "Crea el sprint desde el detalle del proyecto."
 msgstr "Crea el sprint desde el detalle del proyecto."
 
-#: templates/core/help.html:147
 msgid "Asigna issues al sprint desde el backlog o desde el detalle del issue."
 msgstr "Asigna issues al sprint desde el backlog o desde el detalle del issue."
 
-#: templates/core/help.html:148
 msgid "Cuando comience, pulsa «Iniciar» en el sprint."
 msgstr "Cuando comience, pulsa «Iniciar» en el sprint."
 
-#: templates/core/help.html:149
 msgid ""
 "Sigue el avance en el tablero y revisa la burndown chart en cualquier "
 "momento."
 msgstr ""
 
-#: templates/core/help.html:152
 msgid "Buscar con JQL-lite"
 msgstr "Buscar con JQL-lite"
 
-#: templates/core/help.html:153
 msgid ""
 "\n"
 "    En la barra de búsqueda usa una mini-sintaxis tipo Jira. Ejemplos:\n"
 "  "
 msgstr ""
 
-#: templates/core/help.html:162
 msgid ""
 "\n"
 "    Campos soportados: <code>project</code>, <code>status</code>, "
@@ -748,29 +1000,25 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:173
 msgid "Atajos y opciones"
 msgstr "Atajos y opciones"
 
-#: templates/core/help.html:175
 msgid "Click sobre cualquier campo del detalle de un issue → edición en sitio."
-msgstr "Click sobre cualquier campo del detalle de un issue → edición en sitio."
+msgstr ""
 "Click sobre cualquier campo del detalle de un issue → edición en sitio.Click "
 "sobre cualquier campo del detalle de un issue → edición en sitio.Click sobre "
+"cualquier campo del detalle de un issue → edición en sitio.Click sobre "
 "cualquier campo del detalle de un issue → edición en sitio."
 
-#: templates/core/help.html:176
 #, fuzzy
 #| msgid "El icono 🔔 abre la bandeja de notificaciones."
 msgid "El icono 🔔 abre la bandeja de notificaciones (badge en vivo cada 30s)."
 msgstr "El icono 🔔 abre la bandeja de notificaciones."
 
-#: templates/core/help.html:177
 msgid ""
 "El icono 🔑 lleva a tus API keys para integraciones (Authorization: Bearer)."
 msgstr ""
 
-#: templates/core/help.html:178
 #, fuzzy
 #| msgid "Desde el perfil puedes elegir la paleta de colores que más te guste."
 msgid ""
@@ -778,82 +1026,61 @@ msgid ""
 "los dispositivos."
 msgstr "Desde el perfil puedes elegir la paleta de colores que más te guste."
 
-#: templates/core/help.html:179
 msgid ""
 "El idioma se respeta según la cabecera Accept-Language del navegador (ES/EN)."
 msgstr ""
 
-#: templates/core/help.html:180
 msgid ""
 "Las imágenes adjuntas se muestran como miniatura; los PDF tienen botón "
 "«Vista previa» que los abre en línea."
 msgstr ""
 
-#: templates/core/help.html:181
 msgid "Los filtros guardados aparecen como pestañas en la página de búsqueda."
 msgstr "Los filtros guardados aparecen como pestañas en la página de búsqueda."
 
-#: templates/core/help.html:182
 msgid ""
 "En burndown verás también el «Velocity chart» con los últimos sprints "
 "cerrados."
 msgstr ""
 
-#: templates/core/help.html:185
-#, fuzzy
-#| msgid "Cambio de estado"
-msgid "Atajos de teclado"
-msgstr "Cambio de estado"
-
-#: templates/core/help.html:187
 msgid "Tecla"
 msgstr "Tecla"
 
-#: templates/core/help.html:187
 #, fuzzy
 #| msgid "Mención"
 msgid "Acción"
 msgstr "Mención"
 
-#: templates/core/help.html:190
 #, fuzzy
 #| msgid "Mis proyectos"
 msgid "Lista de proyectos"
 msgstr "Mis proyectos"
 
-#: templates/core/help.html:191
 msgid "Tablero del proyecto actual"
 msgstr "Tablero del proyecto actual"
 
-#: templates/core/help.html:192
 msgid "Lista de issues del proyecto actual"
 msgstr "Lista de issues del proyecto actual"
 
-#: templates/core/help.html:193
 #, fuzzy
 #| msgid "Estado"
 msgid "Esta ayuda"
 msgstr "Estado"
 
-#: templates/core/help.html:194
 #, fuzzy
 #| msgid "Nuevo proyecto"
 msgid "Crear tarea en el proyecto actual"
 msgstr "Nuevo proyecto"
 
-#: templates/core/help.html:195
 msgid "Foco en la búsqueda global"
 msgstr "Foco en la búsqueda global"
 
-#: templates/core/help.html:196
 msgid "Mostrar este listado en un modal"
 msgstr "Mostrar este listado en un modal"
 
-#: templates/core/help.html:203
 msgid "API REST"
 msgstr "API REST"
 
-#: templates/core/help.html:204
 msgid ""
 "\n"
 "    Toda la información es también accesible vía HTTP en <code>/api/v1/</"
@@ -863,17 +1090,14 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:210
 msgid "Cookie de sesión (la misma del navegador)."
 msgstr "Cookie de sesión (la misma del navegador)."
 
-#: templates/core/help.html:211
 msgid ""
 "Cabecera <code>Authorization: Bearer &lt;token&gt;</code> con un API key "
 "generado en <a href=\"/accounts/api-keys/\">tus API keys</a>."
 msgstr ""
 
-#: templates/core/help.html:213
 msgid ""
 "\n"
 "    Listados devuelven envoltura paginada <code>{count, page, size, pages, "
@@ -883,11 +1107,9 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:222
 msgid "Importar desde Jira"
 msgstr "Importar desde Jira"
 
-#: templates/core/help.html:223
 msgid ""
 "\n"
 "    Si vienes de un Jira real, exporta los issues a CSV (Issue Navigator → "
@@ -895,7 +1117,6 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/help.html:227
 msgid ""
 "\n"
 "    Mapea automáticamente <em>summary</em>, <em>type</em>, <em>status</em>, "
@@ -909,451 +1130,1156 @@ msgid ""
 "  "
 msgstr ""
 
-#: templates/core/home.html:5
+#, fuzzy
+#| msgid "Lista"
+msgid "Pista"
+msgstr "Lista"
+
+msgid "Otra pista"
+msgstr ""
+
+msgid "Bienvenido a Jirrabit"
+msgstr ""
+
+msgid "Atajos para arrancar rápido:"
+msgstr ""
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "ver todos los atajos de teclado"
+msgstr "Cambio de estado"
+
+msgid "paleta de comandos (buscar tareas/proyectos)"
+msgstr ""
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "crear tarea en el proyecto actual"
+msgstr "Nuevo proyecto"
+
+msgid "ir al tablero · "
+msgstr ""
+
+#, fuzzy
+#| msgid "Mis proyectos"
+msgid "lista de proyectos"
+msgstr "Mis proyectos"
+
+msgid "Escribe "
+msgstr ""
+
+msgid " dentro de un comentario para abrir el menú de plantillas."
+msgstr ""
+
+#, fuzzy
+#| msgid "Mis proyectos"
+msgid "Ver proyectos"
+msgstr "Mis proyectos"
+
+msgid "Entendido, no mostrar más"
+msgstr ""
+
 #, python-format
 msgid "Hola, %(name)s"
 msgstr "Hola, %(name)s"
 
-#: templates/core/home.html:6
-msgid ""
-"Bienvenido a jirrabit. Aquí tienes tus tareas pendientes y los proyectos en "
-"los que participas."
+msgid "Configurar"
 msgstr ""
 
-#: templates/core/home.html:10
-msgid "Mis tareas abiertas"
-msgstr "Mis tareas abiertas"
+msgid "Tu trabajo en un vistazo. Pulsa"
+msgstr ""
 
-#: templates/core/home.html:14 templates/core/home.html:38
-#: templates/projects/list.html:12 templates/search/_results.html:5
-msgid "Clave"
-msgstr "Clave"
+msgid "para buscar rápido."
+msgstr ""
 
-#: templates/core/home.html:14 templates/issues/detail.html:97
-#: templates/search/_results.html:5
-msgid "Tipo"
-msgstr "Tipo"
+msgid "Mi día"
+msgstr ""
 
-#: templates/core/home.html:14 templates/projects/detail.html:36
-#: templates/search/_results.html:5
-msgid "Resumen"
-msgstr "Resumen"
+msgid "Tareas asignadas en sprint activo o con fecha próxima."
+msgstr ""
 
-#: templates/core/home.html:15 templates/projects/detail.html:54
-#: templates/search/_results.html:6
-msgid "Estado"
-msgstr "Estado"
+msgid "Nada pendiente. 🎉"
+msgstr ""
 
-#: templates/core/home.html:30
-msgid "Sin tareas asignadas."
-msgstr "Sin tareas asignadas."
+msgid "Aún no sigues ninguna tarea. Pulsa 👁 en una para suscribirte."
+msgstr ""
 
-#: templates/core/home.html:34
-msgid "Mis proyectos"
-msgstr "Mis proyectos"
+#, fuzzy
+#| msgid "Sin resultados."
+msgid "Sin menciones recientes."
+msgstr "Sin resultados."
 
-#: templates/core/home.html:38 templates/projects/detail.html:36
-#: templates/projects/detail.html:54 templates/projects/list.html:12
-msgid "Nombre"
-msgstr "Nombre"
-
-#: templates/core/home.html:39 templates/projects/detail.html:21
-#: templates/projects/list.html:13
-msgid "Lead"
-msgstr "Lead"
-
-#: templates/core/home.html:39
-msgid "Abiertas"
+#, fuzzy
+#| msgid "Abiertas"
+msgid "abiertas"
 msgstr "Abiertas"
 
-#: templates/core/home.html:52
 msgid "No participas en ningún proyecto."
 msgstr "No participas en ningún proyecto."
 
-#: templates/core/home.html:52
 msgid "Crea uno"
 msgstr "Crea uno"
 
-#: templates/issues/_attachment.html:16
-msgid "Vista previa"
-msgstr "Vista previa"
+msgid "Branches / commits"
+msgstr ""
 
-#: templates/issues/_status_badge.html:3
 #, fuzzy
-#| msgid "Actualizado"
-msgid "Estado actualizado"
-msgstr "Actualizado"
+#| msgid "Vincular"
+msgid "¿Desvincular?"
+msgstr "Vincular"
 
-#: templates/issues/_watch_button.html:3
-msgid "Dejas de seguir el issue"
-msgstr "Dejas de seguir el issue"
-
-#: templates/issues/_watch_button.html:3
-#, fuzzy
-#| msgid "quien creó el issue."
-msgid "Sigues el issue"
-msgstr "quien creó el issue."
-
-#: templates/issues/detail.html:12
-#, fuzzy
-#| msgid "Editar"
-msgid "Editar todo"
-msgstr "Editar"
-
-#: templates/issues/detail.html:20
-#, fuzzy
-#| msgid "Asignación"
-msgid "Descripción"
-msgstr "Asignación"
-
-#: templates/issues/detail.html:21
-#, fuzzy
-#| msgid "Comentario"
-msgid "Comentarios"
-msgstr "Comentario"
-
-#: templates/issues/detail.html:22
-msgid "Vínculos"
-msgstr "Vínculos"
-
-#: templates/issues/detail.html:24
-msgid "Historial"
-msgstr "Historial"
-
-#: templates/issues/detail.html:34
-msgid "Sé el primero en comentar."
-msgstr "Sé el primero en comentar."
-
-#: templates/issues/detail.html:38
-#, fuzzy
-#| msgid "Comentario"
-msgid "Comentario añadido"
-msgstr "Comentario"
-
-#: templates/issues/detail.html:42
-#, fuzzy
-#| msgid "Comentario"
-msgid "Comentar"
-msgstr "Comentario"
-
-#: templates/issues/detail.html:43
-#, fuzzy
-#| msgid "Comentario"
-msgid "Markdown + @menciones"
-msgstr "Comentario"
-
-#: templates/issues/detail.html:51
-msgid "Vínculo creado"
-msgstr "Vínculo creado"
-
-#: templates/issues/detail.html:61
-msgid "Ej. WEB-12"
-msgstr "Ej. WEB-12"
-
-#: templates/issues/detail.html:62
 msgid "Vincular"
 msgstr "Vincular"
 
-#: templates/issues/detail.html:69
+msgid "Copiar enlace al comentario"
+msgstr ""
+
 #, fuzzy
-#| msgid "Adjuntos"
-msgid "Sin adjuntos."
-msgstr "Adjuntos"
+#| msgid "Editar"
+msgid "editado"
+msgstr "Editar"
 
-#: templates/issues/detail.html:73
 #, fuzzy
-#| msgid "Adjuntos"
-msgid "Adjunto subido"
-msgstr "Adjuntos"
+#| msgid "Comentario"
+msgid "Estado de menciones"
+msgstr "Comentario"
 
-#: templates/issues/detail.html:76
-msgid "Subir"
-msgstr "Subir"
+msgid "responder"
+msgstr ""
 
-#: templates/issues/detail.html:84
+#, fuzzy
+#| msgid "Editar"
+msgid "editar"
+msgstr "Editar"
+
+#, fuzzy
+#| msgid "Borrar filtro"
+msgid "¿Borrar comentario?"
+msgstr "Borrar filtro"
+
+#, fuzzy
+#| msgid "Borrar filtro"
+msgid "borrar"
+msgstr "Borrar filtro"
+
+msgid "🔒 Nota interna · solo staff"
+msgstr ""
+
+msgid "Responder…"
+msgstr ""
+
+msgid "Enviar"
+msgstr ""
+
+#, fuzzy
+#| msgid "Mis proyectos"
+msgid "Historial de ediciones"
+msgstr "Mis proyectos"
+
 #, fuzzy
 #| msgid "Sistema"
 msgid "sistema"
 msgstr "Sistema"
 
-#: templates/issues/detail.html:85
+msgid "No hay versiones previas."
+msgstr ""
+
+#, fuzzy
+#| msgid "Etiquetas (labels)"
+msgid "Editar etiquetas"
+msgstr "Etiquetas (labels)"
+
+msgid "(click para añadir)"
+msgstr ""
+
+msgid "No hay etiquetas. Créalas desde admin."
+msgstr ""
+
+#, fuzzy
+#| msgid "Editar"
+msgid "Quitar"
+msgstr "Editar"
+
+msgid "Quitar pin"
+msgstr ""
+
+msgid "Anclar"
+msgstr ""
+
+msgid "Anclado"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sesiones"
+msgid "reacciones"
+msgstr "Sesiones"
+
+msgid "Reacciones rápidas"
+msgstr ""
+
+msgid "Silenciado hasta"
+msgstr ""
+
+msgid "Reactivar"
+msgstr ""
+
+msgid "Silenciar"
+msgstr ""
+
+msgid "1 hora"
+msgstr ""
+
+msgid "4 horas"
+msgstr ""
+
+msgid "1 día"
+msgstr ""
+
+msgid "1 semana"
+msgstr ""
+
+#, fuzzy
+#| msgid "Actualizado"
+msgid "Estado actualizado"
+msgstr "Actualizado"
+
+#, fuzzy
+#| msgid "Subtask"
+msgid "Subtareas"
+msgstr "Subtask"
+
+#, fuzzy
+#| msgid "Marcar leído"
+msgid "Marcar"
+msgstr "Marcar leído"
+
+msgid "+ Nueva subtarea"
+msgstr ""
+
+msgid "Añadir"
+msgstr ""
+
+msgid "Parar timer"
+msgstr ""
+
+msgid "Empezar timer"
+msgstr ""
+
+msgid "Dejas de seguir el issue"
+msgstr "Dejas de seguir el issue"
+
+#, fuzzy
+#| msgid "quien creó el issue."
+msgid "Sigues el issue"
+msgstr "quien creó el issue."
+
+#, fuzzy
+#| msgid "Importar Jira"
+msgid "Importar CSV"
+msgstr "Importar Jira"
+
+#, fuzzy
+#| msgid "Importar desde Jira"
+msgid "Importar tareas desde CSV"
+msgstr "Importar desde Jira"
+
+msgid ""
+"\n"
+"    Pega filas CSV con las columnas: <code>summary</code> (obligatoria),\n"
+"    <code>description</code>, <code>type</code>, <code>priority</code>,\n"
+"    <code>assignee</code> (username), <code>story_points</code>, "
+"<code>due_date</code> (YYYY-MM-DD).\n"
+"    "
+msgstr ""
+
+msgid "Previsualizar"
+msgstr ""
+
+#, python-format
+msgid "¿Importar %(total)s tareas? Esta acción no se puede deshacer."
+msgstr ""
+
+#, fuzzy
+#| msgid "Importar Jira"
+msgid "Importar"
+msgstr "Importar Jira"
+
+msgid "primeras 50"
+msgstr ""
+
+msgid "Resumen"
+msgstr "Resumen"
+
+msgid "Tipo"
+msgstr "Tipo"
+
+msgid "Asignado"
+msgstr "Asignado"
+
+msgid "Copiar enlace"
+msgstr ""
+
+#, fuzzy
+#| msgid "Actualizado"
+msgid "Estado avanzado"
+msgstr "Actualizado"
+
+msgid "Avanzar al siguiente estado"
+msgstr ""
+
+msgid "¿Crear copia de esta tarea?"
+msgstr ""
+
+msgid "Clonar"
+msgstr ""
+
+#, fuzzy
+#| msgid "Editar"
+msgid "Editar todo"
+msgstr "Editar"
+
+#, fuzzy
+#| msgid "Actualizado"
+msgid "Actualizada"
+msgstr "Actualizado"
+
+msgid "Vínculos"
+msgstr "Vínculos"
+
+msgid "Historial"
+msgstr "Historial"
+
+#, fuzzy
+#| msgid "Sin proyectos todavía."
+msgid "Sin comentarios todavía."
+msgstr "Sin proyectos todavía."
+
+msgid "Sé el primero en comentar — usa @nombre para mencionar a alguien."
+msgstr ""
+
+#, fuzzy
+#| msgid "Comentario"
+msgid "Comentario añadido"
+msgstr "Comentario"
+
+#, fuzzy
+#| msgid "Comentario"
+msgid "Comentar"
+msgstr "Comentario"
+
+msgid "Crea el comentario y mueve la tarea a estado Hecho"
+msgstr ""
+
+#, fuzzy
+#| msgid "Comentario"
+msgid "Comentar y cerrar"
+msgstr "Comentario"
+
+msgid "Nota interna (solo staff)"
+msgstr ""
+
+#, fuzzy
+#| msgid "Burndown"
+msgid "Markdown"
+msgstr "Burndown"
+
+#, fuzzy
+#| msgid "Sesiones"
+msgid "menciones"
+msgstr "Sesiones"
+
+msgid "Vínculo creado"
+msgstr "Vínculo creado"
+
+msgid "Ej. WEB-12"
+msgstr "Ej. WEB-12"
+
+#, fuzzy
+#| msgid "Adjuntos"
+msgid "Sin adjuntos."
+msgstr "Adjuntos"
+
+msgid "Arrastra archivos aquí o usa el botón Subir."
+msgstr ""
+
+#, fuzzy
+#| msgid "Adjuntos"
+msgid "Adjunto subido"
+msgstr "Adjuntos"
+
+msgid "Subir"
+msgstr "Subir"
+
 msgid "cambió"
 msgstr "cambió"
 
-#: templates/issues/detail.html:89
 #, fuzzy
 #| msgid "Sin resultados."
 msgid "Sin cambios registrados."
 msgstr "Sin resultados."
 
-#: templates/issues/detail.html:99 templates/search/_results.html:6
-msgid "Asignado"
-msgstr "Asignado"
-
-#: templates/issues/detail.html:111
 msgid "Vencimiento"
 msgstr "Vencimiento"
 
-#: templates/issues/detail.html:113
 #, fuzzy
 #| msgid "Asignación"
 msgid "Estimación"
 msgstr "Asignación"
 
-#: templates/issues/detail.html:115 templates/issues/detail.html:151
 msgid "Tiempo registrado"
 msgstr "Tiempo registrado"
 
-#: templates/issues/detail.html:117
+#, fuzzy
+#| msgid "Real SP restante"
+msgid "Restante"
+msgstr "Real SP restante"
+
+msgid "Excedido"
+msgstr ""
+
 #, fuzzy
 #| msgid "Etiquetas (labels)"
 msgid "Etiquetas"
 msgstr "Etiquetas (labels)"
 
-#: templates/issues/detail.html:122
 msgid "Campos personalizados"
 msgstr "Campos personalizados"
 
-#: templates/issues/detail.html:149
 msgid "Log work"
 msgstr "Log work"
 
-#: templates/issues/detail.html:153
 msgid "minutos"
 msgstr "minutos"
 
-#: templates/issues/detail.html:154
 msgid "opcional"
 msgstr "opcional"
 
-#: templates/issues/detail.html:155
 #, fuzzy
 #| msgid "Registrarme"
 msgid "Registrar tiempo"
 msgstr "Registrarme"
 
-#: templates/issues/detail.html:161
 #, fuzzy
 #| msgid "Crea uno"
 msgid "Creado"
 msgstr "Crea uno"
 
-#: templates/issues/detail.html:163
 msgid "Actualizado"
 msgstr "Actualizado"
 
-#: templates/notifications/_list.html:8
+msgid "viendo ahora"
+msgstr ""
+
+msgid "Plantilla:"
+msgstr ""
+
+msgid "Gestionar plantillas"
+msgstr ""
+
+msgid "Tareas"
+msgstr ""
+
+msgid "Tarea"
+msgstr ""
+
+msgid "Columnas"
+msgstr ""
+
+#, fuzzy
+#| msgid "Reporter"
+msgid "Exportar"
+msgstr "Reporter"
+
+msgid "Clave"
+msgstr "Clave"
+
+#, fuzzy
+#| msgid "Aún no hay proyectos."
+msgid "Aún no hay tareas en este proyecto."
+msgstr "Aún no hay proyectos."
+
+#, fuzzy
+#| msgid "Crear tarea"
+msgid "Crear primera tarea"
+msgstr "Crear tarea"
+
+msgid "Plantilla"
+msgstr ""
+
+msgid "Editar plantilla"
+msgstr ""
+
+msgid "Nueva plantilla"
+msgstr ""
+
+msgid "Plantillas"
+msgstr ""
+
+msgid "Plantillas de tarea"
+msgstr ""
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Volver al proyecto"
+msgstr "Nuevo proyecto"
+
+msgid ""
+"Crea esqueletos reutilizables. Al crear una tarea con ?template=ID se "
+"rellenan los campos."
+msgstr ""
+
+msgid "Usar"
+msgstr ""
+
+msgid "¿Borrar plantilla?"
+msgstr ""
+
+#, fuzzy
+#| msgid "Aún no hay proyectos."
+msgid "Aún no hay plantillas."
+msgstr "Aún no hay proyectos."
+
 msgid "Sistema"
 msgstr "Sistema"
 
-#: templates/notifications/_list.html:17
+#, fuzzy
+#| msgid "Marcar leído"
+msgid "leído"
+msgstr "Marcar leído"
+
 msgid "Marcar leído"
 msgstr "Marcar leído"
 
-#: templates/notifications/_list.html:22
 msgid "Bandeja vacía."
 msgstr "Bandeja vacía."
 
-#: templates/notifications/inbox.html:11
+msgid ""
+"Recibirás avisos cuando te asignen tareas, te mencionen con @ o comenten en "
+"tareas que sigues."
+msgstr ""
+
+#, fuzzy
+#| msgid "Marcar todas como leídas"
+msgid "Todas marcadas como leídas"
+msgstr "Marcar todas como leídas"
+
 msgid "Marcar todas como leídas"
 msgstr "Marcar todas como leídas"
 
-#: templates/projects/burndown.html:15
+msgid "Tablero"
+msgstr "Tablero"
+
+msgid "Backlog"
+msgstr "Backlog"
+
+msgid "Planning"
+msgstr ""
+
+msgid "Roadmap"
+msgstr ""
+
+msgid "Burndown"
+msgstr "Burndown"
+
+#, fuzzy
+#| msgid "Reporter"
+msgid "Reportes"
+msgstr "Reporter"
+
+msgid "Actividad"
+msgstr "Actividad"
+
+msgid "Dependencias"
+msgstr ""
+
+msgid "Heatmap"
+msgstr ""
+
+msgid "Campos"
+msgstr "Campos"
+
+msgid "Webhooks"
+msgstr "Webhooks"
+
 msgid "a"
 msgstr "a"
 
-#: templates/projects/burndown.html:16
 msgid "Total"
 msgstr "Total"
 
-#: templates/projects/burndown.html:16
 msgid "Hecho"
 msgstr "Hecho"
 
-#: templates/projects/burndown.html:34
 msgid "días"
 msgstr "días"
 
-#: templates/projects/burndown.html:58
 msgid "ideal"
 msgstr "ideal"
 
-#: templates/projects/burndown.html:60
 msgid "real"
 msgstr "real"
 
-#: templates/projects/burndown.html:67
 msgid "Día"
 msgstr "Día"
 
-#: templates/projects/burndown.html:68
 msgid "Ideal SP restante"
 msgstr "Ideal SP restante"
 
-#: templates/projects/burndown.html:69
 msgid "Real SP restante"
 msgstr "Real SP restante"
 
-#: templates/projects/burndown.html:78
 msgid "Sin sprint válido o sin fechas configuradas."
 msgstr "Sin sprint válido o sin fechas configuradas."
 
-#: templates/projects/burndown.html:84
 msgid "Velocity"
 msgstr "Velocity"
 
-#: templates/projects/burndown.html:84
 msgid "últimos sprints cerrados"
 msgstr "últimos sprints cerrados"
 
-#: templates/projects/burndown.html:120
 #, fuzzy
 #| msgid "Compartido"
 msgid "comprometido"
 msgstr "Compartido"
 
-#: templates/projects/burndown.html:122
 msgid "completado"
 msgstr "completado"
 
-#: templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Compartido"
 msgid "Comprometido"
 msgstr "Compartido"
 
-#: templates/projects/burndown.html:128
 #, fuzzy
 #| msgid "Compartido"
 msgid "Completado"
 msgstr "Compartido"
 
-#: templates/projects/detail.html:8
-msgid "Crear tarea"
-msgstr "Crear tarea"
+msgid "Grafo de dependencias"
+msgstr ""
 
-#: templates/projects/detail.html:9
-msgid "Tablero"
-msgstr "Tablero"
+msgid "Solo se muestran tareas con relaciones de tipo 'bloquea'."
+msgstr ""
 
-#: templates/projects/detail.html:10
-msgid "Backlog"
-msgstr "Backlog"
+msgid ""
+"No hay relaciones 'bloquea' en este proyecto. Crea una desde la pestaña de "
+"Vínculos de una tarea."
+msgstr ""
 
-#: templates/projects/detail.html:12
-msgid "Actividad"
-msgstr "Actividad"
+msgid "Lead"
+msgstr "Lead"
 
-#: templates/projects/detail.html:13
-msgid "Burndown"
-msgstr "Burndown"
-
-#: templates/projects/detail.html:14 templates/projects/detail.html:22
-#: templates/projects/list.html:13
-msgid "Miembros"
-msgstr "Miembros"
-
-#: templates/projects/detail.html:15
-msgid "Campos"
-msgstr "Campos"
-
-#: templates/projects/detail.html:16
-msgid "Webhooks"
-msgstr "Webhooks"
-
-#: templates/projects/detail.html:17
-msgid "Editar"
-msgstr "Editar"
-
-#: templates/projects/detail.html:36
 msgid "Color"
 msgstr "Color"
 
-#: templates/projects/detail.html:39
 msgid "Sin epics."
 msgstr "Sin epics."
 
-#: templates/projects/detail.html:54
 msgid "Meta"
 msgstr "Meta"
 
-#: templates/projects/detail.html:55
 msgid "Inicio"
 msgstr "Inicio"
 
-#: templates/projects/detail.html:55
 msgid "Fin"
 msgstr "Fin"
 
-#: templates/projects/detail.html:59
 msgid "Sin sprints."
 msgstr "Sin sprints."
 
-#: templates/projects/list.html:8
+#, fuzzy
+#| msgid "Fecha"
+msgid "hecha"
+msgstr "Fecha"
+
+msgid "en curso"
+msgstr ""
+
+#, fuzzy
+#| msgid "Crea uno"
+msgid "Creada por"
+msgstr "Crea uno"
+
+#, fuzzy
+#| msgid "Crea uno"
+msgid "Creada"
+msgstr "Crea uno"
+
+msgid "Progreso"
+msgstr ""
+
+#, fuzzy
+#| msgid "completado"
+msgid "completadas"
+msgstr "completado"
+
+msgid "En curso"
+msgstr ""
+
+msgid "Por hacer"
+msgstr ""
+
+msgid "To Do"
+msgstr ""
+
+msgid "In Progress"
+msgstr ""
+
+msgid "Done"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin tareas asignadas."
+msgid "Tareas asociadas"
+msgstr "Sin tareas asignadas."
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "Prio"
+msgstr "Prioridad"
+
+#, fuzzy
+#| msgid "Sin tareas asignadas."
+msgid "Sin tareas asociadas todavía."
+msgstr "Sin tareas asignadas."
+
+msgid "Workload heatmap"
+msgstr ""
+
+msgid "Días"
+msgstr ""
+
+msgid ""
+"Carga diaria de SP por persona, basada en fecha de resolución y due_date."
+msgstr ""
+
+msgid "Más oscuro = más carga."
+msgstr ""
+
+msgid "Persona"
+msgstr ""
+
 msgid "Nuevo proyecto"
 msgstr "Nuevo proyecto"
 
-#: templates/projects/list.html:25
 msgid "Aún no hay proyectos."
 msgstr "Aún no hay proyectos."
 
-#: templates/projects/list.html:26
 #, fuzzy
 #| msgid "Nuevo proyecto"
 msgid "Crear el primero"
 msgstr "Nuevo proyecto"
 
-#: templates/search/_results.html:19
+msgid "Throughput"
+msgstr ""
+
+msgid "Tareas resueltas por semana (últimas 8)."
+msgstr ""
+
+msgid "Cycle time"
+msgstr ""
+
+msgid "Horas entre la primera transición y la resolución, últimos 90 días."
+msgstr ""
+
+#, fuzzy
+#| msgid "Medianoche"
+msgid "Mediana"
+msgstr "Medianoche"
+
+#, fuzzy
+#| msgid "Medianoche"
+msgid "Media"
+msgstr "Medianoche"
+
+#, fuzzy
+#| msgid "Issue links"
+msgid "Issues"
+msgstr "Issue links"
+
+msgid "Sin datos suficientes."
+msgstr ""
+
+msgid "WIP por estado"
+msgstr ""
+
+msgid "Tareas actualmente en cada estado."
+msgstr ""
+
+#, python-format
+msgid "Cada barra es un epic; el progreso es %% de tareas resueltas."
+msgstr ""
+
+msgid "Hoy"
+msgstr ""
+
+msgid "Sin epics con tareas. Crea epics y asígnales tareas para verlos aquí."
+msgstr ""
+
+#, fuzzy
+#| msgid "Abiertas"
+msgid "Alerta tras"
+msgstr "Abiertas"
+
+msgid "días en mismo estado"
+msgstr ""
+
+msgid "Tareas abiertas que llevan más de"
+msgstr ""
+
+#, fuzzy
+#| msgid "Cambio de estado"
+msgid "días sin cambiar de estado."
+msgstr "Cambio de estado"
+
+msgid "Entró el"
+msgstr ""
+
+msgid "Nada estancado. 🎉"
+msgstr ""
+
+#, fuzzy
+#| msgid "Planificar un sprint"
+msgid "Planificación de sprint"
+msgstr "Planificar un sprint"
+
+msgid "Capacidad SP"
+msgstr ""
+
+msgid "SP totales"
+msgstr ""
+
+#, fuzzy
+#| msgid "Asignado (assignee)"
+msgid "sin asignar"
+msgstr "Asignado (assignee)"
+
+#, fuzzy
+#| msgid "Campos personalizados"
+msgid "Carga por persona"
+msgstr "Campos personalizados"
+
+msgid "SP"
+msgstr ""
+
+msgid "Capacidad"
+msgstr ""
+
+msgid "Carga"
+msgstr ""
+
+msgid "sobrecarga"
+msgstr ""
+
+#, fuzzy
+#| msgid "Crea el sprint desde el detalle del proyecto."
+msgid "Sin sprints abiertos. Crea uno desde la vista del proyecto."
+msgstr "Crea el sprint desde el detalle del proyecto."
+
+msgid "Cada webhook ejecuta una función Python registrada con"
+msgstr ""
+
+msgid ""
+"cuando se dispara el evento elegido (y opcionalmente el estado coincide)."
+msgstr ""
+
+msgid "Evento"
+msgstr ""
+
+#, fuzzy
+#| msgid "Estado"
+msgid "Estados"
+msgstr "Estado"
+
+#, fuzzy
+#| msgid "Active"
+msgid "Activo"
+msgstr "Active"
+
+#, fuzzy
+#| msgid "últimos sprints cerrados"
+msgid "Último estado"
+msgstr "últimos sprints cerrados"
+
+#, fuzzy
+#| msgid "Webhooks"
+msgid "Sin webhooks."
+msgstr "Webhooks"
+
+msgid "Nuevo webhook"
+msgstr ""
+
+msgid "p.ej. Notificar a QA"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin resultados."
+msgid "Sin acciones registradas"
+msgstr "Sin resultados."
+
+msgid "Disparar solo cuando pase a estos estados (vacío = cualquiera)"
+msgstr ""
+
+#, fuzzy
+#| msgid "Crea uno"
+msgid "Crear"
+msgstr "Crea uno"
+
+msgid "Wiki"
+msgstr ""
+
+#, fuzzy
+#| msgid "Asignación"
+msgid "Última edición"
+msgstr "Asignación"
+
+msgid "—"
+msgstr ""
+
+#, fuzzy
+#| msgid "Sin proyectos todavía."
+msgid "Sin contenido todavía."
+msgstr "Sin proyectos todavía."
+
+msgid "Empezar wiki"
+msgstr ""
+
 msgid "Sin resultados."
 msgstr "Sin resultados."
 
-#: templates/search/search.html:5
+msgid "Prueba con texto sin filtros (ej. \"login\"), o JQL como "
+msgstr ""
+
+msgid "Sin coincidencias para"
+msgstr ""
+
 msgid "Búsqueda"
 msgstr "Búsqueda"
 
-#: templates/search/search.html:7
 msgid "JQL-lite:"
 msgstr "JQL-lite:"
 
-#: templates/search/search.html:8
 msgid "Operadores:"
 msgstr "Operadores:"
 
-#: templates/search/search.html:8
 msgid "Texto libre también funciona."
 msgstr "Texto libre también funciona."
 
-#: templates/search/search.html:20
 msgid "nombre del filtro"
 msgstr "nombre del filtro"
 
-#: templates/search/search.html:22
 msgid "Guardar filtro"
 msgstr "Guardar filtro"
 
-#: templates/search/search.html:28
 msgid "Todos"
 msgstr "Todos"
 
-#: templates/search/search.html:35
 #, python-format
 msgid "¿Borrar filtro «%(name)s»?"
 msgstr "¿Borrar filtro «%(name)s»?"
 
-#: templates/search/search.html:38
 msgid "Borrar filtro"
 msgstr "Borrar filtro"
 
-#: templates/search/search.html:51
 msgid "¿Quisiste decir"
 msgstr "¿Quisiste decir"
 
-#: templates/search/search.html:56
 msgid "Campos válidos:"
 msgstr "Campos válidos:"
 
+#, fuzzy
+#| msgid "Sesiones"
+msgid "Transiciones"
+msgstr "Sesiones"
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "Prioridades"
+msgstr "Prioridad"
+
+#, fuzzy
+#| msgid "Tipo"
+msgid "Tipos"
+msgstr "Tipo"
+
+#, fuzzy
+#| msgid "Etiquetas (labels)"
+msgid "Editar etiqueta"
+msgstr "Etiquetas (labels)"
+
+#, fuzzy
+#| msgid "Etiquetas (labels)"
+msgid "Nueva etiqueta"
+msgstr "Etiquetas (labels)"
+
+#, fuzzy
+#| msgid "Etiquetas (labels)"
+msgid "Etiqueta"
+msgstr "Etiquetas (labels)"
+
+#, fuzzy
+#| msgid "Usuario"
+msgid "Uso"
+msgstr "Usuario"
+
+msgid "¿Borrar etiqueta? Se desasignará de las tareas que la tengan."
+msgstr ""
+
+msgid "Sin etiquetas. Crea la primera."
+msgstr ""
+
+msgid "Matriz de transiciones"
+msgstr ""
+
+msgid ""
+"\n"
+"    Filas = estado origen, columnas = estado destino. Marca la celda para "
+"permitir la transición.\n"
+"    Una fila completamente vacía significa \"cualquier transición "
+"permitida\".\n"
+"    "
+msgstr ""
+
+msgid "Desde \\\\ A"
+msgstr ""
+
+#, fuzzy
+#| msgid "Guardar filtro"
+msgid "Guardar matriz"
+msgstr "Guardar filtro"
+
+msgid ""
+"\n"
+"    Configura los catálogos globales que comparten todos los proyectos:\n"
+"    estados (con sus transiciones), prioridades, tipos de tarea y "
+"etiquetas.\n"
+"    "
+msgstr ""
+
+msgid "definidos"
+msgstr ""
+
+msgid "controlan columnas del board"
+msgstr ""
+
+msgid "Define qué estado puede ir a cuál (workflow)"
+msgstr ""
+
+msgid "definidas"
+msgstr ""
+
+msgid "Tipos de tarea"
+msgstr ""
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "Editar prioridad"
+msgstr "Prioridad"
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "Nueva prioridad"
+msgstr "Prioridad"
+
+msgid "Peso"
+msgstr ""
+
+#, fuzzy
+#| msgid "Prioridad"
+msgid "¿Borrar prioridad?"
+msgstr "Prioridad"
+
+msgid "En uso"
+msgstr ""
+
+msgid "Sin prioridades. Crea la primera."
+msgstr ""
+
+#, fuzzy
+#| msgid "Editar"
+msgid "Editar estado"
+msgstr "Editar"
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Nuevo estado"
+msgstr "Nuevo proyecto"
+
+msgid "Categoría"
+msgstr ""
+
+msgid "Orden"
+msgstr ""
+
+msgid "Transiciones a"
+msgstr ""
+
+msgid "Arrastrar para reordenar"
+msgstr ""
+
+msgid "cualquiera"
+msgstr ""
+
+#, fuzzy
+#| msgid "Borrar filtro"
+msgid "¿Borrar estado?"
+msgstr "Borrar filtro"
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Sin estados. Crea el primero."
+msgstr "Nuevo proyecto"
+
+msgid "Guardar nuevo orden"
+msgstr ""
+
+msgid "Transiciones de"
+msgstr ""
+
+msgid "Transiciones desde"
+msgstr ""
+
+msgid ""
+"Marca los estados a los que se puede pasar desde aquí. Si no marcas ninguno, "
+"se permitirá cualquier transición."
+msgstr ""
+
+#, fuzzy
+#| msgid "Editar"
+msgid "Editar tipo"
+msgstr "Editar"
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Nuevo tipo"
+msgstr "Nuevo proyecto"
+
+msgid "Tipo de tarea"
+msgstr ""
+
+#, fuzzy
+#| msgid "Borrar filtro"
+msgid "¿Borrar tipo?"
+msgstr "Borrar filtro"
+
+#, fuzzy
+#| msgid "Nuevo proyecto"
+msgid "Sin tipos. Crea el primero."
+msgstr "Nuevo proyecto"
+
+#, fuzzy
+#~| msgid "Cambio de estado"
+#~ msgid "Atajos de teclado (?)"
+#~ msgstr "Cambio de estado"
+
+#~ msgid "Salir"
+#~ msgstr "Salir"
+
+#~ msgid "Mis tareas abiertas"
+#~ msgstr "Mis tareas abiertas"
+
+#~ msgid "Sé el primero en comentar."
+#~ msgstr "Sé el primero en comentar."
+
 #~ msgid "Tuyos / compartidos:"
 #~ msgstr "Tuyos / compartidos:"
-
-#~ msgid "Sin proyectos todavía."
-#~ msgstr "Sin proyectos todavía."

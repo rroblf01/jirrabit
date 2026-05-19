@@ -8,13 +8,14 @@
   <link rel="stylesheet" href="{% static 'css/jirrabit.css' %}">
   <link rel="icon" href="{% static 'favicon.ico' %}">
   {% if palette_css %}<style id="palette-{{ palette_slug }}">{{ palette_css|safe }}</style>{% endif %}
-  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+  <script src="https://unpkg.com/htmx.org@2.0.10"></script>
+  <script src="https://unpkg.com/idiomorph@0.7.4/dist/idiomorph-ext.min.js"></script>
   <script src="{% static 'js/ux.js' %}" defer></script>
   <script src="{% static 'js/md-toolbar.js' %}" defer></script>
   <script src="{% static 'js/drafts.js' %}" defer></script>
   <script src="{% static 'js/reltime.js' %}" defer></script>
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-boost="true"{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-boost="true" hx-ext="morph" hx-swap="morph:innerHTML"{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
 {% if user.is_authenticated %}
 <header class="topbar">
   <div class="brand">jirra<span>bit</span></div>

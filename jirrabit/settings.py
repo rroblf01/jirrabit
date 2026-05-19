@@ -68,6 +68,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "core.middleware.user_language_middleware",
     "core.middleware.login_throttle_middleware",
     "core.middleware.api_rate_limit_middleware",
     "django.contrib.messages.middleware.MessageMiddleware",
