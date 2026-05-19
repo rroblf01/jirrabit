@@ -110,12 +110,25 @@ class SavedFilter(models.Model):
 class Webhook(models.Model):
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="webhooks", null=True, blank=True)
     name = models.CharField(max_length=80)
-    url = models.URLField()
-    secret = models.CharField(max_length=128, blank=True, help_text="Optional HMAC secret.")
-    events = models.CharField(
+    action = models.CharField(
+        max_length=120,
+        default="",
+        help_text="Action code from the in-process webhook-action registry.",
+    )
+    entity = models.CharField(
+        max_length=32,
+        default="issue",
+        help_text="What kind of object triggers this hook (issue/epic/comment).",
+    )
+    event = models.CharField(
+        max_length=64,
+        default="issue.updated",
+        help_text="Event code from the webhook registry.",
+    )
+    state_filter = models.CharField(
         max_length=255,
-        default="issue.created,issue.updated",
-        help_text="Comma-separated event names.",
+        blank=True,
+        help_text="Comma-separated state names. Empty = fire on any state.",
     )
     active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -130,11 +143,17 @@ class Webhook(models.Model):
         scope = self.project.key if self.project_id else "global"
         return f"{scope}:{self.name}"
 
-    def listens_to(self, event: str) -> bool:
+    def listens_to(self, event: str, current_state: str | None = None) -> bool:
         if not self.active:
             return False
-        wanted = [e.strip() for e in self.events.split(",") if e.strip()]
-        return any(w == event or w == "*" for w in wanted)
+        if self.event != event and self.event != "*":
+            return False
+        if not self.state_filter:
+            return True
+        if current_state is None:
+            return True
+        wanted = {s.strip() for s in self.state_filter.split(",") if s.strip()}
+        return current_state in wanted
 
 
 class CustomFieldDef(models.Model):

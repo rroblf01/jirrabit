@@ -959,25 +959,51 @@ class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/webhooks.html"
 
     async def aget_context_data(self, **kwargs):
+        from core.webhook_registry import all_actions, all_events, entities
+        from issues.models import Status
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_admin(self.request.user, project)
         ctx["project"] = project
         ctx["webhooks"] = [w async for w in project.webhooks.all()]
+        ctx["entities"] = entities()
+        ctx["event_specs"] = [
+            {
+                "code": s.code,
+                "label": s.label,
+                "entity": s.entity,
+                "state_filterable": s.state_filterable,
+            }
+            for s in all_events()
+        ]
+        ctx["actions"] = [{"code": a.code, "label": a.label} for a in all_actions()]
+        ctx["available_states"] = [s.name async for s in Status.objects.order_by("order", "id")]
         return ctx
 
 
 class ProjectWebhookCreateView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
+        from core.webhook_registry import get as get_event_spec, get_action
         from projects.models import Webhook
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
+
+        event = request.POST.get("event", "").strip()
+        action = request.POST.get("action", "").strip()
+        spec = get_event_spec(event)
+        if not spec or not get_action(action):
+            return redirect("projects:webhooks", key=project.key)
+
+        states = request.POST.getlist("state_filter") if spec.state_filterable else []
         await Webhook.objects.acreate(
             project=project,
             name=request.POST.get("name", "").strip() or "webhook",
-            url=request.POST.get("url", "").strip(),
-            secret=request.POST.get("secret", "").strip(),
-            events=request.POST.get("events", "issue.created,issue.updated"),
+            entity=spec.entity,
+            event=spec.code,
+            action=action,
+            state_filter=",".join(s for s in states if s),
         )
         return redirect("projects:webhooks", key=project.key)
 

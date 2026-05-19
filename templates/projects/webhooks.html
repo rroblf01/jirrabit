@@ -1,37 +1,125 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
   <h1>Webhooks — {{ project.key }}</h1>
+  <p style="color:var(--ink-500); font-size:13px; margin-top:-4px;">
+    {% trans "Cada webhook ejecuta una función Python registrada con" %} <code>@webhook_action</code>
+    {% trans "cuando se dispara el evento elegido (y opcionalmente el estado coincide)." %}
+  </p>
   <table>
-    <thead><tr><th>Nombre</th><th>URL</th><th>Eventos</th><th>Activo</th><th>Último estado</th><th></th></tr></thead>
+    <thead><tr>
+      <th>{% trans "Nombre" %}</th>
+      <th>{% trans "Tipo" %}</th>
+      <th>{% trans "Evento" %}</th>
+      <th>{% trans "Estados" %}</th>
+      <th>{% trans "Acción" %}</th>
+      <th>{% trans "Activo" %}</th>
+      <th>{% trans "Último estado" %}</th>
+      <th></th>
+    </tr></thead>
     <tbody>
     {% for w in webhooks %}
       <tr>
         <td>{{ w.name }}</td>
-        <td><code>{{ w.url }}</code></td>
-        <td><code>{{ w.events }}</code></td>
+        <td>{{ w.entity }}</td>
+        <td><code>{{ w.event }}</code></td>
+        <td>{% if w.state_filter %}<code>{{ w.state_filter }}</code>{% else %}—{% endif %}</td>
+        <td><code>{{ w.action }}</code></td>
         <td>{% if w.active %}sí{% else %}no{% endif %}</td>
         <td>{% if w.last_status %}{{ w.last_status }}{% endif %}{% if w.last_error %} ({{ w.last_error|truncatechars:40 }}){% endif %}</td>
         <td>
           <form method="post" action="{% url 'projects:webhook_delete' project.key w.pk %}" style="display:inline;">
-            {% csrf_token %}<button class="btn ghost small" type="submit">borrar</button>
+            {% csrf_token %}<button class="btn ghost small" type="submit">{% trans "borrar" %}</button>
           </form>
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="6" class="empty">Sin webhooks.</td></tr>
+      <tr><td colspan="8" class="empty">{% trans "Sin webhooks." %}</td></tr>
     {% endfor %}
     </tbody>
   </table>
 
-  <h3 style="margin-top:18px;">Nuevo webhook</h3>
-  <form method="post" action="{% url 'projects:webhook_create' project.key %}" class="row">
+  <h3 style="margin-top:18px;">{% trans "Nuevo webhook" %}</h3>
+  <form method="post" action="{% url 'projects:webhook_create' project.key %}" id="webhook-form"
+        style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:10px; align-items:end;">
     {% csrf_token %}
-    <input type="text" name="name" placeholder="Nombre" required style="width:180px;">
-    <input type="url" name="url" placeholder="https://..." required style="width:280px;">
-    <input type="text" name="events" placeholder="issue.created,issue.updated" style="width:240px;" value="issue.created,issue.updated">
-    <input type="text" name="secret" placeholder="HMAC secret (opcional)" style="width:200px;">
-    <button class="btn" type="submit">Crear</button>
+
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      <span style="font-size:12px; color:var(--ink-500);">{% trans "Nombre" %}</span>
+      <input type="text" name="name" required placeholder="{% trans 'p.ej. Notificar a QA' %}">
+    </label>
+
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      <span style="font-size:12px; color:var(--ink-500);">{% trans "Tipo" %}</span>
+      <select name="entity" id="webhook-entity" required>
+        {% for ent in entities %}<option value="{{ ent }}">{{ ent }}</option>{% endfor %}
+      </select>
+    </label>
+
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      <span style="font-size:12px; color:var(--ink-500);">{% trans "Evento" %}</span>
+      <select name="event" id="webhook-event" required></select>
+    </label>
+
+    <label style="display:flex; flex-direction:column; gap:4px;">
+      <span style="font-size:12px; color:var(--ink-500);">{% trans "Acción" %}</span>
+      <select name="action" required>
+        {% for a in actions %}
+          <option value="{{ a.code }}">{{ a.label }} ({{ a.code }})</option>
+        {% empty %}
+          <option value="" disabled>{% trans "Sin acciones registradas" %}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <fieldset id="webhook-states" style="display:none; grid-column:1/-1; border:1px solid var(--ink-100); border-radius:6px; padding:8px 12px;">
+      <legend style="font-size:12px; color:var(--ink-500);">{% trans "Estados que disparan (vacío = todos)" %}</legend>
+      <div style="display:flex; flex-wrap:wrap; gap:8px 14px;">
+        {% for s in available_states %}
+          <label style="display:flex; align-items:center; gap:4px; font-size:13px;">
+            <input type="checkbox" name="state_filter" value="{{ s }}" style="width:auto;"> {{ s }}
+          </label>
+        {% endfor %}
+      </div>
+    </fieldset>
+
+    <div style="grid-column:1/-1; display:flex; justify-content:flex-end;">
+      <button class="btn" type="submit">{% trans "Crear" %}</button>
+    </div>
   </form>
 </div>
+
+{{ event_specs|json_script:"webhook-event-specs" }}
+<script>
+(function () {
+  const specs = JSON.parse(document.getElementById('webhook-event-specs').textContent);
+  const entitySel = document.getElementById('webhook-entity');
+  const eventSel = document.getElementById('webhook-event');
+  const statesBox = document.getElementById('webhook-states');
+
+  function refreshEvents() {
+    const ent = entitySel.value;
+    const matches = specs.filter(s => s.entity === ent);
+    eventSel.innerHTML = '';
+    for (const s of matches) {
+      const opt = document.createElement('option');
+      opt.value = s.code;
+      opt.textContent = s.label + ' (' + s.code + ')';
+      opt.dataset.stateFilterable = s.state_filterable ? '1' : '0';
+      eventSel.appendChild(opt);
+    }
+    refreshStates();
+  }
+
+  function refreshStates() {
+    const opt = eventSel.selectedOptions[0];
+    statesBox.style.display = (opt && opt.dataset.stateFilterable === '1') ? '' : 'none';
+  }
+
+  entitySel.addEventListener('change', refreshEvents);
+  eventSel.addEventListener('change', refreshStates);
+  refreshEvents();
+})();
+</script>
 {% endblock %}
