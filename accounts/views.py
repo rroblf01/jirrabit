@@ -202,6 +202,32 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
         return ctx
 
 
+class UserCardView(AsyncLoginRequiredMixin, View):
+    """Return a small HTML card with profile info for a single user.
+
+    Used by the ``@mention`` click handler to populate the side-panel
+    without leaving the current page.
+    """
+
+    async def get(self, request, username):
+        try:
+            user = await User.objects.aget(username__iexact=username)
+        except User.DoesNotExist:
+            return await arender(request, "accounts/_user_card.html", {"missing": username})
+        # Recent issues assigned to this user across all projects.
+        from issues.models import Issue
+        recent_qs = (
+            Issue.objects.filter(assignee=user)
+            .select_related("project", "status", "priority")
+            .order_by("-updated_at")[:5]
+        )
+        recent = [i async for i in recent_qs]
+        return await arender(
+            request, "accounts/_user_card.html",
+            {"u": user, "recent": recent},
+        )
+
+
 class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
     template_name = "notifications/inbox.html"
     context_object_name = "notifications"

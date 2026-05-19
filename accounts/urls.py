@@ -44,6 +44,7 @@ urlpatterns = [
     ),
     path("profile/", views.ProfileView.as_view(), name="profile"),
     path("users/", views.UserListView.as_view(), name="user_list"),
+    path("users/<str:username>/card/", views.UserCardView.as_view(), name="user_card"),
     path("admin/users/", admin_views.AdminUserListView.as_view(), name="admin_user_list"),
     path("admin/users/new/", admin_views.AdminUserCreateView.as_view(), name="admin_user_create"),
     path("admin/users/<int:pk>/edit/", admin_views.AdminUserEditView.as_view(), name="admin_user_edit"),

@@ -707,6 +707,51 @@
     }
   });
 
+  // --- @mention click → user card in side-panel --------------------------
+  // Mentions render as <a class="mention" data-mention="user" ...>@user</a>.
+  // Use capture phase so this listener fires before htmx-boost's bubble
+  // handler, then ``stopImmediatePropagation`` keeps boost from running.
+  async function openMentionCard(username) {
+    const panel = document.getElementById("side-panel");
+    const body = document.getElementById("side-panel-body");
+    if (!panel || !body) return;
+    const safe = username.replace(/[<>&"]/g, "");
+    body.innerHTML = '<div class="card" style="padding:14px;">' +
+      '<p style="color:var(--ink-500); font-size:13px; margin:0;">Cargando @' +
+      safe + '…</p></div>';
+    panel.classList.add("open");
+    try {
+      const res = await fetch(
+        "/accounts/users/" + encodeURIComponent(username) + "/card/",
+        { credentials: "same-origin", headers: { "HX-Request": "true" } },
+      );
+      body.innerHTML = res.ok ? await res.text() :
+        '<div class="card" style="padding:14px;">No se pudo cargar el usuario.</div>';
+    } catch (_) {
+      body.innerHTML = '<div class="card" style="padding:14px;">Error de red.</div>';
+    }
+  }
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest && e.target.closest("a.mention");
+    if (!link) return;
+    if (link.classList.contains("team")) return;
+    let username = link.dataset.mention || "";
+    if (!username) {
+      try {
+        const url = new URL(link.href, location.origin);
+        username = url.searchParams.get("q") || "";
+      } catch (_) { /* ignore */ }
+    }
+    if (!username) {
+      const txt = (link.textContent || "").trim();
+      username = txt.replace(/^@/, "");
+    }
+    if (!username) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    openMentionCard(username);
+  }, true);  // capture phase: beat htmx-boost's bubble listener
+
   // --- Markdown live preview + slash commands ----------------------------
   // Any textarea with ``data-md-preview="1"`` gets a sibling preview pane
   // that re-renders on input (debounced) via the server's markdown endpoint.

@@ -11,7 +11,10 @@ _ALLOWED_TAGS = [
     "del", "input", "span",
 ]
 _ALLOWED_ATTRS = {
-    "a": ["href", "title", "rel", "class"],
+    # ``data-mention`` carries the username for the side-panel JS so it
+    # doesn't have to parse the href query string. ``hx-boost="false"``
+    # stops htmx-boost from hijacking the click and navigating away.
+    "a": ["href", "title", "rel", "class", "data-mention", "hx-boost"],
     "img": ["src", "alt", "title", "width", "height"],
     "input": ["type", "checked", "disabled"],
     "span": ["class"],
@@ -46,7 +49,8 @@ def render_markdown(text: str) -> str:
         r'<a href="/accounts/teams/\1/" class="mention team" rel="noopener">@team:\1</a>', html
     )
     html = _MENTION_RE.sub(
-        r'<a href="/accounts/users/?q=\1" class="mention" rel="noopener">@\1</a>', html
+        r'<a href="/accounts/users/?q=\1" class="mention" rel="noopener" '
+        r'hx-boost="false" data-mention="\1">@\1</a>', html
     )
     html = _ISSUE_KEY_RE.sub(
         r'<a href="/issues/\1/" class="issue-key" rel="noopener">\1</a>', html

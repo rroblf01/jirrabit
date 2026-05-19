@@ -1,0 +1,44 @@
+{% load i18n %}
+{% if missing %}
+  <div class="card" style="padding:14px;">
+    <h3 style="margin:0 0 6px;">@{{ missing }}</h3>
+    <p style="color:var(--ink-500); font-size:13px; margin:0;">{% trans "Usuario no encontrado." %}</p>
+  </div>
+{% else %}
+  <div class="card" style="padding:14px;">
+    <div class="row" style="gap:12px; align-items:center;">
+      {% include "_avatar.html" with u=u size="lg" %}
+      <div>
+        <div style="font-weight:600; font-size:15px;">{{ u.display_name|default:u.username }}</div>
+        <div style="font-size:12px; color:var(--ink-500);">@{{ u.username }}</div>
+        {% if u.job_title %}<div style="font-size:12px; color:var(--ink-700);">{{ u.job_title }}</div>{% endif %}
+      </div>
+    </div>
+
+    <dl style="margin:12px 0 0; font-size:13px;">
+      {% if u.email %}<dt style="color:var(--ink-500); font-size:11px; text-transform:uppercase; letter-spacing:.5px; margin-top:8px;">{% trans "Email" %}</dt>
+      <dd style="margin:2px 0 0;"><a href="mailto:{{ u.email }}">{{ u.email }}</a></dd>{% endif %}
+      {% if u.timezone %}<dt style="color:var(--ink-500); font-size:11px; text-transform:uppercase; letter-spacing:.5px; margin-top:8px;">{% trans "Zona horaria" %}</dt>
+      <dd style="margin:2px 0 0;">{{ u.timezone }}</dd>{% endif %}
+      <dt style="color:var(--ink-500); font-size:11px; text-transform:uppercase; letter-spacing:.5px; margin-top:8px;">{% trans "Estado" %}</dt>
+      <dd style="margin:2px 0 0;">{% if u.is_active %}{% trans "activo" %}{% else %}{% trans "inactivo" %}{% endif %}{% if u.is_superuser %} · <span class="badge">admin</span>{% endif %}</dd>
+    </dl>
+
+    {% if recent %}
+      <h4 style="margin:14px 0 6px; font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--ink-500);">{% trans "Tareas recientes asignadas" %}</h4>
+      <ul style="list-style:none; margin:0; padding:0; font-size:13px;">
+        {% for i in recent %}
+          <li style="padding:4px 0; border-bottom:1px solid var(--ink-100);">
+            <a href="{{ i.get_absolute_url }}"><code>{{ i.key }}</code></a>
+            · {{ i.summary|truncatechars:50 }}
+            <span class="badge" style="margin-left:4px;">{{ i.status }}</span>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <div style="display:flex; gap:8px; margin-top:14px;">
+      <a class="btn ghost small" href="{% url 'accounts:user_list' %}?q={{ u.username|urlencode }}">{% trans "Buscar más" %}</a>
+    </div>
+  </div>
+{% endif %}
