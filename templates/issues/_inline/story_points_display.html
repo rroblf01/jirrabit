@@ -1,4 +1,4 @@
 <span class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'story_points' %}"
-      hx-target="this" hx-swap="outerHTML" title="Click para cambiar" style="cursor:pointer;">
+      hx-target="this" hx-swap="outerHTML" hx-disinherit="*" title="Click para cambiar" style="cursor:pointer;">
   {{ issue.story_points|default:"—" }}
 </span>

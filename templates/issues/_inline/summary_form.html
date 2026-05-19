@@ -1,4 +1,4 @@
-<form hx-post="{% url 'issues:inline_edit' issue.key 'summary' %}" hx-target="this" hx-swap="outerHTML" style="margin:10px 0 4px 0;">
+<form hx-post="{% url 'issues:inline_edit' issue.key 'summary' %}" hx-target="this" hx-swap="outerHTML" hx-disinherit="*" style="margin:10px 0 4px 0;">
   {% csrf_token %}
   <input type="text" name="summary" value="{{ issue.summary }}" autofocus
          onblur="this.form.requestSubmit()" style="font-size:24px; font-weight:600;">

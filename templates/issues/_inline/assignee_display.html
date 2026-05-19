@@ -1,4 +1,4 @@
 <span class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'assignee' %}"
-      hx-target="this" hx-swap="outerHTML" title="Click para cambiar" style="cursor:pointer;">
+      hx-target="this" hx-swap="outerHTML" hx-disinherit="*" title="Click para cambiar" style="cursor:pointer;">
   {% if issue.assignee %}{% include "_avatar.html" with u=issue.assignee %} {{ issue.assignee }}{% else %}<em style="color:var(--ink-500);">Sin asignar</em>{% endif %}
 </span>

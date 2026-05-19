@@ -1,4 +1,4 @@
 <span class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'estimate' %}"
-      hx-target="this" hx-swap="outerHTML" title="Click para cambiar" style="cursor:pointer;">
+      hx-target="this" hx-swap="outerHTML" hx-disinherit="*" title="Click para cambiar" style="cursor:pointer;">
   {% if issue.estimate_minutes %}{{ issue.estimate_minutes|floatformat:0 }} min{% else %}—{% endif %}
 </span>

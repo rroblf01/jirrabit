@@ -14,7 +14,7 @@
   <script src="{% static 'js/drafts.js' %}" defer></script>
   <script src="{% static 'js/reltime.js' %}" defer></script>
 </head>
-<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-boost="true" hx-target="main.main" hx-select="main.main" hx-swap="outerHTML show:window:top"{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
+<body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-boost="true"{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
 {% if user.is_authenticated %}
 <header class="topbar">
   <div class="brand">jirra<span>bit</span></div>

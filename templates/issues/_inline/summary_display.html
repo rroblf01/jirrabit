@@ -1,3 +1,3 @@
 <h1 class="inline-edit" hx-get="{% url 'issues:inline_edit_form' issue.key 'summary' %}"
-    hx-target="this" hx-swap="outerHTML" title="Click para editar"
+    hx-target="this" hx-swap="outerHTML" hx-disinherit="*" title="Click para editar"
     style="margin:10px 0 4px 0; cursor:text;">{{ issue.summary }}</h1>
