@@ -70,6 +70,7 @@ class LogoutAllDevicesView(AsyncLoginRequiredMixin, View):
     @staticmethod
     def _revoke_other_sessions(user_pk: str, current_key: str) -> int:
         from django.contrib.sessions.models import Session
+
         count = 0
         for s in Session.objects.iterator():
             data = s.get_decoded()
@@ -84,8 +85,9 @@ class LogoutAllDevicesView(AsyncLoginRequiredMixin, View):
 
         user_pk = str(request.user.pk)
         current_key = request.session.session_key
-        count = await sync_to_async(self._revoke_other_sessions, thread_sensitive=True)(
-            user_pk, current_key,
+        count = await sync_to_async(self._revoke_other_sessions)(
+            user_pk,
+            current_key,
         )
         messages.success(request, f"{count} sesiones revocadas.")
         return redirect("accounts:profile")
@@ -216,6 +218,7 @@ class UserCardView(AsyncLoginRequiredMixin, View):
             return await arender(request, "accounts/_user_card.html", {"missing": username})
         # Recent issues assigned to this user across all projects.
         from issues.models import Issue
+
         recent_qs = (
             Issue.objects.filter(assignee=user)
             .select_related("project", "status", "priority")
@@ -223,7 +226,8 @@ class UserCardView(AsyncLoginRequiredMixin, View):
         )
         recent = [i async for i in recent_qs]
         return await arender(
-            request, "accounts/_user_card.html",
+            request,
+            "accounts/_user_card.html",
             {"u": user, "recent": recent},
         )
 
@@ -247,12 +251,9 @@ class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
     async def aget_queryset(self):
         page = self._page()
         offset = (page - 1) * self.PAGE_SIZE
-        return (
-            Notification.objects
-            .filter(recipient=self.request.user)
-            .select_related("actor")
-            [offset : offset + self.PAGE_SIZE + 1]
-        )
+        return Notification.objects.filter(recipient=self.request.user).select_related("actor")[
+            offset : offset + self.PAGE_SIZE + 1
+        ]
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
@@ -342,7 +343,9 @@ class NotificationCountView(AsyncLoginRequiredMixin, View):
         count = await Notification.objects.filter(recipient=request.user, read=False).acount()
         request.unread_notifications = count
         return await arender(
-            request, "_notif_badge.html", {"unread_notifications": count},
+            request,
+            "_notif_badge.html",
+            {"unread_notifications": count},
         )
 
 

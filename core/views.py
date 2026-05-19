@@ -36,7 +36,7 @@ class HealthzView(View):
 
         # DB ping
         try:
-            await sync_to_async(connection.ensure_connection, thread_sensitive=True)()
+            await sync_to_async(connection.ensure_connection)()
             result["services"]["db"] = "ok"
         except Exception as exc:
             result["services"]["db"] = f"error: {exc.__class__.__name__}"
@@ -75,6 +75,7 @@ class MarkdownPreviewView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request):
         from .markdown import render_markdown
+
         body = request.POST.get("body", "")[:50000]
         return HttpResponse(render_markdown(body))
 
@@ -84,26 +85,30 @@ class DashboardConfigView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request):
         from accounts.models import DashboardWidget
-        existing = {
-            w.kind: w async for w in DashboardWidget.objects.filter(user=request.user)
-        }
+
+        existing = {w.kind: w async for w in DashboardWidget.objects.filter(user=request.user)}
         widgets = []
         for kind, label in DashboardWidget.KIND_CHOICES:
             row = existing.get(kind)
-            widgets.append({
-                "kind": kind, "label": label,
-                "enabled": row.enabled if row else True,
-                "order": row.order if row else 99,
-            })
+            widgets.append(
+                {
+                    "kind": kind,
+                    "label": label,
+                    "enabled": row.enabled if row else True,
+                    "order": row.order if row else 99,
+                }
+            )
         widgets.sort(key=lambda w: w["order"])
         return await arender(request, "core/dashboard_config.html", {"widgets": widgets})
 
     async def post(self, request):
         from accounts.models import DashboardWidget
+
         for i, kind in enumerate(request.POST.getlist("order")):
             enabled = bool(request.POST.get(f"enabled_{kind}"))
             await DashboardWidget.objects.aupdate_or_create(
-                user=request.user, kind=kind,
+                user=request.user,
+                kind=kind,
                 defaults={"order": i, "enabled": enabled},
             )
         return redirect("core:home")
@@ -117,14 +122,13 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
     async def aget_context_data(self, **kwargs):
         from accounts.models import DashboardWidget, Notification
         from issues.models import Pin, Visit
+
         ctx = await super().aget_context_data(**kwargs)
         user = self.request.user
         common = ("project", "status", "priority", "issue_type", "assignee")
         # Honor user's widget ordering/enabled-state. Anything not yet stored
         # falls back to default enabled with high order so it appears last.
-        prefs = {
-            w.kind: w async for w in DashboardWidget.objects.filter(user=user)
-        }
+        prefs = {w.kind: w async for w in DashboardWidget.objects.filter(user=user)}
         widget_order = []
         for kind, _label in DashboardWidget.KIND_CHOICES:
             row = prefs.get(kind)
@@ -136,7 +140,8 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
         assigned_qs = (
             Issue.objects.filter(assignee=user)
             .exclude(status__category="done")
-            .select_related(*common).order_by("-updated_at")[:25]
+            .select_related(*common)
+            .order_by("-updated_at")[:25]
         )
         ctx["assigned"] = [i async for i in assigned_qs]
 
@@ -145,15 +150,17 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
             Issue.objects.filter(watchers=user)
             .exclude(status__category="done")
             .exclude(assignee=user)
-            .select_related(*common).order_by("-updated_at")[:15]
+            .select_related(*common)
+            .order_by("-updated_at")[:15]
         )
         ctx["watching"] = [i async for i in watching_qs]
 
         # Recent @mentions → derived from Notification kind=mention
         mention_notifs = [
-            n async for n in
-            Notification.objects.filter(recipient=user, kind="mention")
-            .order_by("-created_at")[:10]
+            n
+            async for n in Notification.objects.filter(recipient=user, kind="mention").order_by(
+                "-created_at"
+            )[:10]
         ]
         ctx["mentions"] = mention_notifs
 
@@ -168,27 +175,29 @@ class HomeView(AsyncLoginRequiredMixin, AsyncTemplateView):
             Issue.objects.filter(assignee=user)
             .exclude(status__category="done")
             .filter(Q(sprint__status="active") | Q(due_date__lte=soon))
-            .select_related(*common).order_by("-priority__weight", "due_date")[:8]
+            .select_related(*common)
+            .order_by("-priority__weight", "due_date")[:8]
         )
         ctx["my_day"] = [i async for i in my_day_qs]
 
         # Pinned issues + projects
         ctx["pinned_issues"] = [
-            p.issue async for p in
-            Pin.objects.filter(user=user, issue__isnull=False)
+            p.issue
+            async for p in Pin.objects.filter(user=user, issue__isnull=False)
             .select_related("issue", "issue__status", "issue__project")
             .order_by("-created_at")[:10]
         ]
         ctx["pinned_projects"] = [
-            p.project async for p in
-            Pin.objects.filter(user=user, project__isnull=False)
-            .select_related("project").order_by("-created_at")[:10]
+            p.project
+            async for p in Pin.objects.filter(user=user, project__isnull=False)
+            .select_related("project")
+            .order_by("-created_at")[:10]
         ]
 
         # Recently viewed
         ctx["recent"] = [
-            v.issue async for v in
-            Visit.objects.filter(user=user)
+            v.issue
+            async for v in Visit.objects.filter(user=user)
             .select_related("issue", "issue__status", "issue__project")
             .order_by("-viewed_at")[:10]
         ]

@@ -151,10 +151,21 @@ def _disconnect_notifications():
     ]
     for sender, uid in pairs:
         post_save.disconnect(sender=sender, dispatch_uid=uid)
+    # Webhook signals would otherwise spawn a delivery task per issue
+    # save, each opening its own DB connection and quickly draining the
+    # Postgres slot pool. Re-attached in ``_reconnect_notifications``.
+    from django.db.models.signals import pre_save as _pre_save
+    _pre_save.disconnect(sender=Issue, dispatch_uid="webhook_issue_pre")
+    post_save.disconnect(sender=Issue, dispatch_uid="webhook_issue")
+    post_save.disconnect(sender=Comment, dispatch_uid="webhook_comment")
+    _pre_save.disconnect(sender=Epic, dispatch_uid="webhook_epic_pre")
+    post_save.disconnect(sender=Epic, dispatch_uid="webhook_epic")
 
 
 def _reconnect_notifications():
+    from core import webhooks as _webhooks
     notifications.connect()
+    _webhooks.connect()
 
 
 def _ensure_base_lookups():

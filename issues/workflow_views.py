@@ -12,6 +12,7 @@ Deletion of an entity that's still referenced by issues is refused (the FK is
 ``PROTECT``-bound), so the views surface a friendly error instead of letting
 ``IntegrityError`` bubble up.
 """
+
 from asgiref.sync import sync_to_async
 from django.db.models import ProtectedError
 from django.http import HttpResponseBadRequest
@@ -39,6 +40,7 @@ from .workflow_forms import (
 
 # --- overview ----------------------------------------------------------------
 
+
 class WorkflowOverviewView(AsyncSuperuserRequiredMixin, AsyncTemplateView):
     template_name = "workflow/overview.html"
 
@@ -53,17 +55,19 @@ class WorkflowOverviewView(AsyncSuperuserRequiredMixin, AsyncTemplateView):
 
 # --- helpers -----------------------------------------------------------------
 
+
 async def _aprotect_delete(obj):
     """Run ``obj.delete()`` and return ``True`` if the row was deleted,
     ``False`` if it's still referenced (PROTECT)."""
     try:
-        await sync_to_async(obj.delete, thread_sensitive=True)()
+        await obj.adelete()
         return True
     except ProtectedError:
         return False
 
 
 # --- Status ------------------------------------------------------------------
+
 
 class StatusListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "workflow/status_list.html"
@@ -103,6 +107,7 @@ class StatusDeleteView(AsyncSuperuserRequiredMixin, View):
             return HttpResponseBadRequest("status no existe")
         if not await _aprotect_delete(status):
             from django.contrib import messages
+
             messages.error(
                 request,
                 f"No se puede borrar «{status.name}»: aún tiene tareas referenciándolo.",
@@ -117,6 +122,7 @@ class StatusTransitionsView(AsyncSuperuserRequiredMixin, View):
 
     async def _aget_status(self, pk):
         from django.http import Http404
+
         try:
             return await Status.objects.aget(pk=pk)
         except Status.DoesNotExist as exc:
@@ -126,14 +132,15 @@ class StatusTransitionsView(AsyncSuperuserRequiredMixin, View):
         status = await self._aget_status(pk)
         form = await aform(StatusTransitionsForm, instance=status)
         all_statuses = [s async for s in Status.objects.exclude(pk=pk).order_by("order")]
-        current_ids = {
-            s.pk async for s in status.allowed_next.all()
-        }
+        current_ids = {s.pk async for s in status.allowed_next.all()}
         return await arender(
-            request, self.template_name,
+            request,
+            self.template_name,
             {
-                "status": status, "form": form,
-                "all_statuses": all_statuses, "current_ids": current_ids,
+                "status": status,
+                "form": form,
+                "all_statuses": all_statuses,
+                "current_ids": current_ids,
             },
         )
 
@@ -148,11 +155,11 @@ class StatusTransitionsView(AsyncSuperuserRequiredMixin, View):
         if pk in ids:
             return HttpResponseBadRequest("un estado no puede transicionar a sí mismo")
         valid_ids = {
-            sid async for sid in
-            Status.objects.exclude(pk=pk).filter(pk__in=ids).values_list("pk", flat=True)
+            sid async for sid in Status.objects.exclude(pk=pk).filter(pk__in=ids).values_list("pk", flat=True)
         }
         await status.allowed_next.aset(valid_ids)
         from django.contrib import messages
+
         messages.success(request, f"Transiciones de «{status.name}» actualizadas.")
         return redirect("workflow:status_list")
 
@@ -166,13 +173,15 @@ class StatusTransitionsMatrixView(AsyncSuperuserRequiredMixin, View):
 
     async def get(self, request):
         import json
+
         statuses = [s async for s in Status.objects.order_by("order", "id")]
         # Pre-compute allowed sets per status to avoid N+1 in the template.
         allowed = {}
         for s in statuses:
             allowed[s.pk] = [t.pk async for t in s.allowed_next.all()]
         return await arender(
-            request, "workflow/matrix.html",
+            request,
+            "workflow/matrix.html",
             {
                 "statuses": statuses,
                 "allowed": allowed,
@@ -192,11 +201,13 @@ class StatusTransitionsMatrixView(AsyncSuperuserRequiredMixin, View):
             targets.discard(s.pk)
             await s.allowed_next.aset(targets)
         from django.contrib import messages
+
         messages.success(request, "Matriz de transiciones guardada.")
         return redirect("workflow:matrix")
 
 
 # --- Priority ----------------------------------------------------------------
+
 
 class PriorityListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "workflow/priority_list.html"
@@ -236,6 +247,7 @@ class PriorityDeleteView(AsyncSuperuserRequiredMixin, View):
             return HttpResponseBadRequest("priority no existe")
         if not await _aprotect_delete(p):
             from django.contrib import messages
+
             messages.error(
                 request,
                 f"No se puede borrar «{p.name}»: hay tareas usándola.",
@@ -244,6 +256,7 @@ class PriorityDeleteView(AsyncSuperuserRequiredMixin, View):
 
 
 # --- IssueType ---------------------------------------------------------------
+
 
 class IssueTypeListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "workflow/type_list.html"
@@ -283,6 +296,7 @@ class IssueTypeDeleteView(AsyncSuperuserRequiredMixin, View):
             return HttpResponseBadRequest("type no existe")
         if not await _aprotect_delete(t):
             from django.contrib import messages
+
             messages.error(
                 request,
                 f"No se puede borrar «{t.name}»: hay tareas usándolo.",
@@ -291,6 +305,7 @@ class IssueTypeDeleteView(AsyncSuperuserRequiredMixin, View):
 
 
 # --- Label -------------------------------------------------------------------
+
 
 class LabelListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "workflow/label_list.html"
@@ -329,11 +344,12 @@ class LabelDeleteView(AsyncSuperuserRequiredMixin, View):
         except Label.DoesNotExist:
             return HttpResponseBadRequest("label no existe")
         # Label uses M2M on Issue.labels (no PROTECT), so it always succeeds.
-        await sync_to_async(lab.delete, thread_sensitive=True)()
+        await lab.adelete()
         return redirect("workflow:label_list")
 
 
 # --- Reorder (Status) --------------------------------------------------------
+
 
 class StatusReorderView(AsyncSuperuserRequiredMixin, View):
     """Persist a new ``order`` for each status from a single POST.
@@ -350,11 +366,14 @@ class StatusReorderView(AsyncSuperuserRequiredMixin, View):
             ordered_pks = [int(i) for i in ids]
         except ValueError:
             return HttpResponseBadRequest("ids inválidos")
+
         # Run updates in a single transaction for atomicity.
         def _apply():
             from django.db import transaction
+
             with transaction.atomic():
                 for idx, pk in enumerate(ordered_pks):
                     Status.objects.filter(pk=pk).update(order=idx)
+
         await sync_to_async(_apply, thread_sensitive=True)()
         return redirect("workflow:status_list")

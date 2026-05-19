@@ -8,18 +8,19 @@ Only used for surfaces where Django offers no async counterpart:
 Everything ORM-related uses the native async APIs (``aget``, ``asave``,
 ``aset``, ``async for``) and should NOT use these wrappers.
 """
+
 from asgiref.sync import sync_to_async
 from django.shortcuts import render
 
-arender = sync_to_async(render, thread_sensitive=True)
+arender = sync_to_async(render)
 
 
 async def avalid(form) -> bool:
-    return await sync_to_async(form.is_valid, thread_sensitive=True)()
+    return await sync_to_async(form.is_valid)()
 
 
 async def asave_m2m(form) -> None:
-    await sync_to_async(form.save_m2m, thread_sensitive=True)()
+    await sync_to_async(form.save_m2m)()
 
 
 async def aform(form_cls, *args, **kwargs):
@@ -29,4 +30,4 @@ async def aform(form_cls, *args, **kwargs):
     ``__init__`` (to seed the initial values), and Django offers no async
     alternative for form construction.
     """
-    return await sync_to_async(form_cls, thread_sensitive=True)(*args, **kwargs)
+    return await sync_to_async(form_cls)(*args, **kwargs)

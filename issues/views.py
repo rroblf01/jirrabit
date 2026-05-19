@@ -27,12 +27,7 @@ def _change_status_atomic(issue_pk, new_status_pk, user_pk):
     from .models import HistoryEntry
 
     with transaction.atomic():
-        issue = (
-            Issue.objects
-            .select_for_update()
-            .select_related("status", "project")
-            .get(pk=issue_pk)
-        )
+        issue = Issue.objects.select_for_update().select_related("status", "project").get(pk=issue_pk)
         new_status = Status.objects.get(pk=new_status_pk)
         current = issue.status
         if current.pk != new_status.pk and not current.can_transition_to(new_status):
@@ -45,8 +40,11 @@ def _change_status_atomic(issue_pk, new_status_pk, user_pk):
         issue.save()
         if current.pk != new_status.pk:
             HistoryEntry.objects.create(
-                issue=issue, actor_id=user_pk, field="status",
-                old_value=str(current), new_value=str(new_status),
+                issue=issue,
+                actor_id=user_pk,
+                field="status",
+                old_value=str(current),
+                new_value=str(new_status),
             )
     return issue, new_status, True
 
@@ -55,14 +53,21 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
     with transaction.atomic():
         issue = Issue.objects.select_for_update().get(pk=issue_pk)
         WorkLog.objects.create(
-            issue=issue, author_id=user_pk, minutes=minutes, comment=comment,
+            issue=issue,
+            author_id=user_pk,
+            minutes=minutes,
+            comment=comment,
         )
         issue.time_spent_minutes = (issue.time_spent_minutes or 0) + minutes
         if issue.time_remaining_minutes:
             issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - minutes)
-        issue.save(update_fields=[
-            "time_spent_minutes", "time_remaining_minutes", "updated_at",
-        ])
+        issue.save(
+            update_fields=[
+                "time_spent_minutes",
+                "time_remaining_minutes",
+                "updated_at",
+            ]
+        )
     return issue
 
 
@@ -74,9 +79,7 @@ async def _aget_project(key):
 
 
 async def _aget_issue(key):
-    qs = Issue.objects.select_related(
-        "project", "status", "priority", "issue_type", "assignee", "reporter"
-    )
+    qs = Issue.objects.select_related("project", "status", "priority", "issue_type", "assignee", "reporter")
     try:
         return await qs.aget(key=key)
     except Issue.DoesNotExist as exc:
@@ -117,9 +120,14 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
         tpl_param = self.request.GET.get("template")
         tpl = None
         if tpl_param and tpl_param.isdigit():
-            tpl = await IssueTemplate.objects.filter(
-                pk=tpl_param, project=self.project,
-            ).select_related("issue_type", "priority").afirst()
+            tpl = (
+                await IssueTemplate.objects.filter(
+                    pk=tpl_param,
+                    project=self.project,
+                )
+                .select_related("issue_type", "priority")
+                .afirst()
+            )
         if tpl is not None:
             initial["issue_type"] = tpl.issue_type
             initial["summary"] = tpl.summary
@@ -145,9 +153,7 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
 
         ctx = await super().aget_context_data(**kwargs)
         ctx["project"] = self.project
-        ctx["templates"] = [
-            t async for t in IssueTemplate.objects.filter(project=self.project)
-        ]
+        ctx["templates"] = [t async for t in IssueTemplate.objects.filter(project=self.project)]
         return ctx
 
     async def aform_valid(self, form):
@@ -164,9 +170,7 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
         await issue.labels.aset(form.cleaned_data.get("labels", []))
         self.object = issue
         if self.request.htmx:
-            return HttpResponse(
-                status=204, headers={"HX-Redirect": issue.get_absolute_url()}
-            )
+            return HttpResponse(status=204, headers={"HX-Redirect": issue.get_absolute_url()})
         return redirect(issue.get_absolute_url())
 
 
@@ -180,56 +184,60 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         await aassert_can_view(self.request.user, issue.project)
         # Track recently viewed for the home dashboard.
         from .models import Visit
+
         await Visit.objects.aupdate_or_create(user=self.request.user, issue=issue)
         # Mark any pending mention receipts as seen.
         from accounts.models import MentionReceipt
+
         await MentionReceipt.objects.filter(
-            mentioned=self.request.user, comment__issue=issue, seen_at__isnull=True,
+            mentioned=self.request.user,
+            comment__issue=issue,
+            seen_at__isnull=True,
         ).aupdate(seen_at=timezone.now())
         return issue
 
     async def aget_context_data(self, **kwargs):
         from .models import NotificationSnooze, Pin, Timer
+
         ctx = await super().aget_context_data(**kwargs)
         ctx["comment_form"] = CommentForm()
         ctx["is_pinned"] = await Pin.objects.filter(
-            user=self.request.user, issue=self.object,
+            user=self.request.user,
+            issue=self.object,
         ).aexists()
         snooze = await NotificationSnooze.objects.filter(
-            user=self.request.user, issue=self.object, until__gt=timezone.now(),
+            user=self.request.user,
+            issue=self.object,
+            until__gt=timezone.now(),
         ).afirst()
         ctx["snoozed_until"] = snooze.until if snooze else None
         ctx["timer_running"] = await Timer.objects.filter(
-            user=self.request.user, issue=self.object,
+            user=self.request.user,
+            issue=self.object,
         ).aexists()
         ctx["subtasks"] = [
-            s async for s in
-            self.object.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+            s
+            async for s in self.object.subtasks.select_related("status", "assignee", "issue_type").order_by(
+                "key"
+            )
         ]
-        ctx["branches"] = [
-            b async for b in self.object.branches.all().order_by("-created_at")
-        ]
+        ctx["branches"] = [b async for b in self.object.branches.all().order_by("-created_at")]
         ctx["statuses"] = [s async for s in Status.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
-        ctx["is_watching"] = await self.object.watchers.filter(
-            pk=self.request.user.pk
-        ).aexists()
-        ctx["custom_fields"] = [
-            f async for f in self.object.project.custom_fields.all()
-        ]
+        ctx["is_watching"] = await self.object.watchers.filter(pk=self.request.user.pk).aexists()
+        ctx["custom_fields"] = [f async for f in self.object.project.custom_fields.all()]
         # Previous / next issue in the same sprint (ordered by key) for the
         # ‹ / › navigation in the issue header. Issues with no sprint
         # (backlog) only navigate within the backlog bucket of the project.
         _sibling_qs = self.object.project.issues.filter(
-            archived=False, sprint_id=self.object.sprint_id,
+            archived=False,
+            sprint_id=self.object.sprint_id,
         )
         ctx["prev_issue"] = await (
-            _sibling_qs.filter(key__lt=self.object.key)
-            .order_by("-key").only("key").afirst()
+            _sibling_qs.filter(key__lt=self.object.key).order_by("-key").only("key").afirst()
         )
         ctx["next_issue"] = await (
-            _sibling_qs.filter(key__gt=self.object.key)
-            .order_by("key").only("key").afirst()
+            _sibling_qs.filter(key__gt=self.object.key).order_by("key").only("key").afirst()
         )
         # N+1 fix: pre-evaluate related collections.
         comments_qs = self.object.comments.select_related("author").filter(deleted_at__isnull=True)
@@ -238,29 +246,23 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
         ctx["comments"] = [c async for c in comments_qs]
         # Pre-aggregate reactions for each comment to avoid N+1 in the template.
         from asgiref.sync import sync_to_async as _sta
+
         for c in ctx["comments"]:
             c.reactions_agg = await _sta(_aggregate_reactions, thread_sensitive=True)(
-                c.pk, self.request.user.pk,
+                c.pk,
+                self.request.user.pk,
             )
         ctx["labels"] = [lb async for lb in self.object.labels.all()]
-        ctx["attachments"] = [
-            a async for a in self.object.attachments.select_related("uploaded_by").all()
-        ]
-        ctx["history"] = [
-            h async for h in self.object.history.select_related("actor")[:50]
-        ]
-        ctx["links"] = [
-            lk async for lk in self.object.links_out.select_related("target", "target__status")
-        ]
+        ctx["attachments"] = [a async for a in self.object.attachments.select_related("uploaded_by").all()]
+        ctx["history"] = [h async for h in self.object.history.select_related("actor")[:50]]
+        ctx["links"] = [lk async for lk in self.object.links_out.select_related("target", "target__status")]
         worklogs_qs = self.object.worklogs.select_related("author").order_by("-logged_at")
         page = max(int(self.request.GET.get("page", "1")), 1)
         per_page = 10
         offset = (page - 1) * per_page
         ctx["worklogs"] = [w async for w in worklogs_qs[offset : offset + per_page]]
         ctx["worklogs_page"] = page
-        ctx["worklogs_has_more"] = await worklogs_qs[
-            offset + per_page : offset + per_page + 1
-        ].aexists()
+        ctx["worklogs_has_more"] = await worklogs_qs[offset + per_page : offset + per_page + 1].aexists()
         return ctx
 
 
@@ -302,8 +304,7 @@ class IssueListView(AsyncLoginRequiredMixin, AsyncListView):
         self.project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, self.project)
         return (
-            self.project.issues
-            .select_related("status", "priority", "assignee", "issue_type")
+            self.project.issues.select_related("status", "priority", "assignee", "issue_type")
             .prefetch_related("labels")
             .all()
         )
@@ -320,13 +321,11 @@ class ChangeStatusView(AsyncLoginRequiredMixin, View):
         issue = await _aget_issue(key)
         await aassert_can_edit(request.user, issue.project)
         new_status = await _aget_status(request.POST.get("status"))
-        issue, new_status, ok = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True,
-        )(issue.pk, new_status.pk, request.user.pk)
+        issue, new_status, ok = await sync_to_async(_change_status_atomic)(
+            issue.pk, new_status.pk, request.user.pk
+        )
         if not ok:
-            return HttpResponseBadRequest(
-                f"Transición no permitida hacia {new_status}"
-            )
+            return HttpResponseBadRequest(f"Transición no permitida hacia {new_status}")
         if request.htmx:
             statuses = [s async for s in Status.objects.all()]
             return await arender(
@@ -361,9 +360,7 @@ class AddCommentView(AsyncLoginRequiredMixin, View):
         if request.POST.get("and_close"):
             done = await Status.objects.filter(category="done").order_by("order").afirst()
             if done and issue.status_id != done.pk:
-                await sync_to_async(
-                    _change_status_atomic, thread_sensitive=True,
-                )(issue.pk, done.pk, request.user.pk)
+                await sync_to_async(_change_status_atomic)(issue.pk, done.pk, request.user.pk)
             resp = HttpResponse(status=204)
             resp["HX-Refresh"] = "true"
             return resp
@@ -419,6 +416,7 @@ class WatchToggleView(AsyncLoginRequiredMixin, View):
 
 # --- inline edit, comments, links, worklogs ---
 
+
 async def _aget_comment(pk):
     try:
         return await Comment.objects.select_related("issue", "author").aget(pk=pk)
@@ -436,9 +434,7 @@ class InlineEditFormView(AsyncLoginRequiredMixin, View):
         await aassert_can_edit(request.user, issue.project)
         if request.GET.get("cancel"):
             handler = INLINE_FIELDS[field]
-            return await arender(
-                request, handler.display_template, {"issue": issue}
-            )
+            return await arender(request, handler.display_template, {"issue": issue})
         handler = INLINE_FIELDS[field]
         ctx = {"issue": issue, "field": field}
         ctx.update(await handler.context(issue))
@@ -457,10 +453,14 @@ class InlineEditApplyView(AsyncLoginRequiredMixin, View):
         old, new = await handler.apply(issue, request)
         await issue.asave()
         from issues.models import HistoryEntry
+
         if old != new:
             await HistoryEntry.objects.acreate(
-                issue=issue, actor=request.user, field=field,
-                old_value=str(old)[:255], new_value=str(new)[:255],
+                issue=issue,
+                actor=request.user,
+                field=field,
+                old_value=str(old)[:255],
+                new_value=str(new)[:255],
             )
         return await arender(request, handler.display_template, {"issue": issue})
 
@@ -474,6 +474,7 @@ class CommentEditView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, pk):
         from .models import CommentEdit
+
         comment = await _aget_comment(pk)
         if comment.author_id != request.user.pk and not request.user.is_superuser:
             raise PermissionDenied
@@ -481,7 +482,9 @@ class CommentEditView(AsyncLoginRequiredMixin, View):
         if new_body and new_body != comment.body:
             # Snapshot the previous version for the history viewer.
             await CommentEdit.objects.acreate(
-                comment=comment, old_body=comment.body, edited_by=request.user,
+                comment=comment,
+                old_body=comment.body,
+                edited_by=request.user,
             )
             comment.body = new_body
             comment.edited = True
@@ -531,12 +534,16 @@ class LogWorkView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("minutos inválidos")
         if minutes <= 0:
             return HttpResponseBadRequest("minutos debe ser > 0")
-        issue = await sync_to_async(_log_work_atomic, thread_sensitive=True)(
-            issue.pk, request.user.pk, minutes, comment,
+        issue = await sync_to_async(_log_work_atomic)(
+            issue.pk,
+            request.user.pk,
+            minutes,
+            comment,
         )
         worklogs = [w async for w in issue.worklogs.select_related("author")[:10]]
         return await arender(
-            request, "issues/_time_panel.html",
+            request,
+            "issues/_time_panel.html",
             {"issue": issue, "worklogs": worklogs},
         )
 
@@ -553,11 +560,15 @@ class IssueLinkCreateView(AsyncLoginRequiredMixin, View):
         if not target or target.pk == issue.pk:
             return HttpResponseBadRequest("issue destino inválido")
         await IssueLink.objects.aget_or_create(
-            source=issue, target=target, type=link_type,
+            source=issue,
+            target=target,
+            type=link_type,
             defaults={"created_by": request.user},
         )
         await IssueLink.objects.aget_or_create(
-            source=target, target=issue, type=IssueLink.INVERSE[link_type],
+            source=target,
+            target=issue,
+            type=IssueLink.INVERSE[link_type],
             defaults={"created_by": request.user},
         )
         links = [lk async for lk in issue.links_out.select_related("target", "target__status")]
@@ -596,25 +607,25 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
         if not candidates:
             # Open workflow — pick next by global order.
             candidates = [
-                s async for s in
-                Status.objects.filter(order__gt=current.order).order_by("order", "id")[:1]
+                s async for s in Status.objects.filter(order__gt=current.order).order_by("order", "id")[:1]
             ]
         if not candidates:
             return HttpResponseBadRequest("no hay siguiente estado")
         target = candidates[0]
-        issue, target, ok = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True,
-        )(issue.pk, target.pk, request.user.pk)
+        issue, target, ok = await sync_to_async(_change_status_atomic)(issue.pk, target.pk, request.user.pk)
         if not ok:
             return HttpResponseBadRequest("transición no permitida")
         if request.htmx and not request.headers.get("HX-Boosted"):
             if request.headers.get("X-Source") == "board":
                 return await arender(
-                    request, "board/_card_advance.html", {"issue": issue},
+                    request,
+                    "board/_card_advance.html",
+                    {"issue": issue},
                 )
             statuses = [s async for s in Status.objects.all()]
             return await arender(
-                request, "issues/_status_badge.html",
+                request,
+                "issues/_status_badge.html",
                 {"issue": issue, "statuses": statuses},
             )
         # Plain POST (or hx-boost form submit): full-page redirect so the
@@ -622,6 +633,7 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
         target_url = issue.get_absolute_url()
         if request.htmx:
             from django.http import HttpResponse
+
             resp = HttpResponse(status=204)
             resp["HX-Redirect"] = target_url
             return resp
@@ -633,6 +645,7 @@ class PinToggleView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, kind, pk):
         from .models import Pin
+
         if kind == "issue":
             if not await Issue.objects.filter(pk=pk).aexists():
                 raise Http404
@@ -655,7 +668,8 @@ class PinToggleView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("kind inválido")
         if request.htmx:
             return await arender(
-                request, "issues/_pin_button.html",
+                request,
+                "issues/_pin_button.html",
                 {"kind": kind, "pk": pk, "pinned": pinned},
             )
         return HttpResponse(status=204)
@@ -668,6 +682,7 @@ class SnoozeView(AsyncLoginRequiredMixin, View):
         from datetime import timedelta
 
         from .models import NotificationSnooze
+
         issue = await _aget_issue(key)
         try:
             hours = int(request.POST.get("hours", "24"))
@@ -676,11 +691,14 @@ class SnoozeView(AsyncLoginRequiredMixin, View):
         hours = max(1, min(hours, 24 * 30))
         until = timezone.now() + timedelta(hours=hours)
         await NotificationSnooze.objects.aupdate_or_create(
-            user=request.user, issue=issue, defaults={"until": until},
+            user=request.user,
+            issue=issue,
+            defaults={"until": until},
         )
         if request.htmx:
             return await arender(
-                request, "issues/_snooze_button.html",
+                request,
+                "issues/_snooze_button.html",
                 {"issue": issue, "snoozed_until": until},
             )
         return redirect(issue.get_absolute_url())
@@ -689,11 +707,13 @@ class SnoozeView(AsyncLoginRequiredMixin, View):
 class UnsnoozeView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
         from .models import NotificationSnooze
+
         issue = await _aget_issue(key)
         await NotificationSnooze.objects.filter(user=request.user, issue=issue).adelete()
         if request.htmx:
             return await arender(
-                request, "issues/_snooze_button.html",
+                request,
+                "issues/_snooze_button.html",
                 {"issue": issue, "snoozed_until": None},
             )
         return redirect(issue.get_absolute_url())
@@ -726,9 +746,7 @@ class StartWorkView(AsyncLoginRequiredMixin, View):
         target = await Status.objects.filter(category="in_progress").order_by("order").afirst()
         moved = False
         if target and issue.status_id != target.pk:
-            _, _, ok = await sync_to_async(
-                _change_status_atomic, thread_sensitive=True,
-            )(issue.pk, target.pk, request.user.pk)
+            _, _, ok = await sync_to_async(_change_status_atomic)(issue.pk, target.pk, request.user.pk)
             moved = bool(ok)
 
         # 3. Start timer.
@@ -751,6 +769,7 @@ class TimerStartView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from .models import Timer
+
         issue = await _aget_issue(key)
         await aassert_can_edit(request.user, issue.project)
         # Auto-stop the previous timer (commits a WorkLog).
@@ -759,21 +778,20 @@ class TimerStartView(AsyncLoginRequiredMixin, View):
             await _astop_timer(prev)
         await Timer.objects.acreate(user=request.user, issue=issue)
         if request.htmx:
-            return await arender(request, "issues/_timer_button.html",
-                                 {"issue": issue, "running": True})
+            return await arender(request, "issues/_timer_button.html", {"issue": issue, "running": True})
         return redirect(issue.get_absolute_url())
 
 
 class TimerStopView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key):
         from .models import Timer
+
         issue = await _aget_issue(key)
         timer = await Timer.objects.filter(user=request.user, issue=issue).afirst()
         if timer:
             await _astop_timer(timer)
         if request.htmx:
-            return await arender(request, "issues/_timer_button.html",
-                                 {"issue": issue, "running": False})
+            return await arender(request, "issues/_timer_button.html", {"issue": issue, "running": False})
         return redirect(issue.get_absolute_url())
 
 
@@ -781,8 +799,11 @@ async def _astop_timer(timer):
     """Convert a running ``Timer`` into a ``WorkLog`` and delete it."""
     elapsed = (timezone.now() - timer.started_at).total_seconds()
     minutes = max(1, int(round(elapsed / 60)))
-    await sync_to_async(_log_work_atomic, thread_sensitive=True)(
-        timer.issue_id, timer.user_id, minutes, "(timer)",
+    await sync_to_async(_log_work_atomic)(
+        timer.issue_id,
+        timer.user_id,
+        minutes,
+        "(timer)",
     )
     await timer.adelete()
 
@@ -828,25 +849,32 @@ class SubtaskCreateView(AsyncLoginRequiredMixin, View):
         summary = request.POST.get("summary", "").strip()
         if not summary:
             return HttpResponseBadRequest("summary requerido")
-        subtype = await IssueType.objects.filter(category="subtask").afirst() \
-            or await IssueType.objects.afirst()
+        subtype = (
+            await IssueType.objects.filter(category="subtask").afirst() or await IssueType.objects.afirst()
+        )
         default_status = await Status.objects.order_by("order").afirst()
         default_prio = await Priority.objects.afirst()
         num = await parent.project.anext_issue_number()
         sub = Issue(
-            project=parent.project, parent=parent, reporter=request.user,
-            summary=summary[:255], description="",
-            status=default_status, priority=default_prio, issue_type=subtype,
+            project=parent.project,
+            parent=parent,
+            reporter=request.user,
+            summary=summary[:255],
+            description="",
+            status=default_status,
+            priority=default_prio,
+            issue_type=subtype,
             key=f"{parent.project.key}-{num}",
         )
         await sub.asave()
         # Render the subtasks fragment for HTMX swap.
         subtasks = [
-            s async for s in
-            parent.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+            s
+            async for s in parent.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
         ]
         return await arender(
-            request, "issues/_subtasks.html",
+            request,
+            "issues/_subtasks.html",
             {"issue": parent, "subtasks": subtasks},
         )
 
@@ -864,21 +892,24 @@ class SubtaskToggleView(AsyncLoginRequiredMixin, View):
         if sub.status.category == "done":
             target = await Status.objects.exclude(category="done").order_by("order").afirst()
         else:
-            target = await Status.objects.filter(category="done").afirst() \
+            target = (
+                await Status.objects.filter(category="done").afirst()
                 or await Status.objects.order_by("-order").afirst()
+            )
         if target is None:
             return HttpResponseBadRequest("sin estado destino")
-        sub, target, ok = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True,
-        )(sub.pk, target.pk, request.user.pk)
+        sub, target, ok = await sync_to_async(_change_status_atomic)(sub.pk, target.pk, request.user.pk)
         if sub.parent_id:
             parent = await _aget_issue_by_pk(sub.parent_id)
             subtasks = [
-                s async for s in
-                parent.subtasks.select_related("status", "assignee", "issue_type").order_by("key")
+                s
+                async for s in parent.subtasks.select_related("status", "assignee", "issue_type").order_by(
+                    "key"
+                )
             ]
             return await arender(
-                request, "issues/_subtasks.html",
+                request,
+                "issues/_subtasks.html",
                 {"issue": parent, "subtasks": subtasks},
             )
         return HttpResponse(status=204)
@@ -897,6 +928,7 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, comment_id):
         from .models import Reaction
+
         emoji = request.POST.get("emoji", "").strip()
         valid = {e for e, _ in Reaction.EMOJIS}
         if emoji not in valid:
@@ -904,7 +936,9 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
         comment = await Comment.objects.select_related("issue", "issue__project").aget(pk=comment_id)
         await aassert_can_view(request.user, comment.issue.project)
         existing = await Reaction.objects.filter(
-            comment=comment, user=request.user, emoji=emoji,
+            comment=comment,
+            user=request.user,
+            emoji=emoji,
         ).afirst()
         if existing:
             await existing.adelete()
@@ -913,20 +947,22 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
         # Broadcast to the project group so other viewers see it live.
         try:
             from channels.layers import get_channel_layer
+
             layer = get_channel_layer()
             if layer:
                 await layer.group_send(
                     f"project.{comment.issue.project.key}",
-                    {"type": "reaction.event",
-                     "payload": {"comment_id": comment.pk}},
+                    {"type": "reaction.event", "payload": {"comment_id": comment.pk}},
                 )
         except Exception:
             pass
-        reactions = await sync_to_async(_aggregate_reactions, thread_sensitive=True)(
-            comment.pk, request.user.pk,
+        reactions = await sync_to_async(_aggregate_reactions)(
+            comment.pk,
+            request.user.pk,
         )
         return await arender(
-            request, "issues/_reactions.html",
+            request,
+            "issues/_reactions.html",
             {"c": comment, "reactions": reactions},
         )
 
@@ -934,10 +970,8 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
 def _aggregate_reactions(comment_id, viewer_pk):
     """Group reactions by emoji with counts and whether the viewer is in."""
     from .models import Reaction
-    rows = list(
-        Reaction.objects.filter(comment_id=comment_id)
-        .values("emoji", "user_id")
-    )
+
+    rows = list(Reaction.objects.filter(comment_id=comment_id).values("emoji", "user_id"))
     by_emoji: dict[str, dict] = {}
     for r in rows:
         bucket = by_emoji.setdefault(r["emoji"], {"emoji": r["emoji"], "count": 0, "mine": False})
@@ -955,6 +989,7 @@ class BranchLinkCreateView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from .models import BranchLink
+
         issue = await _aget_issue(key)
         await aassert_can_edit(request.user, issue.project)
         branch = request.POST.get("branch", "").strip()[:200]
@@ -964,12 +999,15 @@ class BranchLinkCreateView(AsyncLoginRequiredMixin, View):
         sha = request.POST.get("commit_sha", "").strip()[:64]
         msg = request.POST.get("message", "").strip()[:255]
         await BranchLink.objects.aget_or_create(
-            issue=issue, branch=branch, commit_sha=sha,
+            issue=issue,
+            branch=branch,
+            commit_sha=sha,
             defaults={"repo_url": repo, "message": msg, "created_by": request.user},
         )
         links = [b async for b in issue.branches.all().order_by("-created_at")]
         return await arender(
-            request, "issues/_branch_links.html",
+            request,
+            "issues/_branch_links.html",
             {"issue": issue, "branches": links},
         )
 
@@ -977,12 +1015,14 @@ class BranchLinkCreateView(AsyncLoginRequiredMixin, View):
 class BranchLinkDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from .models import BranchLink
+
         issue = await _aget_issue(key)
         await aassert_can_edit(request.user, issue.project)
         await BranchLink.objects.filter(pk=pk, issue=issue).adelete()
         links = [b async for b in issue.branches.all().order_by("-created_at")]
         return await arender(
-            request, "issues/_branch_links.html",
+            request,
+            "issues/_branch_links.html",
             {"issue": issue, "branches": links},
         )
 
@@ -995,7 +1035,8 @@ class CommentEditHistoryView(AsyncLoginRequiredMixin, View):
         await aassert_can_view(request.user, comment.issue.project)
         edits = [e async for e in comment.edits.all().order_by("-edited_at")]
         return await arender(
-            request, "issues/_comment_history.html",
+            request,
+            "issues/_comment_history.html",
             {"comment": comment, "edits": edits},
         )
 
@@ -1014,8 +1055,9 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
     async def get(self, request, key):
         project = await _aget_project(key)
         await aassert_can_edit(request.user, project)
-        return await arender(request, self.template_name,
-                             {"project": project, "preview": None, "csv_text": ""})
+        return await arender(
+            request, self.template_name, {"project": project, "preview": None, "csv_text": ""}
+        )
 
     async def post(self, request, key):
         import csv as _csv
@@ -1026,8 +1068,11 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
         await aassert_can_edit(request.user, project)
         text = request.POST.get("csv", "").strip()
         if not text:
-            return await arender(request, self.template_name,
-                                 {"project": project, "preview": None, "csv_text": "", "error": "CSV vacío"})
+            return await arender(
+                request,
+                self.template_name,
+                {"project": project, "preview": None, "csv_text": "", "error": "CSV vacío"},
+            )
 
         reader = _csv.DictReader(io.StringIO(text))
         # Normalize header to lowercase.
@@ -1038,14 +1083,24 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
                 continue
             rows.append(row)
         if not rows:
-            return await arender(request, self.template_name,
-                                 {"project": project, "preview": None, "csv_text": text, "error": "Sin filas válidas (summary requerido)"})
+            return await arender(
+                request,
+                self.template_name,
+                {
+                    "project": project,
+                    "preview": None,
+                    "csv_text": text,
+                    "error": "Sin filas válidas (summary requerido)",
+                },
+            )
 
         action = request.POST.get("action", "preview")
         if action == "preview":
-            return await arender(request, self.template_name,
-                                 {"project": project, "preview": rows[:50], "csv_text": text,
-                                  "total": len(rows)})
+            return await arender(
+                request,
+                self.template_name,
+                {"project": project, "preview": rows[:50], "csv_text": text, "total": len(rows)},
+            )
 
         # Action == import: build issues.
         default_status = await Status.objects.order_by("order").afirst()
@@ -1054,11 +1109,13 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
         default_type = next(iter(types_by_name.values())) if types_by_name else None
         default_priority = next(iter(priorities_by_name.values())) if priorities_by_name else None
         from accounts.models import User
+
         usernames = {row["assignee"].lower() for row in rows if row.get("assignee")}
-        users_by_name = {
-            u.username.lower(): u async for u in
-            User.objects.filter(username__in=usernames)
-        } if usernames else {}
+        users_by_name = (
+            {u.username.lower(): u async for u in User.objects.filter(username__in=usernames)}
+            if usernames
+            else {}
+        )
 
         created = 0
         for row in rows:
@@ -1081,13 +1138,18 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
                 reporter=request.user,
                 summary=row["summary"][:255],
                 description=row.get("description", ""),
-                status=default_status, priority=prio, issue_type=itype,
-                assignee=assignee, story_points=sp, due_date=due,
+                status=default_status,
+                priority=prio,
+                issue_type=itype,
+                assignee=assignee,
+                story_points=sp,
+                due_date=due,
                 key=f"{project.key}-{num}",
             )
             await issue.asave()
             created += 1
         from django.contrib import messages
+
         messages.success(request, f"{created} tareas importadas.")
         return redirect("issues:list", key=project.key)
 
@@ -1100,10 +1162,22 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
     """
 
     ALL_COLUMNS = (
-        "key", "summary", "status", "priority", "type",
-        "assignee", "reporter", "sprint", "epic",
-        "story_points", "estimate_minutes", "time_spent_minutes",
-        "due_date", "resolved_at", "created_at", "updated_at",
+        "key",
+        "summary",
+        "status",
+        "priority",
+        "type",
+        "assignee",
+        "reporter",
+        "sprint",
+        "epic",
+        "story_points",
+        "estimate_minutes",
+        "time_spent_minutes",
+        "due_date",
+        "resolved_at",
+        "created_at",
+        "updated_at",
     )
 
     def _row(self, i, columns):
@@ -1142,7 +1216,13 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
             columns = list(self.ALL_COLUMNS)
 
         qs = project.issues.select_related(
-            "status", "priority", "issue_type", "assignee", "reporter", "sprint", "epic",
+            "status",
+            "priority",
+            "issue_type",
+            "assignee",
+            "reporter",
+            "sprint",
+            "epic",
         ).order_by("key")
 
         text = request.GET.get("text", "").strip()
@@ -1150,6 +1230,7 @@ class IssueCsvExportView(AsyncLoginRequiredMixin, View):
         assignee = request.GET.get("assignee")
         if text:
             from django.db.models import Q
+
             qs = qs.filter(Q(summary__icontains=text) | Q(key__icontains=text))
         if status_id and status_id.isdigit():
             qs = qs.filter(status_id=int(status_id))
@@ -1184,7 +1265,8 @@ class CustomFieldSetView(AsyncLoginRequiredMixin, View):
         issue.custom_fields = cf
         await issue.asave(update_fields=["custom_fields", "updated_at"])
         return await arender(
-            request, "issues/_custom_field.html",
+            request,
+            "issues/_custom_field.html",
             {"issue": issue, "slug": slug, "value": value},
         )
 
@@ -1199,30 +1281,38 @@ class IssueJsonExportView(AsyncLoginRequiredMixin, View):
         await aassert_can_view(request.user, project)
 
         qs = project.issues.select_related(
-            "status", "priority", "issue_type", "assignee", "reporter", "sprint", "epic",
+            "status",
+            "priority",
+            "issue_type",
+            "assignee",
+            "reporter",
+            "sprint",
+            "epic",
         ).order_by("key")
         if not request.GET.get("archived"):
             qs = qs.filter(archived=False)
 
         items = []
         async for i in qs:
-            items.append({
-                "key": i.key,
-                "summary": i.summary,
-                "status": str(i.status),
-                "priority": str(i.priority),
-                "type": str(i.issue_type),
-                "assignee": getattr(i.assignee, "username", None),
-                "reporter": getattr(i.reporter, "username", None),
-                "sprint": getattr(i.sprint, "name", None),
-                "epic": getattr(i.epic, "name", None),
-                "story_points": i.story_points,
-                "due_date": i.due_date.isoformat() if i.due_date else None,
-                "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
-                "created_at": i.created_at.isoformat(),
-                "updated_at": i.updated_at.isoformat(),
-                "url": request.build_absolute_uri(i.get_absolute_url()),
-            })
+            items.append(
+                {
+                    "key": i.key,
+                    "summary": i.summary,
+                    "status": str(i.status),
+                    "priority": str(i.priority),
+                    "type": str(i.issue_type),
+                    "assignee": getattr(i.assignee, "username", None),
+                    "reporter": getattr(i.reporter, "username", None),
+                    "sprint": getattr(i.sprint, "name", None),
+                    "epic": getattr(i.epic, "name", None),
+                    "story_points": i.story_points,
+                    "due_date": i.due_date.isoformat() if i.due_date else None,
+                    "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
+                    "created_at": i.created_at.isoformat(),
+                    "updated_at": i.updated_at.isoformat(),
+                    "url": request.build_absolute_uri(i.get_absolute_url()),
+                }
+            )
         resp = HttpResponse(
             json.dumps({"project": project.key, "issues": items}, ensure_ascii=False),
             content_type="application/json; charset=utf-8",
@@ -1239,6 +1329,7 @@ class IssueTemplateListView(AsyncLoginRequiredMixin, AsyncListView):
 
     async def aget_queryset(self):
         from .models import IssueTemplate
+
         self.project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, self.project)
         return IssueTemplate.objects.filter(project=self.project).select_related("issue_type")
@@ -1284,10 +1375,12 @@ class IssueTemplateUpdateView(AsyncLoginRequiredMixin, AsyncUpdateView):
 
     async def aget_object(self):
         from .models import IssueTemplate
+
         self.project = await _aget_project(self.kwargs["key"])
         await aassert_can_edit(self.request.user, self.project)
         return await IssueTemplate.objects.filter(
-            pk=self.kwargs["pk"], project=self.project,
+            pk=self.kwargs["pk"],
+            project=self.project,
         ).afirst()
 
     async def aget_context_data(self, **kwargs):
@@ -1306,6 +1399,7 @@ class IssueTemplateUpdateView(AsyncLoginRequiredMixin, AsyncUpdateView):
 class IssueTemplateDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from .models import IssueTemplate
+
         project = await _aget_project(key)
         await aassert_can_edit(request.user, project)
         await IssueTemplate.objects.filter(pk=pk, project=project).adelete()
