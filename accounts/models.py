@@ -36,6 +36,11 @@ class User(AbstractUser):
         default="",
         help_text=_("Tipos de notificación silenciados (separados por comas)."),
     )
+    # Denormalised unread-notification counter so the topbar bell and the
+    # ``user.<pk>`` WS group don't have to issue a fresh ``COUNT(*)`` on
+    # every page render or broadcast. Maintained by signals on
+    # :class:`Notification` — never write to it directly.
+    unread_count = models.PositiveIntegerField(default=0, editable=False)
 
     def __str__(self):
         return self.display_name or self.get_full_name() or self.username

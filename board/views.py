@@ -113,17 +113,18 @@ class MoveCardView(AsyncLoginRequiredMixin, View):
             status = await Status.objects.aget(pk=status_id)
         except Status.DoesNotExist as exc:
             raise Http404(f"Status {status_id} not found") from exc
-        current = issue.status
-        allowed = [s async for s in current.allowed_next.all()]
-        if allowed and status.pk != current.pk:
-            if not any(s.pk == status.pk for s in allowed):
-                return HttpResponseBadRequest(f"Transición no permitida: {current} → {status}")
-        issue.status = status
-        if status.category == "done" and not issue.resolved_at:
-            issue.resolved_at = timezone.now()
-        elif status.category != "done":
-            issue.resolved_at = None
-        await issue.asave()
+        # Delegate to the canonical atomic transition so we get row locks,
+        # workflow validation, HistoryEntry creation and resolved_at
+        # bookkeeping for free (mirrors ChangeStatusView / AdvanceStatusView).
+        from asgiref.sync import sync_to_async
+
+        from issues.views import _change_status_atomic
+
+        issue, status, ok = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True,
+        )(issue.pk, status.pk, request.user.pk)
+        if not ok:
+            return HttpResponseBadRequest(f"Transición no permitida: {issue.status} → {status}")
         return await arender(request, "board/_card.html", {"issue": issue})
 
 
@@ -181,14 +182,25 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             if not value or not await Label.objects.filter(pk=value).aexists():
                 return HttpResponseBadRequest("label inválido")
             label_id = int(value)
-            async for issue in qs:
-                await issue.labels.aadd(label_id)
+            through = Issue.labels.through
+            issue_ids = [pk async for pk in qs.values_list("pk", flat=True)]
+            existing = {
+                pk async for pk in through.objects.filter(
+                    issue_id__in=issue_ids, label_id=label_id,
+                ).values_list("issue_id", flat=True)
+            }
+            await through.objects.abulk_create(
+                [through(issue_id=pk, label_id=label_id) for pk in issue_ids if pk not in existing]
+            )
         elif action == "label_remove":
             if not value or not await Label.objects.filter(pk=value).aexists():
                 return HttpResponseBadRequest("label inválido")
             label_id = int(value)
-            async for issue in qs:
-                await issue.labels.aremove(label_id)
+            through = Issue.labels.through
+            issue_ids = [pk async for pk in qs.values_list("pk", flat=True)]
+            await through.objects.filter(
+                issue_id__in=issue_ids, label_id=label_id,
+            ).adelete()
         else:
             return HttpResponseBadRequest("action desconocida")
         return HttpResponse(status=204, headers={"HX-Redirect": f"/board/{project.key}/"})

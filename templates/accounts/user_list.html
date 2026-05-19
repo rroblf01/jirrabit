@@ -1,10 +1,20 @@
 {% extends "base.html" %}
+{% load i18n %}
 {% block content %}
 <div class="card">
-  <h1>Usuarios</h1>
-  <input type="search" name="q" placeholder="Buscar..." value="{{ q }}"
-         hx-get="{% url 'accounts:user_list' %}" hx-trigger="keyup changed delay:300ms"
-         hx-target="#user-list" hx-include="this">
+  <h1>{% trans "Usuarios" %}</h1>
+  <div style="position:relative; max-width:480px;">
+    <input type="search" name="q" placeholder="{% trans 'Buscar...' %}" value="{{ q }}"
+           hx-get="{% url 'accounts:user_list' %}" hx-trigger="keyup changed delay:300ms"
+           hx-target="#user-list" hx-include="this"
+           hx-indicator="#user-search-spinner"
+           hx-disinherit="*"
+           style="width:100%;">
+    <span id="user-search-spinner" class="htmx-indicator"
+          style="position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:12px; color:var(--ink-500);">
+      ⏳
+    </span>
+  </div>
   <div id="user-list" style="margin-top:14px;">
     {% include "accounts/_user_list.html" %}
   </div>

@@ -296,14 +296,18 @@ class NotificationInboxView(AsyncLoginRequiredMixin, AsyncListView):
 
 class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
     async def post(self, request):
+        from asgiref.sync import sync_to_async
+
+        from .signals import recompute
+
         ids = request.POST.getlist("id")
         qs = Notification.objects.filter(recipient=request.user)
         if ids:
             qs = qs.filter(pk__in=ids)
         await qs.aupdate(read=True)
-        # Push new unread count to the user's WS group so the bell badge
-        # clears reactively without waiting for the next page render.
-        count = await Notification.objects.filter(recipient=request.user, read=False).acount()
+        # ``aupdate`` bypasses signals, so reconcile the denormalised
+        # counter ourselves before broadcasting.
+        count = await sync_to_async(recompute, thread_sensitive=True)(request.user.pk)
         try:
             from channels.layers import get_channel_layer
             layer = get_channel_layer()
@@ -313,8 +317,17 @@ class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
                 )
         except (ConnectionError, OSError, RuntimeError):
             pass
+        # Re-render the SAME page the user is on (read or unread filter +
+        # pagination must stay the same — otherwise the list jumps).
+        try:
+            page = max(int(request.POST.get("page") or request.GET.get("page") or "1"), 1)
+        except ValueError:
+            page = 1
+        page_size = NotificationInboxView.PAGE_SIZE
+        offset = (page - 1) * page_size
         notifs = [
-            n async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[:100]
+            n async for n in Notification.objects.filter(recipient=request.user)
+            .select_related("actor")[offset : offset + page_size]
         ]
         return await arender(request, "notifications/_list.html", {"notifications": notifs})
 
@@ -376,10 +389,18 @@ class APIKeyRevokeView(AsyncLoginRequiredMixin, View):
 
 
 class NotificationCountView(AsyncLoginRequiredMixin, View):
-    """Poll target for the topbar bell badge."""
+    """Legacy poll target for the topbar bell badge.
+
+    Kept for any non-WebSocket fallback. Reads from the denormalised
+    ``User.unread_count`` so it's a single column lookup.
+    """
 
     async def get(self, request):
-        count = await Notification.objects.filter(recipient=request.user, read=False).acount()
+        count = (
+            await User.objects.filter(pk=request.user.pk)
+            .values_list("unread_count", flat=True)
+            .afirst()
+        ) or 0
         request.unread_notifications = count
         return await arender(
             request,

@@ -286,26 +286,33 @@
   let _notifSocket = null;
   let _notifRetry = 0;
   const NOTIF_MAX_RETRIES = 5;
+  // Expose socket reference so devs can inspect from the console.
+  window.jirrabit = window.jirrabit || {};
+  Object.defineProperty(window.jirrabit, "notifSocket", {
+    get: () => _notifSocket,
+    configurable: true,
+  });
   function connectNotifSocket() {
-    if (document.hidden) return;  // pause while tab is in background
-    if (_notifRetry >= NOTIF_MAX_RETRIES) return;  // stop after too many failures
+    if (document.hidden) return;
+    if (_notifRetry >= NOTIF_MAX_RETRIES) return;
     const link = document.querySelector(".notif-link");
-    if (!link) return;  // anonymous page
+    if (!link) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     try {
       _notifSocket = new WebSocket(`${proto}://${location.host}/ws/notifications/`);
     } catch (_e) { return; }
+    _notifSocket.addEventListener("open", () => { _notifRetry = 0; });
     _notifSocket.addEventListener("message", (ev) => {
       try {
         const data = JSON.parse(ev.data);
-        if (data && data.type === "unread") applyUnread(parseInt(data.count, 10) || 0);
-      } catch (_e) {}
+        if (data && data.type === "unread") {
+          applyUnread(parseInt(data.count, 10) || 0);
+        }
+      } catch (_e) { /* malformed payload */ }
     });
-    _notifSocket.addEventListener("open", () => { _notifRetry = 0; });
     _notifSocket.addEventListener("close", () => {
-      // Exponential backoff capped at ~30s; cap total retries to avoid
-      // spamming the server if the WS endpoint isn't available
-      // (e.g. running behind a server without WS support).
+      // Exponential backoff capped at ~30s; cap retries so a server
+      // without WS support doesn't get hammered forever.
       const delay = Math.min(30000, 1000 * Math.pow(2, _notifRetry++));
       setTimeout(connectNotifSocket, delay);
     });
@@ -701,6 +708,40 @@
     document.addEventListener("DOMContentLoaded", () => scanSwipe(document));
     document.body.addEventListener("htmx:afterSwap", (e) => scanSwipe(e.target));
   }
+
+  // --- Esc cancels an open inline-edit form ------------------------------
+  // The form rendered by ``InlineEditFormView`` typically lives inside an
+  // ancestor with class ``inline-edit`` (the display element that opened
+  // it). On Escape, hit the cancel endpoint to restore the display
+  // partial instead of leaving the user trapped in the form.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    const active = document.activeElement;
+    if (!active) return;
+    const form = active.closest && active.closest("form");
+    if (!form) return;
+    const hxPost = form.getAttribute("hx-post") || "";
+    if (!hxPost.includes("/inline/")) return;
+    const cancel = form.querySelector("a[hx-get*='cancel=1']");
+    if (cancel && window.htmx) {
+      e.preventDefault();
+      window.htmx.trigger(cancel, "click");
+    }
+  });
+
+  // --- Global htmx error toasts ------------------------------------------
+  // Without this the drag-and-drop board card silently snaps back when a
+  // transition is forbidden by workflow rules — confusing for the user.
+  document.body.addEventListener("htmx:responseError", (e) => {
+    const xhr = e.detail && e.detail.xhr;
+    if (!xhr) return;
+    let msg = (xhr.responseText || "").trim();
+    if (msg.length > 140) msg = msg.slice(0, 140) + "…";
+    if (!msg) msg = `Error ${xhr.status}`;
+    if (window.jirrabit && window.jirrabit.toast) {
+      window.jirrabit.toast(msg, "err");
+    }
+  });
 
   // --- Comment permalink copy -------------------------------------------
   // Click a comment timestamp → smooth scroll + copy URL to clipboard.

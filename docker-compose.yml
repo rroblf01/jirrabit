@@ -35,8 +35,8 @@ services:
       - "8000:8000"
     volumes:
       - ./:/app
-    command: ["runserver"]
-    # command: ["saltare", "--reload"]
+    # command: ["daphne"]
+    command: ["saltare-dev"]
 
 volumes:
   jirrabitdata:

@@ -902,6 +902,8 @@ class SubtaskToggleView(AsyncLoginRequiredMixin, View):
         if target is None:
             return HttpResponseBadRequest("sin estado destino")
         sub, target, ok = await sync_to_async(_change_status_atomic)(sub.pk, target.pk, request.user.pk)
+        if not ok:
+            return HttpResponseBadRequest("transición no permitida por workflow")
         if sub.parent_id:
             parent = await _aget_issue_by_pk(sub.parent_id)
             subtasks = [
@@ -948,6 +950,8 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
         else:
             await Reaction.objects.acreate(comment=comment, user=request.user, emoji=emoji)
         # Broadcast to the project group so other viewers see it live.
+        # Channel layer failures are best-effort: the reaction is already
+        # persisted, so we log and continue rather than 500 the request.
         try:
             from channels.layers import get_channel_layer
 
@@ -957,8 +961,11 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
                     f"project.{comment.issue.project.key}",
                     {"type": "reaction.event", "payload": {"comment_id": comment.pk}},
                 )
-        except Exception:
-            pass
+        except (ConnectionError, OSError, RuntimeError):
+            import logging
+            logging.getLogger("jirrabit.realtime").exception(
+                "reaction broadcast failed for comment %s", comment.pk,
+            )
         reactions = await sync_to_async(_aggregate_reactions)(
             comment.pk,
             request.user.pk,

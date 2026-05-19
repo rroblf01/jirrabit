@@ -19,19 +19,21 @@ logger = logging.getLogger("jirrabit.notifications")
 def _broadcast_unread(user_id: int) -> None:
     """Push the current unread count to ``user.<id>`` for the bell badge.
 
-    Best-effort: if the channel layer is down (no Redis in tests, etc.)
-    we swallow the error — the next page render or reconnect will sync.
+    Reads the denormalised ``User.unread_count`` (maintained by signals)
+    instead of issuing a ``COUNT(*)`` per call. Best-effort: if the
+    channel layer is down (no Redis in tests, etc.) we swallow the
+    error — the next page render or reconnect will sync.
     """
     from asgiref.sync import async_to_sync
     from channels.layers import get_channel_layer
 
-    from accounts.models import Notification
+    from accounts.models import User
 
     layer = get_channel_layer()
     if layer is None:
         return
     try:
-        count = Notification.objects.filter(recipient_id=user_id, read=False).count()
+        count = User.objects.filter(pk=user_id).values_list("unread_count", flat=True).first() or 0
         async_to_sync(layer.group_send)(
             f"user.{user_id}", {"type": "notif.unread", "count": count},
         )

@@ -10,8 +10,19 @@ Two modes selected by ``JIRRABIT_DEBUG``:
 """
 
 import os
+import warnings
 from pathlib import Path
 from urllib.parse import unquote, urlparse
+
+# WhiteNoise serves static files via ``FileResponse`` (a subclass of
+# ``StreamingHttpResponse`` with a sync iterator); Django's ASGI handler
+# wraps it with ``sync_to_async`` and emits a warning on every static
+# request. The behaviour is correct, the warning is noise.
+warnings.filterwarnings(
+    "ignore",
+    message="StreamingHttpResponse must consume synchronous iterators.*",
+    module=r"django\.core\.handlers\.asgi",
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,10 +36,14 @@ if not SECRET_KEY:
     else:
         raise RuntimeError("JIRRABIT_SECRET_KEY must be set when JIRRABIT_DEBUG=0.")
 
-ALLOWED_HOSTS = ["https://jirrabit.ricardorobles.es", "*", "localhost", "127.0.0.1"]
+ALLOWED_HOSTS = [
+    "jirrabit.ricardorobles.es",
+    "localhost",
+    "127.0.0.1",
+]
+
 
 INSTALLED_APPS = [
-    "daphne",
     "channels",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -77,6 +92,7 @@ TEMPLATES = [
                 "django.template.context_processors.i18n",
                 "core.context_processors.nav",
                 "core.context_processors.palette",
+                "core.context_processors.notifications_count",
             ],
         },
     },
@@ -133,6 +149,26 @@ USE_I18N = True
 USE_TZ = True
 LOCALE_PATHS = [BASE_DIR / "locale"]
 LANGUAGES = [("es", "Español"), ("en", "English")]
+
+# --- logging --------------------------------------------------------------
+# Pipe ``jirrabit.*`` loggers to stdout at INFO level so debug prints from
+# middleware, signals, consumers and notifications are visible in
+# ``docker compose logs``. Without this, Django's default config drops
+# INFO records from custom loggers on the floor.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {"format": "%(asctime)s %(name)s %(levelname)s %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "simple"},
+    },
+    "loggers": {
+        "jirrabit": {"handlers": ["console"], "level": "INFO", "propagate": False},
+    },
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}
 
 STATIC_URL = "static/"
 # STATIC_ROOT lives outside the source tree so a bind-mounted /app in dev

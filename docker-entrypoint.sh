@@ -21,8 +21,12 @@ case "$1" in
 
     saltare)
         shift
-        echo "Ejecutando Saltare..."
-        exec saltare jirrabit.asgi:application --host 0.0.0.0 --port 8000 --access-log
+        exec saltare jirrabit.asgi:application --host 0.0.0.0 --port 8000 --access-log --ws-reject-log
+        ;;
+
+    saltare-dev)
+        shift
+        exec saltare jirrabit.asgi:application --host 0.0.0.0 --port 8000 --access-log --reload --ws-reject-log
         ;;
 
     daphne|*)

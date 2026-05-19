@@ -54,9 +54,14 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.accept()
         # Push the current count immediately so the badge syncs on every
-        # reconnect (refresh, tab regain focus, etc.).
-        from accounts.models import Notification
-        count = await Notification.objects.filter(recipient=user, read=False).acount()
+        # reconnect (refresh, tab regain focus, etc.). Read from the
+        # denormalised counter so we don't run a COUNT(*) per connect.
+        from accounts.models import User
+        count = (
+            await User.objects.filter(pk=user.pk)
+            .values_list("unread_count", flat=True)
+            .afirst()
+        ) or 0
         await self.send_json({"type": "unread", "count": count})
 
     async def disconnect(self, code):
