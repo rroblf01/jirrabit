@@ -1136,26 +1136,21 @@
 })();
 
 // --- WS status dot (visual indicator in topbar) -----------------------------
+// The dot element lives in the server-rendered header (preserved across
+// hx-boost swaps via ``hx-preserve``). This script only updates its
+// colour / title — never creates or removes it, so no flicker on nav.
 (function () {
-  function ensureDot() {
-    let dot = document.getElementById("ws-status-dot");
-    if (dot) return dot;
-    const bell = document.querySelector(".notif-link");
-    if (!bell) return null;
-    dot = document.createElement("span");
-    dot.id = "ws-status-dot";
-    dot.title = "WebSocket";
-    dot.setAttribute("aria-hidden", "true");
-    dot.style.cssText = "display:inline-block; width:8px; height:8px; border-radius:999px; margin-right:6px; vertical-align:middle; background:#f59e0b;";
-    bell.parentNode.insertBefore(dot, bell);
-    return dot;
-  }
   function setState(state) {
-    const dot = ensureDot();
+    const dot = document.getElementById("ws-status-dot");
     if (!dot) return;
     const colors = { open: "#16a34a", connecting: "#f59e0b", closed: "#dc2626" };
     dot.style.background = colors[state] || "#94a3b8";
-    dot.title = "WebSocket: " + state;
+    const titles = {
+      open: dot.dataset.titleOpen || "Connected",
+      connecting: dot.dataset.titleConnecting || "Connecting…",
+      closed: dot.dataset.titleClosed || "Disconnected",
+    };
+    dot.title = titles[state] || state;
   }
   function poll() {
     const s = window.jirrabit && window.jirrabit.notifSocket;

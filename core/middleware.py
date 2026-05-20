@@ -227,14 +227,17 @@ def csp_middleware(get_response):
 
     ``'unsafe-inline'`` on ``style-src`` and ``script-src`` is required
     because the project still ships some inline styles/scripts (palette
-    overrides, board drag-and-drop bootstrap, htmx CDN tag). Tighten once
-    those are moved to external files.
+    overrides, board drag-and-drop bootstrap, htmx CDN tag). ``'unsafe-eval'``
+    is required by htmx 2.x + idiomorph extension, which use ``Function()``
+    to evaluate expressions in attributes like ``hx-vals`` and the morph
+    extension's swap logic. Tighten once we move scripts to external
+    files and audit htmx attribute usage.
     """
     policy = (
         "default-src 'self'; "
         "img-src 'self' data: blob:; "
         "style-src 'self' 'unsafe-inline'; "
-        "script-src 'self' 'unsafe-inline' https://unpkg.com; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; "
         "connect-src 'self' ws: wss:; "
         "font-src 'self' data:; "
         # ``frame-src data:`` is required to let the PDF attachment

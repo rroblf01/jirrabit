@@ -82,11 +82,29 @@
     recountColumns(root);
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    document.querySelectorAll('.kanban').forEach(attach);
+  // Mark a .kanban after binding so we don't double-attach listeners on
+  // morph swaps that preserve the same DOM nodes.
+  function scan(root) {
+    (root || document).querySelectorAll('.kanban').forEach(k => {
+      if (k.dataset.dndBound === '1') return;
+      k.dataset.dndBound = '1';
+      attach(k);
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => scan(document));
+  // hx-boost swaps the whole <body> via morph; the swap target is body,
+  // not the .kanban itself. Re-scan globally on every settle so freshly
+  // morphed kanbans get their drag-and-drop wired.
+  document.body.addEventListener('htmx:afterSettle', () => {
+    scan(document);
+    if (document.querySelector('.kanban')) recountColumns();
   });
   document.body.addEventListener('htmx:afterSwap', e => {
-    if (e.target.classList && e.target.classList.contains('kanban')) attach(e.target);
+    if (e.target.classList && e.target.classList.contains('kanban')) {
+      delete e.target.dataset.dndBound;  // re-bind: morph may have replaced child cards
+      scan(e.target.parentElement || document);
+    }
     if (document.querySelector('.kanban')) recountColumns();
   });
 })();

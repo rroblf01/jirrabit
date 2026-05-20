@@ -165,7 +165,7 @@ document.addEventListener('change', e => {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${proto}//${location.host}/ws/projects/{{ project.key }}/`);
   let badge;
-  ws.onopen = () => console.debug('WS live: {{ project.key }}');
+  ws.onopen = () => {};
   let dismissTimer;
   function refreshKanban() {
     if (!window.htmx) { location.reload(); return; }

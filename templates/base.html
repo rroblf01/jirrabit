@@ -17,13 +17,19 @@
 </head>
 <body hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}' hx-boost="true" hx-ext="morph" hx-swap="morph:innerHTML"{% if user.is_authenticated %} data-user-id="{{ user.pk }}" data-username="{{ user.username }}"{% endif %}>
 {% if user.is_authenticated %}
-<header class="topbar">
+<header class="topbar" id="topbar" hx-preserve="true">
   <div class="brand">jirra<span>bit</span></div>
   <nav>
     <a href="{% url 'core:home' %}">{% trans "Home" %}</a>
     <a href="{% url 'projects:list' %}">{% trans "Proyectos" %}</a>
     <a href="{% url 'accounts:user_list' %}">{% trans "Usuarios" %}</a>
     <a href="{% url 'core:help' %}" title="{% trans 'Entiende Jira' %}">{% trans "Entiende Jira" %}</a>
+    <span id="ws-status-dot"
+          title="{% trans 'Conectando con el servidor…' %}"
+          data-title-open="{% trans 'Conectado con el servidor' %}"
+          data-title-closed="{% trans 'No conectado con el servidor' %}"
+          data-title-connecting="{% trans 'Conectando con el servidor…' %}"
+          style="display:inline-block !important; width:10px; height:10px; border-radius:999px; margin-right:8px; vertical-align:middle; background:#f59e0b; box-shadow:0 0 0 1px rgba(255,255,255,.3);"></span>
     {% include "_notif_badge.html" %}
     {% if user.is_superuser %}
       <a href="{% url 'accounts:admin_user_list' %}">{% trans "Admin" %}</a>
