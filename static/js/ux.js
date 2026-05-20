@@ -293,7 +293,7 @@
     configurable: true,
   });
   function connectNotifSocket() {
-    if (document.hidden) return;
+    if (_notifSocket && _notifSocket.readyState <= 1) return;  // already CONNECTING/OPEN
     if (_notifRetry >= NOTIF_MAX_RETRIES) return;
     const link = document.querySelector(".notif-link");
     if (!link) return;
@@ -317,13 +317,31 @@
       setTimeout(connectNotifSocket, delay);
     });
   }
+  // Try at every plausible "page is now ready" trigger so a flaky first
+  // handshake (saltare WS upgrade race, transient close 1000) does not
+  // leave the bell offline until the user changes tabs.
   document.addEventListener("DOMContentLoaded", connectNotifSocket);
-  // Resume the socket when the user comes back to the tab.
+  window.addEventListener("load", connectNotifSocket);
+  window.addEventListener("focus", () => {
+    if (!_notifSocket || _notifSocket.readyState >= 2) {
+      _notifRetry = 0;
+      connectNotifSocket();
+    }
+  });
+  window.addEventListener("online", () => {
+    _notifRetry = 0;
+    connectNotifSocket();
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && (!_notifSocket || _notifSocket.readyState >= 2)) {
       _notifRetry = 0;
       connectNotifSocket();
     }
+  });
+  // Some browsers fire htmx:afterSettle from the boosted body swap before
+  // the page finishes settling JS state — re-poke the socket then too.
+  document.body && document.body.addEventListener("htmx:afterSettle", () => {
+    if (!_notifSocket || _notifSocket.readyState >= 2) connectNotifSocket();
   });
 
   // --- Topbar user-menu dropdown --------------------------------------
