@@ -13,7 +13,7 @@ from inspect import iscoroutinefunction
 from threading import Lock
 
 from django.conf import settings
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.utils.decorators import sync_and_async_middleware
 
 # ---------------------------------------------------------------------------
@@ -293,9 +293,15 @@ def _api_bucket(request, user=None) -> str | None:
 
 
 def _api_throttled(key: str) -> bool:
-    now = time.monotonic()
     window = settings.JIRRABIT_API_RATE_WINDOW
     limit = settings.JIRRABIT_API_RATE_LIMIT
+    # A non-positive limit disables throttling. This has to be an explicit
+    # early return: the comparison below is ``len(attempts) >= limit``, and
+    # ``len([]) >= 0`` is always true, so a limit of 0 would otherwise throttle
+    # every single request.
+    if limit <= 0:
+        return False
+    now = time.monotonic()
     with _lock:
         attempts = [t for t in _api_attempts[key] if now - t < window]
         if len(attempts) >= limit:
@@ -315,15 +321,17 @@ def api_rate_limit_middleware(get_response):
     ``Retry-After`` header when the bucket is exhausted.
     """
 
-    def _too_many() -> HttpResponse:
+    def _too_many():
         from django.utils.translation import gettext as _
 
         retry = settings.JIRRABIT_API_RATE_WINDOW
-        body = _("Rate limit exceeded. Retry in %(s)s seconds.") % {"s": retry}
-        return HttpResponse(
-            body,
+        message = _("Rate limit exceeded. Retry in %(s)s seconds.") % {"s": retry}
+        # Same {"detail": ...} envelope django-ninja uses for every other API
+        # error, so a client parses one error shape across the whole API. The
+        # Retry-After header is kept because that is what HTTP clients read.
+        return JsonResponse(
+            {"detail": message},
             status=429,
-            content_type="text/plain; charset=utf-8",
             headers={"Retry-After": str(retry)},
         )
 

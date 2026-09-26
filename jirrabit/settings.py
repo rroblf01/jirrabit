@@ -239,7 +239,13 @@ JIRRABIT_LOGIN_THROTTLE_WINDOW = int(os.environ.get("JIRRABIT_LOGIN_WINDOW", "30
 JIRRABIT_LOGIN_THROTTLE_BAN = int(os.environ.get("JIRRABIT_LOGIN_BAN", "900"))
 
 # --- API rate limit ------------------------------------------------------
-JIRRABIT_API_RATE_LIMIT = int(os.environ.get("JIRRABIT_API_RATE_LIMIT", "120"))
+# Off by default (limit 0 means no throttling), because a self-hosted instance
+# is meant to be used freely and a personal agent can legitimately exceed any
+# small per-minute budget. Set a positive ``JIRRABIT_API_RATE_LIMIT`` when the
+# instance is reachable from the public internet and you want a ceiling.
+# The login throttle above is unrelated and stays on: it is brute-force
+# protection, not API usage.
+JIRRABIT_API_RATE_LIMIT = int(os.environ.get("JIRRABIT_API_RATE_LIMIT", "0"))
 JIRRABIT_API_RATE_WINDOW = int(os.environ.get("JIRRABIT_API_RATE_WINDOW", "60"))
 
 # --- registration -------------------------------------------------------
