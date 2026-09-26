@@ -320,6 +320,16 @@ saves row by row and says why.
 
 ## Data quirks
 
+- **Who caused this write** is not something a `post_save` receiver can see.
+  `core/current_user.py` keeps it in a `ContextVar`, published by
+  `current_user_middleware`, because asgiref propagates the context into the
+  worker thread that `asave()` writes on. `realtime.broadcast` uses it so the
+  board does not tell you to refresh a board you just changed yourself.
+  Publishing it means `await request.auser()`: touching `request.user` resolves
+  the session, which is a synchronous query, and on the event loop that is a 500
+  on every login. A write with no request behind it — a command, a shell, a
+  background task — carries no actor, which is correct: a change of unknown
+  origin is the one worth a refresh banner.
 - `Attachment` stores the file **base64-encoded in a `TextField`**, capped at
   5 MB. That is why CSP needs `frame-src data:`.
 - `Issue.key` is generated in `Issue.save()` from `project.next_issue_number()`,
