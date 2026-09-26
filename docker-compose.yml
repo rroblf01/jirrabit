@@ -45,5 +45,37 @@ services:
     # command: ["daphne"]
     command: ["saltare-dev"]
 
+  # The MCP server, from the submodule this repository pins. Behind a profile so
+  # that `docker compose up -d` stays a fast Python-only loop and does not pay
+  # for a Go build; opt in with `--profile mcp`.
+  #
+  #   docker compose --profile mcp up -d
+  #
+  # On the same compose network as `web`, so an agent can address this instance
+  # as http://web:8000 — and `web` is in JIRRABIT_ALLOWED_HOSTS for exactly that
+  # reason. The service has no default instance of its own: every tool call
+  # carries its own instanceUrl and apiKey, so a user creates a key in their
+  # profile and passes it per call.
+  jirrabit-mcp:
+    profiles: ["mcp"]
+    build:
+      # The submodule path is the default. Override MCP_CONTEXT in .env to
+      # build from a checkout elsewhere, e.g. a sibling clone while developing.
+      context: ${MCP_CONTEXT:-./jirrabit-mcp}
+    restart: unless-stopped
+    command: ["-transport", "http"]
+    environment:
+      JIRRABIT_MCP_TRANSPORT: http
+      JIRRABIT_MCP_ADDR: ":8082"
+      JIRRABIT_MCP_PATH: /mcp
+    ports:
+      # For an MCP client running on the host, connecting over HTTP. A client
+      # that spawns the binary itself needs no port: it talks stdio.
+      - "8082:8082"
+    extra_hosts:
+      # Lets this container reach a jirrabit on the Docker host, for the case
+      # where the target is not the `web` service above.
+      - "host.docker.internal:host-gateway"
+
 volumes:
   jirrabitdata:
