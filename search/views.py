@@ -115,8 +115,19 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         if query:
             try:
                 q, order = parse_jql(query)
+                # Scoped to the projects this user can see. Every other query in
+                # the app goes through Project.objects.filter_visible, and so
+                # does the REST API's own search — this view was the one place
+                # that did not, so `project = OPS` in the search box listed every
+                # issue in a project the caller is not a member of, to anyone who
+                # could guess its key. A JQL clause names the project to read, so
+                # it cannot be left to the caller's good intentions.
+                from projects.models import Project
+
+                visible = Project.objects.filter_visible(self.request.user)
                 qs = (
                     Issue.objects.filter(q)
+                    .filter(project__in=visible)
                     .select_related("project", "status", "priority", "issue_type", "assignee")
                     .distinct()
                     .order_by(*(order or ["-updated_at"]))

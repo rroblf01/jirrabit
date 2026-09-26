@@ -26,19 +26,26 @@ logger = logging.getLogger("jirrabit.worker")
 _queue: asyncio.Queue | None = None
 _worker_task: asyncio.Task | None = None
 _main_loop: asyncio.AbstractEventLoop | None = None
+# The loop _queue was built for, tracked here rather than read back off the
+# queue. See _ensure_started.
+_queue_loop: asyncio.AbstractEventLoop | None = None
 _lock = threading.Lock()
 
 
 def _ensure_started():
     """Start the worker on the *current* running loop. Caches the loop ref."""
-    global _queue, _worker_task, _main_loop
+    global _queue, _worker_task, _main_loop, _queue_loop
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         return False
     with _lock:
-        if _queue is None or _queue._loop is not loop:  # type: ignore[attr-defined]
+        if _queue is None or _queue_loop is not loop:
+            # A different loop, so the old queue and its worker belong to a loop
+            # that is gone. Start over rather than queueing onto a dead one.
             _queue = asyncio.Queue()
+            _queue_loop = loop
+            _worker_task = None
             _main_loop = loop
         if _worker_task is None or _worker_task.done():
             _worker_task = loop.create_task(_run())

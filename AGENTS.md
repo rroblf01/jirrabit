@@ -221,6 +221,11 @@ saves row by row and says why.
   the project **lead** both resolve to `admin` (`core/permissions.py`).
 - `Project.objects.filter_visible(user)` is the single visibility gate. Use it in
   every queryset — the API, search, nav and board all go through it.
+
+  It used to be skipped by the search results page, which meant `project = OPS`
+  in the search box listed every issue in a project the caller was not a member
+  of. A JQL clause names the project to read, so a query that trusts it is a
+  data leak; `tests/test_interactive_flows.py` now pins the scoping.
 - Assertions are explicit inside async view bodies:
   `await aassert_can_edit(request.user, issue.project)`.
 - The REST API re-implements these checks locally instead of calling
