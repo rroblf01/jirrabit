@@ -50,9 +50,17 @@ def _change_status_atomic(issue_pk, new_status_pk, user_pk):
 
 
 def _log_work_atomic(issue_pk, user_pk, minutes, comment):
+    """Log work under a row lock. Returns ``(issue, worklog)``.
+
+    Synchronous and atomic on purpose: ``transaction.atomic()`` is not async-safe,
+    and a transaction has to be one unbroken block, so callers on the event loop
+    reach this through ``sync_to_async``. Both the returned issue and the
+    worklog are returned because callers need different halves — the web view
+    re-renders the issue, the API responds with the worklog.
+    """
     with transaction.atomic():
         issue = Issue.objects.select_for_update().get(pk=issue_pk)
-        WorkLog.objects.create(
+        worklog = WorkLog.objects.create(
             issue=issue,
             author_id=user_pk,
             minutes=minutes,
@@ -68,7 +76,7 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
                 "updated_at",
             ]
         )
-    return issue
+    return issue, worklog
 
 
 async def _aget_project(key):
@@ -537,7 +545,7 @@ class LogWorkView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("minutos inválidos")
         if minutes <= 0:
             return HttpResponseBadRequest("minutos debe ser > 0")
-        issue = await sync_to_async(_log_work_atomic)(
+        issue, _worklog = await sync_to_async(_log_work_atomic)(
             issue.pk,
             request.user.pk,
             minutes,

@@ -99,13 +99,35 @@ Served by `saltare` (ASGI), not `runserver`, which would drop WebSockets.
 
 - Views are `async def`. Django's generic CBVs do not work; use the bases in
   `core/async_views.py`, which keep the familiar surface but take `aget_*` /
-  `aform_*` hooks.
+  `aform_*` hooks. `jirrabit/api.py` follows the same rule: all 31 endpoints and
+  all its helpers are `async def`.
 - `core/aio.py` holds the **only** sanctioned `sync_to_async` shims: `arender`,
   `avalid`, `asave_m2m`, `aform`. Everything else must use `aget`/`asave`/`aset`/
   `acreate`/`afirst`.
 - Context processors run before the view and cannot touch the database, so
   middleware pre-loads what they need onto `request` (see
   `core/context_processors.py` and `nav_context_middleware`).
+
+Four places cannot be async, and forcing them is a bug rather than a style
+question:
+
+- **`transaction.atomic()`** raises `SynchronousOnlyOperation` from an async
+  view. A transaction has to be one unbroken block, so the whole unit goes in a
+  sync helper called through `sync_to_async(..., thread_sensitive=True)`.
+  `issues.views._change_status_atomic` and `_log_work_atomic` are both shaped this
+  way, and the API uses them rather than re-implementing the locking.
+- **Management commands** have no async support at all: Django 6's `BaseCommand`
+  has neither `iscoroutinefunction` nor `async_to_sync`, so `execute()` writes
+  the return value to stdout and an `async def handle` hands it a coroutine.
+  A command's ORM calls therefore have to be the sync ones.
+- **`APIKeyAuth.authenticate`** stays sync because django-ninja calls it sync.
+- **Model methods that read a relation** — `Status.can_transition_to` calls
+  `.allowed_next.all()`. Callers on the event loop must
+  `prefetch_related("status__allowed_next")` first, or that becomes a synchronous
+  query. `api.py` prefetches it in the issue querysets for this reason.
+
+Note that `QuerySet` has **no** `avalues_list` and no `aall`: fetch the rows and
+read the attribute in Python, or iterate with `async for`.
 
 ### Saving an issue does more than it looks
 

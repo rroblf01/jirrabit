@@ -11,6 +11,7 @@ existing clients. Two auth methods are accepted on every endpoint:
 List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 200) query params and wrap items in a ``Page`` envelope.
 """
+import inspect
 from datetime import date as _date
 
 from django.db import models
@@ -24,7 +25,7 @@ from issues.models import Comment, Issue, IssueLink, IssueType, Priority, Status
 from projects.models import Project, SavedFilter, Sprint
 
 
-def _visible_project(request, key: str) -> Project:
+async def _visible_project(request, key: str) -> Project:
     """Return ``Project`` by key only if the requesting user can see it.
 
     Wraps ``filter_visible`` so non-members get 404 (rather than 403,
@@ -32,19 +33,23 @@ def _visible_project(request, key: str) -> Project:
     """
     qs = Project.objects.filter_visible(request.user)
     try:
-        return qs.get(key=key)
+        return await qs.aget(key=key)
     except Project.DoesNotExist as exc:
         raise Http404 from exc
 
 
-def _visible_issue(request, key: str) -> Issue:
+async def _visible_issue(request, key: str) -> Issue:
     """Same as ``_visible_project`` at the issue level."""
     visible = Project.objects.filter_visible(request.user)
+    # status__allowed_next is prefetched so that Status.can_transition_to works
+    # in memory: it calls .allowed_next.all(), which without the prefetch is a
+    # synchronous query and raises SynchronousOnlyOperation from an async view.
+    # Prefetching it costs nothing extra — the rows are needed either way.
     qs = Issue.objects.filter(project__in=visible).select_related(
         "project", "status", "priority", "issue_type", "assignee", "reporter", "parent"
-    ).prefetch_related("labels")
+    ).prefetch_related("labels", "status__allowed_next")
     try:
-        return qs.get(key=key)
+        return await qs.aget(key=key)
     except Issue.DoesNotExist as exc:
         raise Http404 from exc
 
@@ -100,16 +105,28 @@ class Page[T](Schema):
     items: list[T]
 
 
-def paginate(queryset, builder, page: int, size: int) -> dict:
+async def paginate(queryset, builder, page: int, size: int) -> dict:
     """Slice ``queryset`` and wrap into a ``Page`` payload.
 
-    ``builder(item)`` converts each row to the right schema.
+    ``builder(item)`` converts each row to the right schema. It may be sync or
+    async, and the result is awaited only when it is awaitable: django-ninja
+    generates ``from_orm`` as a plain classmethod, so the ModelSchema builders
+    cannot be made async, while ``IssueOut.afrom_issue`` has to be because
+    serialising an issue reads the labels and the parent.
+
+    The count and the iteration are unconditionally async: both block, and this
+    file runs on the event loop, where the sync calls would raise
+    ``SynchronousOnlyOperation``.
     """
     page = max(int(page or 1), 1)
     size = max(1, min(int(size or DEFAULT_PAGE_SIZE), MAX_PAGE_SIZE))
-    total = queryset.count()
+    total = await queryset.acount()
     offset = (page - 1) * size
-    items = [builder(o) for o in queryset[offset : offset + size]]
+    # Slicing stays lazy; only the iteration has to be async.
+    items = []
+    async for row in queryset[offset : offset + size]:
+        built = builder(row)
+        items.append(await built if inspect.isawaitable(built) else built)
     pages = max(1, (total + size - 1) // size)
     return {
         "count": total,
@@ -255,25 +272,43 @@ class IssueOut(Schema):
     sprint_id: int | None = None
 
     @staticmethod
-    def from_issue(i: Issue) -> IssueOut:
-        # ``i.status`` and friends are deferred relations on a non-prefetched
-        # row; touching ``.id`` avoids a second query for something already
-        # loaded by the view's select_related.
+    async def afrom_issue(i: Issue) -> IssueOut:
+        """Build the payload for ``i``.
+
+        Async because serialising an issue touches the database twice: the
+        labels come from a many-to-many join, and the parent key needs the
+        parent loaded. Both are ordinary attribute reads that would fire a query
+        and raise ``SynchronousOnlyOperation`` on the event loop.
+
+        ``status``, ``priority``, ``issue_type``, ``assignee``, ``reporter`` and
+        ``parent`` must already be select_related by the caller. Rather than
+        hiding a stray query behind a lazy refresh, the access is guarded so a
+        missing select_related shows up as a blank field instead of a
+        synchronous database call in the middle of an async request.
+        """
+        labels = [label.name async for label in i.labels.all()]
         return IssueOut(
-            id=i.pk, key=i.key, summary=i.summary, description=i.description,
-            status=str(i.status), priority=str(i.priority), type=str(i.issue_type),
-            project=i.project.key,
+            id=i.pk,
+            key=i.key,
+            summary=i.summary,
+            description=i.description,
+            status=str(i.status) if i.status_id else "",
+            priority=str(i.priority) if i.priority_id else "",
+            type=str(i.issue_type) if i.issue_type_id else "",
+            project=i.project.key if i.project_id else "",
             assignee=getattr(i.assignee, "username", None),
             reporter=getattr(i.reporter, "username", None),
-            story_points=i.story_points, due_date=i.due_date,
-            estimate_minutes=i.estimate_minutes, time_spent_minutes=i.time_spent_minutes,
+            story_points=i.story_points,
+            due_date=i.due_date,
+            estimate_minutes=i.estimate_minutes,
+            time_spent_minutes=i.time_spent_minutes,
             status_id=i.status_id or 0,
             status_category=i.status.category if i.status_id else "",
             priority_id=i.priority_id or 0,
             issue_type_id=i.issue_type_id or 0,
             created=i.created_at.isoformat() if i.created_at else "",
             updated=i.updated_at.isoformat() if i.updated_at else "",
-            labels=list(i.labels.values_list("name", flat=True)) if i.pk else [],
+            labels=labels,
             parent=i.parent.key if i.parent_id else "",
             sprint_id=i.sprint_id,
         )
@@ -341,9 +376,9 @@ class IssueLinkIn(Schema):
 # --- endpoints -----------------------------------------------------------
 
 @api.get("/projects/", response=Page[ProjectOut])
-def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+async def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     qs = Project.objects.filter_visible(request.user).order_by("key")
-    return paginate(qs, lambda p: ProjectOut.from_orm(p), page, size)
+    return await paginate(qs, lambda p: ProjectOut.from_orm(p), page, size)
 
 
 # --- metadata -------------------------------------------------------------
@@ -354,25 +389,25 @@ def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
 
 
 @api.get("/issue-types/", response=Page[IssueTypeOut])
-def list_issue_types(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+async def list_issue_types(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     qs = IssueType.objects.order_by("id")
-    return paginate(qs, lambda t: IssueTypeOut.from_orm(t), page, size)
+    return await paginate(qs, lambda t: IssueTypeOut.from_orm(t), page, size)
 
 
 @api.get("/statuses/", response=Page[StatusOut])
-def list_statuses(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+async def list_statuses(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     qs = Status.objects.order_by("order", "id")
-    return paginate(qs, lambda s: StatusOut.from_orm(s), page, size)
+    return await paginate(qs, lambda s: StatusOut.from_orm(s), page, size)
 
 
 @api.get("/priorities/", response=Page[PriorityOut])
-def list_priorities(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+async def list_priorities(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     qs = Priority.objects.order_by("weight", "id")
-    return paginate(qs, lambda p: PriorityOut.from_orm(p), page, size)
+    return await paginate(qs, lambda p: PriorityOut.from_orm(p), page, size)
 
 
 @api.get("/users/search/", response=Page[UserSearchOut])
-def search_users(request, query: str = "", page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+async def search_users(request, query: str = "", page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     """Search users by username, display name or email.
 
     Results are not filtered by project membership: a client that needs only
@@ -390,32 +425,32 @@ def search_users(request, query: str = "", page: int = 1, size: int = DEFAULT_PA
             | models.Q(first_name__icontains=term)
             | models.Q(last_name__icontains=term)
         )
-    return paginate(qs, lambda u: UserSearchOut.from_orm(u), page, size)
+    return await paginate(qs, lambda u: UserSearchOut.from_orm(u), page, size)
 
 
 @api.get("/users/{user_id}/", response=UserOut)
-def get_user(request, user_id: int):
+async def get_user(request, user_id: int):
     from django.http import Http404
 
     try:
-        return User.objects.get(pk=user_id, is_active=True)
+        return await User.objects.aget(pk=user_id, is_active=True)
     except User.DoesNotExist as exc:
         raise Http404 from exc
 
 
 @api.get("/projects/{key}/", response=ProjectOut)
-def get_project(request, key: str):
-    return _visible_project(request, key)
+async def get_project(request, key: str):
+    return await _visible_project(request, key)
 
 
 @api.get("/projects/{key}/sprints/", response=Page[SprintOut])
-def list_sprints(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
-    project = _visible_project(request, key)
-    return paginate(project.sprints.all(), lambda s: SprintOut.from_orm(s), page, size)
+async def list_sprints(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+    project = await _visible_project(request, key)
+    return await paginate(project.sprints.all(), lambda s: SprintOut.from_orm(s), page, size)
 
 
 @api.get("/projects/{key}/issues/", response=Page[IssueOut])
-def list_issues(
+async def list_issues(
     request,
     key: str,
     page: int = 1,
@@ -423,24 +458,24 @@ def list_issues(
     status: str | None = None,
     assignee: str | None = None,
 ):
-    project = _visible_project(request, key)
+    project = await _visible_project(request, key)
     qs = project.issues.select_related(
         "status", "priority", "issue_type", "assignee", "reporter", "project", "parent"
-    ).prefetch_related("labels").order_by("-updated_at")
+    ).prefetch_related("labels", "status__allowed_next").order_by("-updated_at")
     if status:
         qs = qs.filter(status__name__iexact=status)
     if assignee:
         qs = qs.filter(assignee__username=assignee)
-    return paginate(qs, IssueOut.from_issue, page, size)
+    return await paginate(qs, IssueOut.afrom_issue, page, size)
 
 
-def _validate_assignee(project, user_id):
+async def _validate_assignee(project, user_id):
     if user_id is None:
         return None
-    in_project = (
-        User.objects.filter(pk=user_id, is_active=True).filter(
-            models.Q(memberships__project=project) | models.Q(led_projects=project)
-        ).exists()
+    in_project = await (
+        User.objects.filter(pk=user_id, is_active=True)
+        .filter(models.Q(memberships__project=project) | models.Q(led_projects=project))
+        .aexists()
     )
     if not in_project:
         from ninja.errors import HttpError
@@ -448,48 +483,49 @@ def _validate_assignee(project, user_id):
     return user_id
 
 
-def _validate_sprint(project, sprint_id):
+async def _validate_sprint(project, sprint_id):
     if sprint_id is None:
         return None
-    if not Sprint.objects.filter(pk=sprint_id, project=project).exists():
+    if not await Sprint.objects.filter(pk=sprint_id, project=project).aexists():
         from ninja.errors import HttpError
         raise HttpError(400, "sprint no pertenece al proyecto")
     return sprint_id
 
 
 @api.post("/projects/{key}/issues/", response=IssueOut)
-def create_issue(request, key: str, payload: IssueIn):
+async def create_issue(request, key: str, payload: IssueIn):
     from ninja.errors import HttpError
-    project = _visible_project(request, key)
+    project = await _visible_project(request, key)
     try:
         status = (
-            Status.objects.get(pk=payload.status_id) if payload.status_id
-            else Status.objects.order_by("order").first()
+            await Status.objects.aget(pk=payload.status_id) if payload.status_id
+            else await Status.objects.order_by("order").afirst()
         )
         priority = (
-            Priority.objects.get(pk=payload.priority_id) if payload.priority_id
-            else Priority.objects.first()
+            await Priority.objects.aget(pk=payload.priority_id) if payload.priority_id
+            else await Priority.objects.afirst()
         )
         itype = (
-            IssueType.objects.get(pk=payload.issue_type_id) if payload.issue_type_id
-            else IssueType.objects.first()
+            await IssueType.objects.aget(pk=payload.issue_type_id) if payload.issue_type_id
+            else await IssueType.objects.afirst()
         )
     except (Status.DoesNotExist, Priority.DoesNotExist, IssueType.DoesNotExist) as exc:
         raise HttpError(400, "status/priority/type inválido") from exc
-    assignee_id = _validate_assignee(project, payload.assignee_id)
-    sprint_id = _validate_sprint(project, payload.sprint_id)
-    issue = Issue.objects.create(
+    assignee_id = await _validate_assignee(project, payload.assignee_id)
+    sprint_id = await _validate_sprint(project, payload.sprint_id)
+    issue = await Issue.objects.acreate(
         project=project, reporter=request.user, summary=payload.summary,
         description=payload.description, status=status, priority=priority, issue_type=itype,
         assignee_id=assignee_id, sprint_id=sprint_id,
         story_points=payload.story_points, due_date=payload.due_date,
     )
-    return IssueOut.from_issue(issue)
+    return await IssueOut.afrom_issue(issue)
 
 
 @api.get("/issues/{key}/", response=IssueOut)
-def get_issue(request, key: str):
-    return IssueOut.from_issue(_visible_issue(request, key))
+async def get_issue(request, key: str):
+    issue = await _visible_issue(request, key)
+    return await IssueOut.afrom_issue(issue)
 
 
 _PATCHABLE_FIELDS = {
@@ -499,21 +535,22 @@ _PATCHABLE_FIELDS = {
 
 
 @api.patch("/issues/{key}/", response=IssueOut)
-def patch_issue(request, key: str, payload: IssuePatch):
+async def patch_issue(request, key: str, payload: IssuePatch):
     from ninja.errors import HttpError
 
-    issue = _visible_issue(request, key)
+    args_issue_key = key
+    issue = await _visible_issue(request, key)
     data = payload.dict(exclude_unset=True)
     if "status_id" in data:
-        if not Status.objects.filter(pk=data["status_id"]).exists():
+        if not await Status.objects.filter(pk=data["status_id"]).aexists():
             raise HttpError(400, "status inválido")
     if "priority_id" in data:
-        if not Priority.objects.filter(pk=data["priority_id"]).exists():
+        if not await Priority.objects.filter(pk=data["priority_id"]).aexists():
             raise HttpError(400, "priority inválido")
     if "assignee_id" in data:
-        _validate_assignee(issue.project, data["assignee_id"])
+        await _validate_assignee(issue.project, data["assignee_id"])
     if "sprint_id" in data:
-        _validate_sprint(issue.project, data["sprint_id"])
+        await _validate_sprint(issue.project, data["sprint_id"])
 
     # A status change goes through the workflow chokepoint rather than a plain
     # assignment. _change_status_atomic validates the transition, takes the row
@@ -528,7 +565,10 @@ def patch_issue(request, key: str, payload: IssuePatch):
     # changed between the two.
     new_status_id = data.get("status_id")
     if new_status_id is not None and new_status_id != issue.status_id:
-        if not issue.status.can_transition_to(Status.objects.get(pk=new_status_id)):
+        target_status = await Status.objects.prefetch_related("allowed_next").aget(
+            pk=new_status_id
+        )
+        if not issue.status.can_transition_to(target_status):
             raise HttpError(400, "transición de estado no permitida por el workflow")
 
     # status_id is applied separately below, so drop it from the generic loop.
@@ -537,45 +577,56 @@ def patch_issue(request, key: str, payload: IssuePatch):
         if field not in _PATCHABLE_FIELDS:
             continue
         setattr(issue, field, value)
-    issue.save()
+    await issue.asave()
 
     if new_status_id is not None and new_status_id != issue.status_id:
+        from asgiref.sync import sync_to_async
+
         from issues.views import _change_status_atomic
 
-        _, _, allowed = _change_status_atomic(issue.pk, new_status_id, request.user.pk)
+        # sync_to_async, like issues.views and board.views already do for this
+        # function. It holds a SELECT ... FOR UPDATE inside a transaction, and a
+        # transaction has to be one unbroken block: an async rewrite would
+        # release the row lock at every await. thread_sensitive keeps it on the
+        # same thread as the rest of the request's database work.
+        _, _, allowed = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True
+        )(issue.pk, new_status_id, request.user.pk)
         if not allowed:
             raise HttpError(400, "transición de estado no permitida por el workflow")
-        # The in-memory copy predates the transition, so drop it before the
-        # response is built: a later save() from this stale object would
-        # otherwise write the old status back over the new one.
-        issue.refresh_from_db()
+        # Re-read the row rather than calling arefresh_from_db: the in-memory
+        # copy predates the transition, so a later save() from it would write
+        # the old status back over the new one, and arefresh_from_db drops the
+        # prefetch cache, leaving status and issue_type unloaded and turning
+        # serialisation into a synchronous query.
+        issue = await _visible_issue(request, args_issue_key)
 
-    return IssueOut.from_issue(issue)
+    return await IssueOut.afrom_issue(issue)
 
 
 @api.delete("/issues/{key}/")
-def delete_issue(request, key: str):
-    issue = _visible_issue(request, key)
-    issue.delete()
+async def delete_issue(request, key: str):
+    issue = await _visible_issue(request, key)
+    await issue.adelete()
     return {"deleted": key}
 
 
 @api.get("/issues/{key}/comments/", response=Page[CommentOut])
-def list_comments(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
-    issue = _visible_issue(request, key)
+async def list_comments(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+    issue = await _visible_issue(request, key)
     qs = issue.comments.select_related("author").order_by("created_at")
-    return paginate(qs, CommentOut.from_comment, page, size)
+    return await paginate(qs, CommentOut.from_comment, page, size)
 
 
 @api.post("/issues/{key}/comments/", response=CommentOut)
-def add_comment(request, key: str, payload: CommentIn):
-    issue = _visible_issue(request, key)
-    c = Comment.objects.create(issue=issue, author=request.user, body=payload.body)
+async def add_comment(request, key: str, payload: CommentIn):
+    issue = await _visible_issue(request, key)
+    c = await Comment.objects.acreate(issue=issue, author=request.user, body=payload.body)
     return CommentOut.from_comment(c)
 
 
 @api.get("/me/", response=UserOut)
-def me(request):
+async def me(request):
     return request.user
 
 
@@ -584,47 +635,47 @@ def me(request):
 _PROJECT_PATCHABLE = {"name", "description", "archived"}
 
 
-def _assert_project_admin(request, project: Project) -> None:
+async def _assert_project_admin(request, project: Project) -> None:
     """Raise ninja HttpError(403) if the user isn't admin/lead on the project."""
     from ninja.errors import HttpError
     if request.user.is_superuser or project.lead_id == request.user.pk:
         return
     from projects.models import ProjectMembership
-    is_admin = ProjectMembership.objects.filter(
+    is_admin = await ProjectMembership.objects.filter(
         project=project, user=request.user, role="admin",
-    ).exists()
+    ).aexists()
     if not is_admin:
         raise HttpError(403, "Requiere rol admin en el proyecto")
 
 
 @api.patch("/projects/{key}/", response=ProjectOut)
-def patch_project(request, key: str, payload: ProjectIn):
-    project = _visible_project(request, key)
-    _assert_project_admin(request, project)
+async def patch_project(request, key: str, payload: ProjectIn):
+    project = await _visible_project(request, key)
+    await _assert_project_admin(request, project)
     data = payload.dict(exclude_unset=True)
     for field, value in data.items():
         if field in _PROJECT_PATCHABLE:
             setattr(project, field, value)
-    project.save()
+    await project.asave()
     return project
 
 
 @api.delete("/projects/{key}/")
-def delete_project(request, key: str):
-    project = _visible_project(request, key)
-    _assert_project_admin(request, project)
-    project.delete()
+async def delete_project(request, key: str):
+    project = await _visible_project(request, key)
+    await _assert_project_admin(request, project)
+    await project.adelete()
     return {"deleted": key}
 
 
 # --- sprint mgmt ---
 
 @api.get("/sprints/{sprint_id}/", response=SprintOut)
-def get_sprint(request, sprint_id: int):
+async def get_sprint(request, sprint_id: int):
     from django.http import Http404
     visible = Project.objects.filter_visible(request.user)
     try:
-        return Sprint.objects.select_related("project").get(
+        return await Sprint.objects.select_related("project").aget(
             pk=sprint_id, project__in=visible,
         )
     except Sprint.DoesNotExist as exc:
@@ -632,63 +683,64 @@ def get_sprint(request, sprint_id: int):
 
 
 @api.patch("/sprints/{sprint_id}/", response=SprintOut)
-def patch_sprint(request, sprint_id: int, payload: SprintIn):
+async def patch_sprint(request, sprint_id: int, payload: SprintIn):
     from django.http import Http404
     try:
-        sprint = Sprint.objects.select_related("project").get(pk=sprint_id)
+        sprint = await Sprint.objects.select_related("project").aget(pk=sprint_id)
     except Sprint.DoesNotExist as exc:
         raise Http404 from exc
-    if not Project.objects.filter_visible(request.user).filter(pk=sprint.project_id).exists():
+    if not await Project.objects.filter_visible(request.user).filter(pk=sprint.project_id).aexists():
         raise Http404
-    _assert_project_admin(request, sprint.project)
+    await _assert_project_admin(request, sprint.project)
     for field, value in payload.dict(exclude_unset=True).items():
         setattr(sprint, field, value)
-    sprint.save()
+    await sprint.asave()
     return sprint
 
 
 @api.delete("/sprints/{sprint_id}/")
-def delete_sprint(request, sprint_id: int):
+async def delete_sprint(request, sprint_id: int):
     from django.http import Http404
     try:
-        sprint = Sprint.objects.select_related("project").get(pk=sprint_id)
+        sprint = await Sprint.objects.select_related("project").aget(pk=sprint_id)
     except Sprint.DoesNotExist as exc:
         raise Http404 from exc
-    _assert_project_admin(request, sprint.project)
-    sprint.delete()
+    await _assert_project_admin(request, sprint.project)
+    await sprint.adelete()
     return {"deleted": sprint_id}
 
 
 # --- worklogs ---
 
 @api.get("/issues/{key}/worklogs/", response=Page[WorkLogOut])
-def list_worklogs(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
-    issue = _visible_issue(request, key)
+async def list_worklogs(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
+    issue = await _visible_issue(request, key)
     qs = issue.worklogs.select_related("author").order_by("-logged_at")
-    return paginate(qs, WorkLogOut.from_log, page, size)
+    return await paginate(qs, WorkLogOut.from_log, page, size)
 
 
 @api.post("/issues/{key}/worklogs/", response=WorkLogOut)
-def add_worklog(request, key: str, payload: WorkLogIn):
+async def add_worklog(request, key: str, payload: WorkLogIn):
     from ninja.errors import HttpError
-    issue = _visible_issue(request, key)
+    issue = await _visible_issue(request, key)
     if payload.minutes <= 0:
         raise HttpError(400, "minutes debe ser > 0")
-    from django.db import transaction
-    with transaction.atomic():
-        locked = Issue.objects.select_for_update().get(pk=issue.pk)
-        log = WorkLog.objects.create(
-            issue=locked, author=request.user,
-            minutes=payload.minutes, comment=payload.comment[:255],
-        )
-        locked.time_spent_minutes = (locked.time_spent_minutes or 0) + payload.minutes
-        if locked.time_remaining_minutes:
-            locked.time_remaining_minutes = max(
-                0, locked.time_remaining_minutes - payload.minutes,
-            )
-        locked.save(update_fields=[
-            "time_spent_minutes", "time_remaining_minutes", "updated_at",
-        ])
+    from asgiref.sync import sync_to_async
+
+    from issues.views import _log_work_atomic
+
+    # The whole write goes through issues.views._log_work_atomic rather than
+    # being inlined here, for two reasons. It already holds the row lock and
+    # maintains the time totals, and transaction.atomic() is not async-safe:
+    # entering it from an async view raises SynchronousOnlyOperation. A
+    # transaction also has to be one unbroken block, so the unit cannot be split
+    # across awaits.
+    _issue, log = await sync_to_async(_log_work_atomic, thread_sensitive=True)(
+        issue.pk,
+        request.user.pk,
+        payload.minutes,
+        payload.comment[:255],
+    )
     return WorkLogOut.from_log(log)
 
 
@@ -698,7 +750,7 @@ def add_worklog(request, key: str, payload: WorkLogIn):
 
 
 @api.get("/search", response=Page[IssueOut])
-def search_issues(
+async def search_issues(
     request,
     jql: str = "",
     page: int = 1,
@@ -719,11 +771,11 @@ def search_issues(
         .select_related(
             "project", "status", "priority", "issue_type", "assignee", "reporter", "parent"
         )
-        .prefetch_related("labels")
+        .prefetch_related("labels", "status__allowed_next")
         .order_by(*(order or ["-updated_at"]))
         .distinct()
     )
-    return paginate(qs, IssueOut.from_issue, page, size)
+    return await paginate(qs, IssueOut.afrom_issue, page, size)
 
 
 # --- issue links ----------------------------------------------------------
@@ -755,23 +807,24 @@ class LinkTypeOut(ModelSchema):
 
 
 @api.get("/link-types/", response=list[str])
-def list_link_types(request):
+async def list_link_types(request):
     """The link types this instance supports, in the model's key spelling."""
     return [choice[0] for choice in IssueLink.TYPE_CHOICES]
 
 
 @api.get("/issues/{key}/links/", response=list[LinkTypeOut])
-def list_issue_links(request, key: str):
-    issue = _visible_issue(request, key)
-    links = list(issue.links_out.all()) + list(issue.links_in.all())
-    return links
+async def list_issue_links(request, key: str):
+    issue = await _visible_issue(request, key)
+    outward = [link async for link in issue.links_out.all()]
+    inward = [link async for link in issue.links_in.all()]
+    return [*outward, *inward]
 
 
 @api.post("/issues/{key}/links/", response=LinkTypeOut)
-def create_issue_link(request, key: str, payload: IssueLinkIn):
+async def create_issue_link(request, key: str, payload: IssueLinkIn):
     from ninja.errors import HttpError
 
-    issue = _visible_issue(request, key)
+    issue = await _visible_issue(request, key)
     link_type = _LINK_TYPE_ALIASES.get(payload.link_type.strip().lower())
     if link_type is None:
         valid = ", ".join(choice[0] for choice in IssueLink.TYPE_CHOICES)
@@ -779,14 +832,14 @@ def create_issue_link(request, key: str, payload: IssueLinkIn):
 
     # Both ends are resolved through the same visibility gate, so a link cannot
     # be used to reference an issue the caller is not allowed to see.
-    target = _visible_issue(request, payload.inward_issue_key)
+    target = await _visible_issue(request, payload.inward_issue_key)
     if payload.outward_issue_key != key:
         raise HttpError(400, "outward_issue_key debe ser el issue de la URL")
 
-    if IssueLink.objects.filter(source=issue, target=target, type=link_type).exists():
+    if await IssueLink.objects.filter(source=issue, target=target, type=link_type).aexists():
         raise HttpError(400, "ese link ya existe")
 
-    return IssueLink.objects.create(
+    return await IssueLink.objects.acreate(
         source=issue, target=target, type=link_type, created_by=request.user
     )
 
@@ -795,24 +848,24 @@ def create_issue_link(request, key: str, payload: IssueLinkIn):
 
 
 @api.get("/issues/{key}/watchers/", response=list[str])
-def list_watchers(request, key: str):
-    issue = _visible_issue(request, key)
-    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+async def list_watchers(request, key: str):
+    issue = await _visible_issue(request, key)
+    return [u.username async for u in issue.watchers.order_by("username")]
 
 
 @api.post("/issues/{key}/watchers/", response=list[str])
-def watch_issue(request, key: str):
+async def watch_issue(request, key: str):
     """Watch an issue. Idempotent: watching twice is not an error."""
-    issue = _visible_issue(request, key)
-    issue.watchers.add(request.user)
-    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+    issue = await _visible_issue(request, key)
+    await issue.watchers.aadd(request.user)
+    return [u.username async for u in issue.watchers.order_by("username")]
 
 
 @api.delete("/issues/{key}/watchers/", response=list[str])
-def unwatch_issue(request, key: str):
-    issue = _visible_issue(request, key)
-    issue.watchers.remove(request.user)
-    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+async def unwatch_issue(request, key: str):
+    issue = await _visible_issue(request, key)
+    await issue.watchers.aremove(request.user)
+    return [u.username async for u in issue.watchers.order_by("username")]
 
 
 # --- saved filters --------------------------------------------------------
@@ -827,7 +880,7 @@ class SavedFilterOut(ModelSchema):
 
 
 @api.get("/filters/", response=list[SavedFilterOut])
-def list_saved_filters(request):
+async def list_saved_filters(request):
     visible = Project.objects.filter_visible(request.user)
     # A filter is visible if it belongs to the caller or was shared, and it must
     # not be able to reach projects the caller cannot see: filters whose JQL
@@ -835,9 +888,11 @@ def list_saved_filters(request):
     qs = SavedFilter.objects.filter(
         models.Q(owner=request.user) | models.Q(scope="shared")
     ).order_by("name")
-    visible_keys = set(visible.values_list("key", flat=True))
+    # No avalues_list exists on QuerySet, so fetch the rows and read the key
+    # in Python rather than projecting in SQL.
+    visible_keys = {p.key async for p in visible}
     kept = []
-    for saved in qs:
+    async for saved in qs:
         referenced = {
             chunk.split("=", 1)[-1].strip().strip("\"'")
             for chunk in saved.query.split("AND")

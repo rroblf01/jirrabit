@@ -11,8 +11,8 @@ from unittest import mock
 
 from django.test import Client, TestCase
 
-from issues.models import IssueLink, Status
-from projects.models import SavedFilter
+from issues.models import Comment, IssueLink, Status, WorkLog
+from projects.models import SavedFilter, Sprint
 from tests.test_smoke import _make_issue, _make_project, _make_user, _seed_lookups
 
 
@@ -358,3 +358,91 @@ class SeedDemoAPIKeyTests(TestCase):
 
         with self.assertRaises(CommandError):
             self._run(token=self.TOKEN)
+
+
+class APIPaginationTests(TestCase):
+    """Every list endpoint, so no row converter can rot unnoticed.
+
+    Each endpoint hands ``paginate`` a different converter, and a converter that
+    is subtly wrong fails at response-validation time, not at import time. These
+    exist because ``/projects/`` was briefly broken exactly that way with no test
+    touching it.
+    """
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.issue = _make_issue(self.project, self.user)
+        self.other_issue = _make_issue(self.project, self.user)
+        Sprint.objects.create(project=self.project, name="S1", status="planned")
+        _make_user("bob")
+
+        # One row in every endpoint, so "returns a list" is not vacuously true.
+        Comment.objects.create(issue=self.issue, author=self.user, body="hola")
+        WorkLog.objects.create(issue=self.issue, author=self.user, minutes=30)
+        self.issue.watchers.add(self.user)
+        IssueLink.objects.create(
+            source=self.issue, target=self.other_issue, type="blocks", created_by=self.user
+        )
+        SavedFilter.objects.create(owner=self.user, name="mine", query="project = WEB")
+
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def _rows(self, path):
+        """Fetch a list endpoint and return its rows.
+
+        Paginated endpoints return a ``{"items": [...]}`` envelope; the ones typed
+        ``list[...]`` in the API return a bare array. Both have to build their
+        rows correctly, so the shape is normalised here.
+        """
+        r = self.c.get(path)
+        self.assertEqual(r.status_code, 200, f"{path} returned {r.status_code}: {r.content[:300]}")
+        payload = r.json()
+        if isinstance(payload, dict):
+            return payload["items"]
+        return payload
+
+    def test_every_list_endpoint_builds_its_rows(self):
+        key = self.issue.key
+        cases = {
+            "/api/v1/projects/": lambda rows: rows[0]["key"] == "WEB",
+            # Ordered by -updated_at, so membership is the assertion, not position.
+            "/api/v1/projects/WEB/issues/": lambda rows: key in {r["key"] for r in rows},
+            "/api/v1/projects/WEB/sprints/": lambda rows: rows[0]["name"] == "S1",
+            f"/api/v1/issues/{key}/links/": lambda rows: rows[0]["type"] == "blocks",
+            "/api/v1/statuses/": lambda rows: "To Do" in {r["name"] for r in rows},
+            "/api/v1/priorities/": lambda rows: all("weight" in r for r in rows),
+            "/api/v1/issue-types/": lambda rows: all("category" in r for r in rows),
+            "/api/v1/users/search/?query=alice": lambda rows: rows[0]["username"] == "alice",
+            f"/api/v1/issues/{key}/comments/": lambda rows: rows[0]["body"] == "hola",
+            f"/api/v1/issues/{key}/worklogs/": lambda rows: rows[0]["minutes"] == 30,
+            f"/api/v1/issues/{key}/watchers/": lambda rows: rows == ["alice"],
+            "/api/v1/link-types/": lambda rows: "blocks" in rows,
+            "/api/v1/filters/": lambda rows: rows[0]["name"] == "mine",
+            "/api/v1/search?jql=project = WEB": lambda rows: rows[0]["project"] == "WEB",
+        }
+        for path, check in cases.items():
+            with self.subTest(path=path):
+                rows = self._rows(path)
+                self.assertIsInstance(rows, list, f"{path} did not return a list")
+                self.assertTrue(rows, f"{path} returned no rows")
+                self.assertTrue(check(rows), f"{path} returned unexpected rows: {rows}")
+
+    def test_paginated_envelope_shape(self):
+        payload = self.c.get("/api/v1/projects/").json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["page"], 1)
+        self.assertEqual(payload["size"], 50)
+        self.assertEqual(payload["pages"], 1)
+        self.assertIsNone(payload["next"])
+
+    def test_user_search_excludes_inactive_and_leaks_no_privileges(self):
+        inactive = _make_user("gone")
+        inactive.is_active = False
+        inactive.save()
+        self.assertEqual(self._rows("/api/v1/users/search/?query=gone"), [])
+        row = self._rows("/api/v1/users/search/?query=alice")[0]
+        self.assertNotIn("is_superuser", row)
+        self.assertNotIn("is_staff", row)
