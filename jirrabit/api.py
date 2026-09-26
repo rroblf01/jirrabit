@@ -20,8 +20,8 @@ from ninja import ModelSchema, NinjaAPI, Schema
 from ninja.security import HttpBearer, django_auth
 
 from accounts.models import APIKey, User
-from issues.models import Comment, Issue, IssueType, Priority, Status, WorkLog
-from projects.models import Project, Sprint
+from issues.models import Comment, Issue, IssueLink, IssueType, Priority, Status, WorkLog
+from projects.models import Project, SavedFilter, Sprint
 
 
 def _visible_project(request, key: str) -> Project:
@@ -320,6 +320,22 @@ class CommentOut(Schema):
 
 class CommentIn(Schema):
     body: str
+
+
+class IssueLinkIn(Schema):
+    """A link between two issues.
+
+    ``link_type`` accepts the model's stored keys (``blocks``, ``blocked_by``,
+    ``relates_to``, ``duplicates``, ``duplicated_by``) as well as Jira's display
+    spellings, because callers trained on Jira write the latter.
+    """
+
+    link_type: str
+    #: The other end of the link. A link is directional, so the field naming
+    #: says which side this issue is on rather than being a flat "other_issue".
+    inward_issue_key: str
+    outward_issue_key: str
+    comment: str = ""
 
 
 # --- endpoints -----------------------------------------------------------
@@ -674,3 +690,160 @@ def add_worklog(request, key: str, payload: WorkLogIn):
             "time_spent_minutes", "time_remaining_minutes", "updated_at",
         ])
     return WorkLogOut.from_log(log)
+
+
+# --- search ---------------------------------------------------------------
+# Exposes search/jql.py over the API. The parser itself is unchanged and shared
+# with the web UI's search page; only the transport is new.
+
+
+@api.get("/search", response=Page[IssueOut])
+def search_issues(
+    request,
+    jql: str = "",
+    page: int = 1,
+    size: int = DEFAULT_PAGE_SIZE,
+):
+    from search.jql import JQLError, parse_jql
+
+    try:
+        condition, order = parse_jql(jql)
+    except JQLError as exc:
+        from ninja.errors import HttpError
+
+        raise HttpError(400, str(exc)) from exc
+
+    visible = Project.objects.filter_visible(request.user)
+    qs = (
+        Issue.objects.filter(condition, project__in=visible)
+        .select_related(
+            "project", "status", "priority", "issue_type", "assignee", "reporter", "parent"
+        )
+        .prefetch_related("labels")
+        .order_by(*(order or ["-updated_at"]))
+        .distinct()
+    )
+    return paginate(qs, IssueOut.from_issue, page, size)
+
+
+# --- issue links ----------------------------------------------------------
+
+
+#: Jira spells the link types with spaces and capitals; the model stores keys.
+#: Both are accepted so a caller from either vocabulary lands.
+_LINK_TYPE_ALIASES = {
+    "blocks": "blocks",
+    "block": "blocks",
+    "is blocked by": "blocked_by",
+    "blocked by": "blocked_by",
+    "blocked_by": "blocked_by",
+    "relates": "relates_to",
+    "relates to": "relates_to",
+    "relates_to": "relates_to",
+    "duplicates": "duplicates",
+    "duplicate of": "duplicates",
+    "is duplicated by": "duplicated_by",
+    "duplicated by": "duplicated_by",
+    "duplicated_by": "duplicated_by",
+}
+
+
+class LinkTypeOut(ModelSchema):
+    class Meta:
+        model = IssueLink
+        fields = ["id", "type", "source", "target", "created_by", "created_at"]
+
+
+@api.get("/link-types/", response=list[str])
+def list_link_types(request):
+    """The link types this instance supports, in the model's key spelling."""
+    return [choice[0] for choice in IssueLink.TYPE_CHOICES]
+
+
+@api.get("/issues/{key}/links/", response=list[LinkTypeOut])
+def list_issue_links(request, key: str):
+    issue = _visible_issue(request, key)
+    links = list(issue.links_out.all()) + list(issue.links_in.all())
+    return links
+
+
+@api.post("/issues/{key}/links/", response=LinkTypeOut)
+def create_issue_link(request, key: str, payload: IssueLinkIn):
+    from ninja.errors import HttpError
+
+    issue = _visible_issue(request, key)
+    link_type = _LINK_TYPE_ALIASES.get(payload.link_type.strip().lower())
+    if link_type is None:
+        valid = ", ".join(choice[0] for choice in IssueLink.TYPE_CHOICES)
+        raise HttpError(400, f"tipo de link desconocido: '{payload.link_type}'. Válidos: {valid}")
+
+    # Both ends are resolved through the same visibility gate, so a link cannot
+    # be used to reference an issue the caller is not allowed to see.
+    target = _visible_issue(request, payload.inward_issue_key)
+    if payload.outward_issue_key != key:
+        raise HttpError(400, "outward_issue_key debe ser el issue de la URL")
+
+    if IssueLink.objects.filter(source=issue, target=target, type=link_type).exists():
+        raise HttpError(400, "ese link ya existe")
+
+    return IssueLink.objects.create(
+        source=issue, target=target, type=link_type, created_by=request.user
+    )
+
+
+# --- watchers -------------------------------------------------------------
+
+
+@api.get("/issues/{key}/watchers/", response=list[str])
+def list_watchers(request, key: str):
+    issue = _visible_issue(request, key)
+    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+
+
+@api.post("/issues/{key}/watchers/", response=list[str])
+def watch_issue(request, key: str):
+    """Watch an issue. Idempotent: watching twice is not an error."""
+    issue = _visible_issue(request, key)
+    issue.watchers.add(request.user)
+    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+
+
+@api.delete("/issues/{key}/watchers/", response=list[str])
+def unwatch_issue(request, key: str):
+    issue = _visible_issue(request, key)
+    issue.watchers.remove(request.user)
+    return list(issue.watchers.order_by("username").values_list("username", flat=True))
+
+
+# --- saved filters --------------------------------------------------------
+# SavedFilter is scoped to an owner rather than to a project, so there is one
+# endpoint for all of them instead of one per project key.
+
+
+class SavedFilterOut(ModelSchema):
+    class Meta:
+        model = SavedFilter
+        fields = ["id", "name", "query", "scope", "created_at"]
+
+
+@api.get("/filters/", response=list[SavedFilterOut])
+def list_saved_filters(request):
+    visible = Project.objects.filter_visible(request.user)
+    # A filter is visible if it belongs to the caller or was shared, and it must
+    # not be able to reach projects the caller cannot see: filters whose JQL
+    # references only hidden projects are dropped.
+    qs = SavedFilter.objects.filter(
+        models.Q(owner=request.user) | models.Q(scope="shared")
+    ).order_by("name")
+    visible_keys = set(visible.values_list("key", flat=True))
+    kept = []
+    for saved in qs:
+        referenced = {
+            chunk.split("=", 1)[-1].strip().strip("\"'")
+            for chunk in saved.query.split("AND")
+            if chunk.strip().lower().startswith("project")
+        }
+        referenced = {key for key in referenced if key}
+        if not referenced or referenced <= visible_keys:
+            kept.append(saved)
+    return kept
