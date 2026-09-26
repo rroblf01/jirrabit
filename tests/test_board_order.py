@@ -314,6 +314,37 @@ class TemplateCommentTests(SimpleTestCase):
             "use {% comment %} ... {% endcomment %}: " + ", ".join(offenders),
         )
 
+    def test_no_link_carries_a_modifier_filtered_htmx_trigger(self):
+        """An <a> with a modifier-filtered htmx trigger is a link that does nothing.
+
+        htmx's shouldCancel() calls preventDefault() for any click on an anchor
+        with a real href, and only then does maybeFilterEvent() apply the
+        ``[shiftKey]`` filter. So the click is cancelled and then thrown away:
+        the link looks clickable and is not. Every card on the board had
+        ``hx-trigger="click[shiftKey] consume"`` on its key, and clicking a card
+        did nothing whatsoever.
+
+        The fix in _card.html is a plain href plus data-preview handled in JS.
+        This test is the general form, so the next template that reaches for the
+        same idiom fails here instead of in the browser.
+        """
+        offenders = []
+        for path in sorted(self.TEMPLATES.rglob("*.html")):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(r"<a\b[^>]*>", text, re.S):
+                tag = match.group(0)
+                if "hx-" not in tag:
+                    continue
+                trigger = re.search(r'hx-trigger="([^"]*)"', tag)
+                if trigger and re.search(r"\[[A-Za-z]", trigger.group(1)):
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{path.relative_to(self.TEMPLATES)}:{line}")
+        self.assertEqual(
+            offenders,
+            [],
+            "an anchor with a modifier-filtered htmx trigger never navigates: " + ", ".join(offenders),
+        )
+
     def test_comment_blocks_are_balanced(self):
         """A nested comment closes at the first endcomment, leaking the rest.
 
@@ -329,6 +360,58 @@ class TemplateCommentTests(SimpleTestCase):
             if opens != closes:
                 offenders.append(f"{path.relative_to(self.TEMPLATES)}: {opens} open, {closes} close")
         self.assertEqual(offenders, [], "; ".join(offenders))
+
+
+class CardLinkTests(TestCase):
+    """The board card's key link must be a working link."""
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
+        self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
+        self.issue = Issue.objects.create(
+            project=self.project,
+            reporter=self.user,
+            summary="Clickable",
+            status=Status.objects.get(name="To Do"),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+        )
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_the_key_link_is_a_plain_link(self):
+        board = self.c.get("/board/WEB/").content.decode()
+        anchors = re.findall(r"<a\b[^>]*>", board)
+        card = [
+            a for a in anchors if f'"{self.issue.key}"' not in a and "/issues/" in a and "data-preview" in a
+        ]
+        self.assertTrue(card, "the card key is not a previewable link any more")
+        for tag in card:
+            self.assertIn(f'href="/issues/{self.issue.key}/"', tag)
+            self.assertNotIn("hx-trigger", tag)
+            self.assertNotIn("hx-get", tag)
+
+    def test_every_card_key_can_be_previewed(self):
+        """Without data-preview the shift+click preview silently stops working."""
+        board = self.c.get("/board/WEB/").content.decode()
+        self.assertIn(f'data-preview="/issues/{self.issue.key}/"', board)
+        self.assertIn("card-preview", board)
+
+    def test_the_target_of_a_card_key_resolves(self):
+        """The href itself has to work, boost or no boost."""
+        r = self.c.get(self.issue.get_absolute_url())
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, self.issue.key)
+
+    def test_the_preview_endpoint_serves_a_fragment(self):
+        """What shift+click injects must be a fragment, not a whole page."""
+        board = self.c.get("/board/WEB/", headers={"HX-Request": "true"}).content.decode()
+        url = re.search(r'data-preview="([^"]+)"', board).group(1)
+        r = self.c.get(url, headers={"HX-Request": "true"})
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("issue-detail", r.content.decode())
 
 
 class BoardPartialTests(TestCase):

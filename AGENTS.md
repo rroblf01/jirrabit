@@ -312,6 +312,20 @@ saves row by row and says why.
 - **No frontend build.** No npm, no bundler, no Tailwind. htmx 2.0.10 and
   idiomorph 0.7.4 load from unpkg at runtime; CSP allows `unpkg.com` plus
   `unsafe-inline` and `unsafe-eval`, which idiomorph requires.
+- **An `<a href>` must not carry a modifier-filtered htmx trigger.** In htmx
+  2.0.10, `shouldCancel()` calls `preventDefault()` for any click on an anchor
+  with a real href, and only *then* does `maybeFilterEvent()` apply the
+  `[shiftKey]` filter — so the click is cancelled and then discarded, and the link
+  looks clickable while doing nothing. Every board card had
+  `hx-trigger="click[shiftKey] consume"` on its key. The side preview is now a
+  plain `href` plus `data-preview`, handled in `ux.js` in the **capture** phase so
+  htmx-boost's bubbling listener does not also fire — the same arrangement
+  `@mention` already uses. `TemplateCommentTests` in
+  `tests/test_board_order.py` fails on the pattern anywhere in `templates/`.
+- **A link that htmx owns must do something on plain click.** `hx-get` on an
+  anchor is fine when the trigger is the default `click` — htmx cancels the
+  navigation and performs the request instead, which is the intent. It is only
+  the modifier-filtered variant that dead-ends.
 - One stylesheet, `static/css/jirrabit.css`, themed through `--blue-*`,
   `--ink-*` and `--surface*` custom properties. `core/palettes.py` overrides
   those same variables per user palette, so add new colours as variables.

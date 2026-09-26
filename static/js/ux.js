@@ -175,6 +175,40 @@
     applyOrder();
   })();
 
+  // --- Shift+click side preview ----------------------------------------
+  // Links marked ``data-preview`` open in the side panel on shift+click and
+  // navigate normally otherwise.
+  //
+  // JS rather than hx-trigger="click[shiftKey]" on the anchor, because that
+  // cannot work: htmx's shouldCancel() calls preventDefault() on every click of
+  // an <a> with a real href, and only afterwards does maybeFilterEvent() drop
+  // the click for not having shift held. The link was cancelled and then
+  // discarded, so clicking a card did nothing at all.
+  //
+  // Bound to document in the capture phase for the same reason as the mention
+  // handler below: htmx-boost registers a bubbling click listener, and
+  // preventDefault alone would not stop it issuing a second request.
+  function previewIntoSidePanel(ev) {
+    if (!ev.shiftKey) return;
+    const link = ev.target.closest && ev.target.closest("a[data-preview]");
+    if (!link) return;
+    ev.preventDefault();
+    ev.stopImmediatePropagation();
+    const panel = document.getElementById("side-panel");
+    const body = document.getElementById("side-panel-body");
+    if (!panel || !body) return;
+    body.innerHTML = '<div class="card" style="padding:14px;">Cargando…</div>';
+    panel.classList.add("open");
+    panel.setAttribute("aria-hidden", "false");
+    fetch(link.dataset.preview, { credentials: "same-origin", headers: { "HX-Request": "true" } })
+      .then(function (res) { return res.ok ? res.text() : Promise.reject(new Error("HTTP " + res.status)); })
+      .then(function (html) { body.innerHTML = html; })
+      .catch(function () {
+        body.innerHTML = '<div class="card" style="padding:14px;">No se pudo cargar la vista previa.</div>';
+      });
+  }
+  document.addEventListener("click", previewIntoSidePanel, true);  // capture: beat htmx-boost
+
   // --- Optimistic UI helper --------------------------------------------
   // Any element with ``data-optimistic="<selector>"`` (or just ``data-optimistic``)
   // triggers a class swap on the closest ``.card-issue``/``.comment`` while
@@ -794,13 +828,19 @@
   document.addEventListener("click", (e) => {
     if (e.target && e.target.id === "side-panel-close") {
       const panel = document.getElementById("side-panel");
-      if (panel) panel.classList.remove("open");
+      if (panel) {
+        panel.classList.remove("open");
+        panel.setAttribute("aria-hidden", "true");
+      }
     }
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       const panel = document.getElementById("side-panel");
-      if (panel && panel.classList.contains("open")) panel.classList.remove("open");
+      if (panel && panel.classList.contains("open")) {
+        panel.classList.remove("open");
+        panel.setAttribute("aria-hidden", "true");
+      }
     }
   });
 

@@ -4,11 +4,16 @@
     <input type="checkbox" class="card-select" value="{{ issue.key }}" onclick="event.stopPropagation()">
     <div style="flex:1;">
       <div>
-        <a href="{{ issue.get_absolute_url }}"
-           hx-get="{{ issue.get_absolute_url }}"
-           hx-target="#side-panel-body"
-           hx-trigger="click[shiftKey] consume"
-           hx-on="htmx:afterRequest: document.getElementById('side-panel').classList.add('open')"
+        {% comment %}
+          A plain link, deliberately, with no hx-get on it. An anchor that
+          carries an htmx trigger stops being a link: htmx's shouldCancel()
+          calls preventDefault() for any click on an <a> with a real href, and
+          only then does the [shiftKey] filter run. So the plain click was
+          cancelled and then discarded, and the card did nothing at all.
+          shift+click still previews, handled in ux.js against data-preview.
+        {% endcomment %}
+        <a href="{{ issue.get_absolute_url }}" class="card-preview"
+           data-preview="{{ issue.get_absolute_url }}"
            title="{% trans 'Click: abrir · Shift+click: vista previa lateral' %}">{{ issue.key }}</a>
          — {{ issue.summary }}
       </div>
