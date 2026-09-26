@@ -17,6 +17,8 @@ import re
 
 from django.db.models import Q
 
+from issues.models import Issue
+
 
 class JQLError(ValueError):
     """Raised when the query references an unknown field or is malformed."""
@@ -25,19 +27,59 @@ class JQLError(ValueError):
 FIELD_MAP = {
     "project": "project__key",
     "status": "status__name",
+    "statusCategory": "status__category",
     "priority": "priority__name",
     "type": "issue_type__name",
     "label": "labels__name",
     "sprint": "sprint__name",
     "epic": "epic__name",
+    "key": "key",
 }
 
+#: Fields whose stored values differ from what callers write. Jira reports a
+#: status category by display name ("To Do", "In Progress", "Done") while
+#: ``Status.category`` stores the slug, so the values are translated rather than
+#: matched literally. An agent writing ``statusCategory != Done`` is the single
+#: most common JQL fragment there is.
+CATEGORY_ALIASES = {
+    "to do": "todo",
+    "todo": "todo",
+    "new": "todo",
+    "backlog": "todo",
+    "open": "todo",
+    "in progress": "in_progress",
+    "in_progress": "in_progress",
+    "indeterminate": "in_progress",
+    "done": "done",
+    "closed": "done",
+    "complete": "done",
+    "completed": "done",
+    "resolved": "done",
+}
+
+#: Fields backed by a many-to-many relation. "is EMPTY" means "has no related
+#: rows", which needs a negated Exists rather than a negated __isnull — see
+#: _m2m_empty_q.
+M2M_FIELDS = {"label"}
+
 USER_FIELDS = {"assignee", "reporter"}
+
+#: JQL field names are case-insensitive, and the parser lowercases what it
+#: captures, so lookups go through this map. FIELD_MAP keeps the canonical
+#: spellings because that is what the "valid fields" error message should show.
+FIELD_COLUMNS = {name.lower(): column for name, column in FIELD_MAP.items()}
+
+
+def _column_for(field: str) -> str:
+    """Resolve a (lowercased) JQL field name to its lookup path."""
+    return FIELD_COLUMNS[field]
 
 ORDER_MAP = {
     "created": "created_at",
     "updated": "updated_at",
-    "priority": "-priority__weight",
+    # Direction is applied below, so this must not carry its own sign. It used
+    # to, which made "ORDER BY priority DESC" sort ascending.
+    "priority": "priority__weight",
     "key": "key",
 }
 
@@ -81,11 +123,70 @@ def _user_match(prefix: str, value: str, op: str) -> Q:
     return q
 
 
+def _translate_category(value):
+    """Map a Jira status-category display name onto jirrabit's stored slug.
+
+    An unrecognised value is returned lowercased rather than rejected, so a
+    future category does not turn into a confusing "Campo desconocido" error
+    about a field the caller spelled correctly.
+    """
+    return CATEGORY_ALIASES.get(value.strip().lower(), value.strip().lower())
+
+
+def _validate_field(field: str):
+    if field not in FIELD_COLUMNS and field not in USER_FIELDS and field != "text":
+        valid = ", ".join(sorted(VALID_FIELDS))
+        raise JQLError(f"Campo desconocido: '{field}'. Válidos: {valid}.")
+    return field
+
+
+def _m2m_empty_q(field: str, negate: bool) -> Q:
+    """Build the Q for ``field is EMPTY`` on a many-to-many field.
+
+    A negated ``__isnull`` cannot be used here. Django compiles a nullable
+    relation as a LEFT OUTER JOIN, so ``NOT (col IS NOT NULL)`` is NULL — not
+    true — for a row with no related object, and the negation silently excludes
+    exactly the rows it is meant to match. A subquery has no such
+    three-valued-logic trap.
+
+    The related model and its back-reference are read off the model metadata so
+    this stays generic as fields are added.
+    """
+    from django.db.models import Exists, OuterRef
+
+    # FIELD_MAP maps a JQL name to a lookup path, so resolve the attribute name
+    # back off Issue: "labels__name" -> "labels".
+    attr_name = _column_for(field).split("__")[0]
+    field_obj = Issue._meta.get_field(attr_name)
+    related = field_obj.related_model
+    back_reference = field_obj.remote_field.get_accessor_name()
+    has_related = Exists(related.objects.filter(**{back_reference: OuterRef("pk")}))
+    # "is EMPTY" is the absence of related rows; "is not EMPTY" is their
+    # presence. ``has_related`` is negated exactly once, here.
+    return has_related if negate else ~has_related
+
+
+def _empty_q(field: str, negate: bool) -> Q:
+    """Build the Q for ``field is EMPTY`` / ``field is not EMPTY``."""
+    if field == "text":
+        # No meaningful "empty description" semantics: an empty text search would
+        # match every issue, so treat it as matching nothing.
+        q = Q(pk__in=[])
+    elif field in M2M_FIELDS:
+        return _m2m_empty_q(field, negate)
+    elif field in USER_FIELDS:
+        q = Q(**{f"{field}__isnull": True})
+    else:
+        column = _column_for(field)
+        q = Q(**{f"{column}__isnull": True})
+    return ~q if negate else q
+
+
 def parse_jql(query: str):
     """Parse ``query`` and return ``(Q object, [order_fields])``.
 
-    Raises :class:`JQLError` if the query references an unknown field or
-    cannot be parsed. Empty queries return an empty ``Q`` and ``[]``.
+    Raises :class:`JQLError` if the query references an unknown field or cannot
+    be parsed. Empty queries return an empty ``Q`` and ``[]``.
     """
     q = Q()
     order: list[str] = []
@@ -109,12 +210,38 @@ def parse_jql(query: str):
 
     chunks = [c.strip() for c in re.split(r"\s+AND\s+", query, flags=re.IGNORECASE) if c.strip()]
     for chunk in chunks:
+        # ``field is EMPTY`` / ``field is not EMPTY``, checked before the
+        # operator regex because "is" is not an operator it recognises.
+        empty = re.match(r"^(\w+)\s+is\s+(not\s+)?empty$", chunk, flags=re.IGNORECASE)
+        if empty:
+            field = empty.group(1).lower()
+            _validate_field(field)
+            q &= _empty_q(field, negate=bool(empty.group(2)))
+            continue
+
         m = re.match(r'^(\w+)\s*(=|!=|~|\bin\b)\s*(.+)$', chunk, flags=re.IGNORECASE)
         if not m:
-            # Free text fragment.
+            # Free text, but only when the fragment could not have been meant as
+            # a clause. Treating a malformed clause as prose used to return an
+            # empty result instead of an error, which reads to a caller as
+            # "no matches" when the truth is "I did not understand you".
+            if re.search(r"[=!~]", chunk):
+                raise JQLError(
+                    f"No se pudo interpretar la cláusula: '{chunk}'. "
+                    f"Operadores admitidos: = != ~ in, o 'is EMPTY' / 'is not EMPTY'."
+                )
             q &= Q(summary__icontains=chunk) | Q(description__icontains=chunk)
             continue
         field, op, value = m.group(1).lower(), m.group(2).lower(), m.group(3).strip()
+
+        # A value made only of operator characters means the clause was cut
+        # short, e.g. "assignee ==". The operator regex still matches those, so
+        # the free-text guard below never sees them.
+        if not value.strip("\"'") or not value.strip("\"'").strip("=!~"):
+            raise JQLError(
+                f"No se pudo interpretar la cláusula: '{chunk}'. Falta un valor. "
+                f"Operadores admitidos: = != ~ in, o 'is EMPTY' / 'is not EMPTY'."
+            )
 
         if field == "text":
             v = _parse_value(value)
@@ -132,12 +259,19 @@ def parse_jql(query: str):
                 q &= _user_match(field, v, op)
             continue
 
-        if field not in FIELD_MAP:
+        if field not in FIELD_COLUMNS:
             valid = ", ".join(sorted(VALID_FIELDS))
             raise JQLError(f"Campo desconocido: '{field}'. Válidos: {valid}.")
 
-        column = FIELD_MAP[field]
+        column = _column_for(field)
         v = _parse_value(value)
+        # ``field`` is lowercased by now, so compare against the lowercased name.
+        # Translation is per-scalar here; the list case is handled in the "in"
+        # branch below, since _parse_value has already turned "(a, b)" into a
+        # list by this point.
+        is_category = field == "statuscategory"
+        if is_category and not isinstance(v, list):
+            v = _translate_category(v)
         if op == "=":
             q &= Q(**{column: v})
         elif op == "!=":
@@ -145,6 +279,8 @@ def parse_jql(query: str):
         elif op == "~":
             q &= Q(**{column + "__icontains": v})
         elif op == "in" and isinstance(v, list):
+            if is_category:
+                v = [_translate_category(item) for item in v]
             q &= Q(**{column + "__in": v})
 
     return q, order
