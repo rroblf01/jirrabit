@@ -25,6 +25,120 @@ def _seed_lookups():
     IssueType.objects.get_or_create(name="Task", defaults={"category": "task"})
 
 
+class BoardPartialTests(TestCase):
+    """What the board URL returns, per request flavour.
+
+    The live-refresh banner re-fetches /board/<key>/ and swaps the response into
+    .kanban with outerHTML. BoardView used to render board.html for that request
+    too, and board.html extends base.html — so the whole page, topbar and
+    sidebar included, was injected inside the kanban container.
+    """
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
+        self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
+        self.issue = Issue.objects.create(
+            project=self.project,
+            reporter=self.user,
+            summary="On the board",
+            status=Status.objects.get(name="To Do"),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+        )
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_plain_navigation_gets_the_page(self):
+        body = self.c.get("/board/WEB/").content.decode()
+        self.assertIn("<!DOCTYPE html>", body)
+        self.assertIn('class="kanban"', body)
+
+    def test_htmx_gets_only_the_board(self):
+        r = self.c.get("/board/WEB/", headers={"HX-Request": "true"})
+        body = r.content.decode()
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('class="kanban"', body)
+        self.assertNotIn(
+            "<!DOCTYPE html>",
+            body,
+            "an htmx caller is swapped into .kanban, so a full page would be pasted inside the board",
+        )
+        # The chrome base.html brings with it.
+        for chrome in (
+            '<header class="topbar"',
+            'class="sidebar"',
+            '<script src="https://unpkg.com/htmx.org',
+        ):
+            self.assertNotIn(chrome, body, f"{chrome} should not be in the board partial")
+
+    def test_boosted_navigation_still_gets_the_page(self):
+        """base.html selects main.main on a body-level swap.
+
+        A boosted request therefore needs the whole page, or there is nothing
+        for the selector to find.
+        """
+        r = self.c.get("/board/WEB/", headers={"HX-Request": "true", "HX-Boosted": "true"})
+        self.assertIn("<!DOCTYPE html>", r.content.decode())
+
+    def test_the_partial_carries_what_the_drag_needs(self):
+        """Reordering reads these off the column, and they must survive the swap."""
+        body = self.c.get("/board/WEB/", headers={"HX-Request": "true"}).content.decode()
+        self.assertIn(f'data-status-id="{self.issue.status_id}"', body)
+        self.assertIn('data-project-key="WEB"', body)
+        self.assertIn('class="card-issue', body)
+
+    def test_the_text_filter_still_gets_the_page(self):
+        """It swaps into <body>, so it declares that it is boosted.
+
+        The filter input in board.html does hx-get="" hx-target="body". Without
+        its HX-Boosted header it would ask for the board partial and inject it
+        into <body>, leaving a bare kanban with no page around it. This test
+        fails if someone removes the header from the template.
+        """
+        r = self.c.get(
+            "/board/WEB/",
+            {"text": "On"},
+            headers={"HX-Request": "true", "HX-Boosted": "true"},
+        )
+        self.assertIn("<!DOCTYPE html>", r.content.decode())
+
+    def test_the_text_filter_header_is_actually_in_the_template(self):
+        """A view-only test passes while the page is still broken.
+
+        Checking the rendered response cannot catch this: the view cannot tell
+        who is asking, so it answers correctly for both callers and the bug only
+        exists in what the template sends. Hence reading the template.
+        """
+        import pathlib
+        import re
+
+        template = pathlib.Path("templates/board/board.html").read_text()
+        # The whole <input ...> tag, since the attributes wrap across lines.
+        tags = re.findall(r"<input[^>]*hx-get=\"\"[^>]*>", template, re.S)
+        self.assertEqual(len(tags), 1, f'expected one hx-get="" input, found {len(tags)}')
+        self.assertIn(
+            'hx-target="body"',
+            tags[0],
+            "this test is about the caller that swaps into <body>",
+        )
+        self.assertIn(
+            "HX-Boosted",
+            tags[0],
+            "the text filter targets <body>, so it must ask for the full page, "
+            "not the board partial the live-refresh banner gets",
+        )
+
+    def test_the_page_and_the_partial_render_the_same_board(self):
+        """They share one file, so they cannot drift — this is the guard for that."""
+        page = self.c.get("/board/WEB/").content.decode()
+        partial = self.c.get("/board/WEB/", headers={"HX-Request": "true"}).content.decode()
+        for key in (self.issue.key, self.project.key):
+            self.assertIn(key, page)
+            self.assertIn(key, partial)
+
+
 class BoardRankTests(TestCase):
     def setUp(self):
         _seed_lookups()

@@ -224,6 +224,20 @@ async def _filtered_issues_qs(project, request):
 class BoardView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "board/board.html"
 
+    def get_template_names(self):
+        # The live-refresh banner re-fetches this URL and swaps the response
+        # into ``.kanban`` with outerHTML, so an htmx caller needs the board and
+        # not the page wrapped around it. It was getting board.html, which
+        # extends base.html, and pasting the entire page — topbar, sidebar and
+        # all — inside the kanban container.
+        #
+        # Boosted navigation still wants the full page: base.html selects
+        # ``main.main`` on a body-level swap, and there would be nothing else to
+        # put there.
+        if self.request.htmx and not self.request.headers.get("HX-Boosted"):
+            return ["board/_kanban.html"]
+        return ["board/board.html"]
+
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])

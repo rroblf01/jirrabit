@@ -296,6 +296,11 @@ saves row by row and says why.
   are `_`-prefixed and must be self-contained.
 - Returning partial vs. full page is a recurring idiom:
   `if request.htmx and not request.headers.get("HX-Boosted"): return [".../_partial.html"]`.
+  `board.BoardView` follows it too, and the header is not decoration: a caller
+  that swaps into `<body>` has to send `HX-Boosted` to get the page back, which
+  is what the board's own text filter does with `hx-headers`. Get that wrong in
+  either direction and the page is replaced by a fragment or a fragment is
+  refused.
 - **No frontend build.** No npm, no bundler, no Tailwind. htmx 2.0.10 and
   idiomorph 0.7.4 load from unpkg at runtime; CSP allows `unpkg.com` plus
   `unsafe-inline` and `unsafe-eval`, which idiomorph requires.

@@ -37,7 +37,14 @@
       {% for e in epics %}<option value="{{ e.pk }}" {% if filter_epic == e.pk|stringformat:"s" %}selected{% endif %}>{{ e.name }}</option>{% endfor %}
     </select>
     <input type="search" name="text" value="{{ filter_text }}" placeholder="Texto..."
-           hx-trigger="keyup changed delay:400ms" hx-get="" hx-target="body" hx-push-url="true">
+           hx-trigger="keyup changed delay:400ms" hx-get="" hx-target="body" hx-push-url="true"
+           hx-headers='{"HX-Boosted": "true"}'>
+    {# HX-Boosted on purpose. This input swaps into <body>, so it needs the whole
+       page; without the header BoardView would hand it the board partial (the
+       same one the live-refresh banner asks for) and typing in the filter would
+       leave a bare kanban with no chrome. The other filters do this.form.submit()
+       and the chips are boosted links, so this is the only caller that has to say
+       it explicitly. #}
   </form>
 
   {% if active_sprint %}<p style="color:var(--ink-500); margin:8px 0 0;">Sprint: <strong>{{ active_sprint.name }}</strong> — {{ active_sprint.goal }}</p>{% endif %}
@@ -91,23 +98,7 @@
 <datalist id="bulk-epics">{% for e in epics %}<option value="{{ e.pk }}">{{ e.name }}</option>{% endfor %}</datalist>
 <datalist id="bulk-labels">{% for l in labels %}<option value="{{ l.pk }}">{{ l.name }}</option>{% endfor %}</datalist>
 
-<div class="kanban">
-  {% for col in columns %}
-  <div class="column{% if col.status.wip_limit and col.issues|length > col.status.wip_limit %} wip-over{% endif %}"
-       id="col-{{ col.status.pk }}" data-status-id="{{ col.status.pk }}"
-       data-project-key="{{ project.key }}"
-       {% if col.status.wip_limit %}data-wip-limit="{{ col.status.wip_limit }}"{% endif %}>
-    <h3>{{ col.status.name }}
-      <span class="count" id="col-count-{{ col.status.pk }}">{{ col.issues|length }}{% if col.status.wip_limit %} / {{ col.status.wip_limit }}{% endif %}</span>
-    </h3>
-    {% for i in col.issues %}{% include "board/_card.html" with issue=i %}{% empty %}
-      <div class="empty" style="font-size:12px; padding:16px 8px; border:1px dashed var(--ink-300); border-radius:8px;">
-        {% trans "Arrastra tareas aquí" %}
-      </div>
-    {% endfor %}
-  </div>
-  {% endfor %}
-</div>
+{% include "board/_kanban.html" %}
 
 {% if not columns or not active_sprint and not request.GET.sprint %}
 <div class="card">
