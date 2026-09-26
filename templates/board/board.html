@@ -39,12 +39,20 @@
     <input type="search" name="text" value="{{ filter_text }}" placeholder="Texto..."
            hx-trigger="keyup changed delay:400ms" hx-get="" hx-target="body" hx-push-url="true"
            hx-headers='{"HX-Boosted": "true"}'>
-    {# HX-Boosted on purpose. This input swaps into <body>, so it needs the whole
-       page; without the header BoardView would hand it the board partial (the
-       same one the live-refresh banner asks for) and typing in the filter would
-       leave a bare kanban with no chrome. The other filters do this.form.submit()
-       and the chips are boosted links, so this is the only caller that has to say
-       it explicitly. #}
+    {% comment %}
+      HX-Boosted on purpose. This input swaps into the body element, so it needs
+      the whole page; without the header BoardView would hand it the board
+      partial (the same one the live-refresh banner asks for) and typing in the
+      filter would leave a bare kanban with no chrome. The other filters do
+      this.form.submit() and the chips are boosted links, so this is the only
+      caller that has to say it explicitly.
+
+      This uses the block form rather than the brace form on purpose: Django's
+      two-hash comment is single-line only, and a multi-line one is not a comment
+      at all, it is emitted into the page as literal text. Do not nest one inside
+      the other either, since the parser closes a comment at the first
+      endcomment it meets.
+    {% endcomment %}
   </form>
 
   {% if active_sprint %}<p style="color:var(--ink-500); margin:8px 0 0;">Sprint: <strong>{{ active_sprint.name }}</strong> — {{ active_sprint.goal }}</p>{% endif %}

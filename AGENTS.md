@@ -291,6 +291,14 @@ saves row by row and says why.
 
 - Templates live in the project-level `templates/` only. No app has a
   `templates/` dir, despite `APP_DIRS = True`.
+- **Template comments:** `{# ... #}` is single-line only. A multi-line one is not
+  a comment at all — the parser never matches it, so it is emitted into the page
+  as literal text and shows up in the UI. Use `{% comment %}...{% endcomment %}`.
+  Do not nest one inside another either: the parser closes a comment at the
+  first `endcomment` it meets, so the inner one ends the outer and the remainder
+  becomes page content. `tests/test_board_order.py::TemplateCommentTests` scans
+  every template for both mistakes, because no rendering test can catch it —
+  the view returns 200 either way.
 - `base.html` sets `hx-boost="true"`, `hx-ext="morph"` and
   `hx-swap="morph:innerHTML"` on `<body>`, plus `hx-headers` for CSRF. Partials
   are `_`-prefixed and must be self-contained.

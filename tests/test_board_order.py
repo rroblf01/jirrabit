@@ -7,8 +7,11 @@ position. These tests pin the invariant that replaced that: rank is a dense
 it that way.
 """
 
+import pathlib
+import re
+
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 from django.urls import reverse
 
 from issues.models import HistoryEntry, Issue, IssueType, Priority, Status
@@ -23,6 +26,58 @@ def _seed_lookups():
     Status.objects.get_or_create(name="Done", defaults={"category": "done", "order": 50})
     Priority.objects.get_or_create(name="High", defaults={"weight": 40})
     IssueType.objects.get_or_create(name="Task", defaults={"category": "task"})
+
+
+class TemplateCommentTests(SimpleTestCase):
+    """No template may leak its own syntax into a rendered page.
+
+    Django's ``{# ... #}`` comment is single-line only. A multi-line one is not
+    a comment at all: the parser never matches it, so the text is emitted into
+    the page verbatim, comment markers and all, and shows up in the UI.
+
+    That is not hypothetical. A six-line brace comment explaining the board's
+    HX-Boosted header was rendered as a visible paragraph on the board, and
+    templates/workflow/_form.html has been leaking its header comment the same
+    way since the workflow editor landed. Nothing catches it, because the views
+    render fine — the tests assert on behaviour, and leaking a comment is not a
+    behaviour change. Only looking at the template catches it.
+    """
+
+    TEMPLATES = pathlib.Path(__file__).resolve().parent.parent / "templates"
+
+    def test_no_multiline_brace_comments(self):
+        offenders = []
+        for path in sorted(self.TEMPLATES.rglob("*.html")):
+            text = path.read_text(encoding="utf-8")
+            for match in re.finditer(r"\{#", text):
+                end = text.find("#}", match.start())
+                if end == -1:
+                    continue
+                if "\n" in text[match.start() : end + 2]:
+                    line = text[: match.start()].count("\n") + 1
+                    offenders.append(f"{path.relative_to(self.TEMPLATES)}:{line}")
+        self.assertEqual(
+            offenders,
+            [],
+            "a {# ... #} comment spanning lines is emitted as page text; "
+            "use {% comment %} ... {% endcomment %}: " + ", ".join(offenders),
+        )
+
+    def test_comment_blocks_are_balanced(self):
+        """A nested comment closes at the first endcomment, leaking the rest.
+
+        Django's parser skips to the next ``endcomment`` token, so an inner
+        ``{% comment %}`` does not nest: it ends the outer one and the rest of
+        the text becomes page content.
+        """
+        offenders = []
+        for path in sorted(self.TEMPLATES.rglob("*.html")):
+            text = path.read_text(encoding="utf-8")
+            opens = len(re.findall(r"\{%\s*comment\s*%\}", text))
+            closes = len(re.findall(r"\{%\s*endcomment\s*%\}", text))
+            if opens != closes:
+                offenders.append(f"{path.relative_to(self.TEMPLATES)}: {opens} open, {closes} close")
+        self.assertEqual(offenders, [], "; ".join(offenders))
 
 
 class BoardPartialTests(TestCase):
