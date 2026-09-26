@@ -677,6 +677,33 @@ async def delete_project(request, key: str):
 
 # --- sprint mgmt ---
 
+@api.post("/projects/{key}/sprints/", response=SprintOut)
+async def create_sprint(request, key: str, payload: SprintIn):
+    """Create a sprint in a project.
+
+    Reuses SprintIn, which the PATCH already accepted. The web UI has had a
+    sprint form for a while; this is the same write with no form around it, so
+    an agent can plan a sprint without hand-rolling HTTP.
+    """
+    from ninja.errors import HttpError
+
+    project = await _visible_project(request, key)
+    await _assert_project_admin(request, project)
+    if not payload.name or not payload.name.strip():
+        raise HttpError(400, "name requerido")
+    sprint = Sprint(project=project, name=payload.name.strip())
+    if payload.goal is not None:
+        sprint.goal = payload.goal
+    if payload.start_date is not None:
+        sprint.start_date = payload.start_date
+    if payload.end_date is not None:
+        sprint.end_date = payload.end_date
+    if payload.retro_notes is not None:
+        sprint.retro_notes = payload.retro_notes
+    await sprint.asave()
+    return sprint
+
+
 @api.get("/sprints/{sprint_id}/", response=SprintOut)
 async def get_sprint(request, sprint_id: int):
     from django.http import Http404

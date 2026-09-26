@@ -12,7 +12,7 @@ from unittest import mock
 from django.test import Client, TestCase
 
 from issues.models import Comment, IssueLink, Status, WorkLog
-from projects.models import SavedFilter, Sprint
+from projects.models import ProjectMembership, SavedFilter, Sprint
 from tests.test_smoke import _make_issue, _make_project, _make_user, _seed_lookups
 
 
@@ -188,6 +188,81 @@ class APIIssueLinkTests(TestCase):
         self.assertEqual(row["sourceId"], self.a.pk)
         self.assertEqual(row["targetId"], self.b.pk)
         self.assertEqual(row["type"], "blocks")
+
+
+class APISprintTests(TestCase):
+    """Sprint writes. The API could read and patch sprints but not create one,
+    so an agent could not plan a sprint at all."""
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_create_sprint(self):
+        r = self.c.post(
+            "/api/v1/projects/WEB/sprints/",
+            data=json.dumps({"name": "Sprint 1", "goal": "ship it", "start_date": "2026-10-01"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        self.assertEqual(body["name"], "Sprint 1")
+        self.assertEqual(body["goal"], "ship it")
+        self.assertEqual(body["start_date"], "2026-10-01")
+        # A new sprint belongs to the project it was created in.
+        self.assertEqual(Sprint.objects.get(pk=body["id"]).project_id, self.project.pk)
+
+    def test_create_sprint_requires_a_name(self):
+        r = self.c.post(
+            "/api/v1/projects/WEB/sprints/",
+            data=json.dumps({"goal": "sin nombre"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("name", r.json()["detail"])
+
+    def test_create_sprint_needs_admin(self):
+        member = _make_user("bob")
+        ProjectMembership.objects.create(project=self.project, user=member, role="member")
+        c2 = Client()
+        c2.login(username="bob", password="pw")
+        r = c2.post(
+            "/api/v1/projects/WEB/sprints/",
+            data=json.dumps({"name": "noAllowed"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403)
+
+    def test_create_sprint_in_a_project_the_caller_cannot_see(self):
+        stranger = _make_user("carol")
+        other = _make_project(stranger, key="OPS")
+        r = self.c.post(
+            "/api/v1/projects/OPS/sprints/",
+            data=json.dumps({"name": "nope"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 404)
+        self.assertFalse(Sprint.objects.filter(name="nope").exists())
+        self.assertEqual(other.sprints.count(), 0)
+
+    def test_created_sprint_is_listed_and_patchable(self):
+        created = self.c.post(
+            "/api/v1/projects/WEB/sprints/",
+            data=json.dumps({"name": "Sprint 2"}),
+            content_type="application/json",
+        ).json()
+        listing = self.c.get("/api/v1/projects/WEB/sprints/").json()
+        self.assertIn(created["id"], [s["id"] for s in listing["items"]])
+        patched = self.c.patch(
+            f"/api/v1/sprints/{created['id']}/",
+            data=json.dumps({"goal": "now with a goal"}),
+            content_type="application/json",
+        )
+        self.assertEqual(patched.status_code, 200)
+        self.assertEqual(patched.json()["goal"], "now with a goal")
 
 
 class APIWatcherTests(TestCase):
