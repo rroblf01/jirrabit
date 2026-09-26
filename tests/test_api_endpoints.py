@@ -11,8 +11,8 @@ from unittest import mock
 
 from django.test import Client, TestCase
 
-from issues.models import Comment, IssueLink, Status, WorkLog
-from projects.models import ProjectMembership, SavedFilter, Sprint
+from issues.models import AuditEntry, Comment, Issue, IssueLink, Status, WorkLog
+from projects.models import Project, ProjectMembership, SavedFilter, Sprint
 from tests.test_smoke import _make_issue, _make_project, _make_user, _seed_lookups
 
 
@@ -294,6 +294,51 @@ class APISprintTests(TestCase):
         )
         self.assertEqual(patched.status_code, 200)
         self.assertEqual(patched.json()["goal"], "now with a goal")
+
+
+class ProjectDeleteTests(TestCase):
+    """Deleting a project with issues in it used to return 500.
+
+    The cascade fires post_delete for every issue and comment, and the audit
+    receiver tried to insert a row pointing at the project row that had just
+    been deleted. The resulting IntegrityError was caught in Python, which does
+    not help: Postgres has already failed the transaction, so the commit fails
+    too and the request 500s.
+    """
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="GONE")
+        for n in range(3):
+            _make_issue(self.project, self.user, summary=f"i{n}")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_delete_project_with_issues(self):
+        r = self.c.delete("/api/v1/projects/GONE/")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertFalse(Project.objects.filter(key="GONE").exists())
+        self.assertEqual(Issue.objects.filter(project__key="GONE").count(), 0)
+
+    def test_delete_project_leaves_its_audit_rows_alone(self):
+        """The other projects' audit history must survive."""
+        keep = _make_project(self.user, key="KEEP")
+        _make_issue(keep, self.user)
+        before = AuditEntry.objects.filter(project=keep).count()
+        self.c.delete("/api/v1/projects/GONE/")
+        keep.refresh_from_db()
+        self.assertTrue(Project.objects.filter(key="KEEP").exists())
+        self.assertEqual(AuditEntry.objects.filter(project=keep).count(), before)
+
+    def test_delete_project_needs_admin(self):
+        member = _make_user("bob")
+        ProjectMembership.objects.create(project=self.project, user=member, role="member")
+        c2 = Client()
+        c2.login(username="bob", password="pw")
+        r = c2.delete("/api/v1/projects/GONE/")
+        self.assertEqual(r.status_code, 403)
+        self.assertTrue(Project.objects.filter(key="GONE").exists())
 
 
 class APIWatcherTests(TestCase):
