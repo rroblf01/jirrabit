@@ -198,6 +198,13 @@ class IssueDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
 
         await Visit.objects.aupdate_or_create(user=self.request.user, issue=issue)
         # Mark any pending mention receipts as seen.
+        #
+        # aupdate() is safe here where it is not elsewhere: MentionReceipt has no
+        # post_save receiver. core/notifications.py creates receipts but nothing
+        # listens to their saves, so there is no audit row, notification or
+        # broadcast to skip. It is also the right shape for the job — this is a
+        # read-marker stamped on every outstanding receipt at once, and a
+        # per-row save would be pure overhead.
         from accounts.models import MentionReceipt
 
         await MentionReceipt.objects.filter(
