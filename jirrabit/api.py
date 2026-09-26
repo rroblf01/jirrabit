@@ -71,7 +71,15 @@ api = NinjaAPI(
     title="Jirrabit API",
     version="1.0",
     urls_namespace="api-v1",
-    auth=[django_auth, APIKeyAuth()],
+    # Order matters: django-ninja tries the callbacks in sequence and stops at
+    # the first success. ``django_auth`` subclasses APIKeyCookie, which enforces
+    # a CSRF token on every unsafe method — correct for a cookie-authenticated
+    # browser session, but it made every POST/PATCH/DELETE from a Bearer-token
+    # client fail with "CSRF check Failed" before ``APIKeyAuth`` was ever
+    # consulted. Listing the bearer handler first means token clients never
+    # reach the CSRF check (there is no cookie for CSRF to protect), while
+    # cookie sessions still do and keep their protection.
+    auth=[APIKeyAuth(), django_auth],
 )
 
 

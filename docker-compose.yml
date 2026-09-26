@@ -4,9 +4,16 @@ services:
     env_file:
       - .env
     volumes:
-      - jirrabitdata:/var/lib/postgresql/data
+      # Mount at /var/lib/postgresql, not /var/lib/postgresql/data. Postgres 18
+      # images store data under a major-version subdirectory
+      # (PGDATA=/var/lib/postgresql/18/docker) and refuse to start if a mount
+      # lands on the old single-directory path.
+      - jirrabitdata:/var/lib/postgresql
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${JIRRABIT_DB_USER:-jirrabit}"]
+      # POSTGRES_USER, not JIRRABIT_DB_USER: the former is the variable the
+      # postgres image actually reads, the latter exists nowhere in the project
+      # and only ever matched because its fallback happens to be the same word.
+      test: ["CMD", "pg_isready", "-U", "${POSTGRES_USER:-jirrabit}"]
       interval: 5s
       timeout: 3s
       retries: 10
