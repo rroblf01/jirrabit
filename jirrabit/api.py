@@ -13,6 +13,7 @@ List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 """
 import inspect
 from datetime import date as _date
+from datetime import datetime
 
 from django.db import models
 from django.http import Http404
@@ -806,10 +807,45 @@ _LINK_TYPE_ALIASES = {
 }
 
 
-class LinkTypeOut(ModelSchema):
-    class Meta:
-        model = IssueLink
-        fields = ["id", "type", "source", "target", "created_by", "created_at"]
+class LinkOut(Schema):
+    """A link, with both ends as issue keys rather than numeric ids.
+
+    Breaking change from the first cut of this endpoint, which returned
+    ``source``/``target`` as raw ids. A key is the only handle a client has on
+    an issue — there is no way to turn 31 back into DEMO-19 — so an id-only link
+    is a link the caller cannot act on. The numeric ids stay available as
+    ``sourceId``/``targetId`` for anyone who needs them, so this is additive for
+    keys and breaking for code reading the old integers off ``source``.
+    """
+
+    id: int
+    type: str
+    source: str
+    target: str
+    sourceId: int
+    targetId: int
+    created_by: int
+    created_at: datetime
+
+
+def _link_out(link) -> dict:
+    """Shape one IssueLink row into a plain dict.
+
+    Synchronous on purpose: it only reads attributes the caller has already
+    prefetched, so there is no query to get wrong. Declaring it async would
+    mean every call site had to await it, and a forgotten await hands ninja a
+    coroutine instead of a payload.
+    """
+    return {
+        "id": link.pk,
+        "type": link.type,
+        "source": link.source.key,
+        "target": link.target.key,
+        "sourceId": link.source_id,
+        "targetId": link.target_id,
+        "created_by": link.created_by_id,
+        "created_at": link.created_at,
+    }
 
 
 @api.get("/link-types/", response=list[str])
@@ -818,15 +854,20 @@ async def list_link_types(request):
     return [choice[0] for choice in IssueLink.TYPE_CHOICES]
 
 
-@api.get("/issues/{key}/links/", response=list[LinkTypeOut])
+@api.get("/issues/{key}/links/", response=list[LinkOut])
 async def list_issue_links(request, key: str):
     issue = await _visible_issue(request, key)
-    outward = [link async for link in issue.links_out.all()]
-    inward = [link async for link in issue.links_in.all()]
-    return [*outward, *inward]
+    # async for, never a bare unpacking: [*qs] evaluates the queryset, which is
+    # a synchronous query and raises SynchronousOnlyOperation from an async
+    # view. Collect the pks from both directions, then re-read with both ends
+    # joined, because _link_out reads .source.key.
+    pks = [pk async for pk in issue.links_out.values_list("pk", flat=True)]
+    pks += [pk async for pk in issue.links_in.values_list("pk", flat=True)]
+    rows = IssueLink.objects.filter(pk__in=pks).select_related("source", "target")
+    return [_link_out(link) async for link in rows]
 
 
-@api.post("/issues/{key}/links/", response=LinkTypeOut)
+@api.post("/issues/{key}/links/", response=LinkOut)
 async def create_issue_link(request, key: str, payload: IssueLinkIn):
     from ninja.errors import HttpError
 
@@ -845,9 +886,10 @@ async def create_issue_link(request, key: str, payload: IssueLinkIn):
     if await IssueLink.objects.filter(source=issue, target=target, type=link_type).aexists():
         raise HttpError(400, "ese link ya existe")
 
-    return await IssueLink.objects.acreate(
+    link = await IssueLink.objects.acreate(
         source=issue, target=target, type=link_type, created_by=request.user
     )
+    return _link_out(link)
 
 
 # --- watchers -------------------------------------------------------------

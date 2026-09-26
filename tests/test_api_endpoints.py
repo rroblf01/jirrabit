@@ -167,6 +167,28 @@ class APIIssueLinkTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(len(r.json()), 2)
 
+    def test_links_report_keys_not_ids(self):
+        """A key is the only handle a client has on an issue.
+
+        Returning bare ids made the response unusable: there is no way to turn
+        31 back into WEB-19, so a caller could create a link and not act on it.
+        """
+        self.c.post(
+            f"/api/v1/issues/{self.a.key}/links/",
+            data=json.dumps({
+                "link_type": "blocks", "inward_issue_key": self.b.key,
+                "outward_issue_key": self.a.key,
+            }),
+            content_type="application/json",
+        )
+        row = self.c.get(f"/api/v1/issues/{self.a.key}/links/").json()[0]
+        self.assertEqual(row["source"], self.a.key)
+        self.assertEqual(row["target"], self.b.key)
+        # The numeric ids stay available, under their own names.
+        self.assertEqual(row["sourceId"], self.a.pk)
+        self.assertEqual(row["targetId"], self.b.pk)
+        self.assertEqual(row["type"], "blocks")
+
 
 class APIWatcherTests(TestCase):
     def setUp(self):
