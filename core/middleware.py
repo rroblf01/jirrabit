@@ -71,6 +71,49 @@ def user_language_middleware(get_response):
 
 
 @sync_and_async_middleware
+def current_user_middleware(get_response):
+    """Publish the acting user so signals can name them.
+
+    Placed before everything that writes: the realtime broadcast uses it to tell
+    a client "that was you" and skip the refresh banner, which is the difference
+    between a board that keeps up quietly and one that nags the person who just
+    dragged a card. The token is reset in a finally, so a request that raises
+    cannot leave a stale actor behind for the next one on the same context.
+
+    Read the user with ``request.auser()`` on the async side, never by touching
+    ``request.user``. That attribute is a SimpleLazyObject, and reading any field
+    off it resolves the session — a synchronous database query, which raises
+    SynchronousOnlyOperation on the event loop. Getting this wrong turned every
+    login into a 500.
+    """
+    from core import current_user
+
+    if iscoroutinefunction(get_response):
+
+        async def middleware(request):
+            user = await request.auser()
+            token = current_user.set_current_user(user)
+            try:
+                return await get_response(request)
+            finally:
+                current_user.reset_current_user(token)
+
+        return middleware
+
+    def middleware(request):
+        token = current_user.set_current_user(request.user)
+        try:
+            return get_response(request)
+        finally:
+            current_user.reset_current_user(token)
+
+    return middleware
+
+
+# ---------------------------------------------------------------------------
+
+
+@sync_and_async_middleware
 def nav_context_middleware(get_response):
     from projects.models import Project
 

@@ -28,6 +28,257 @@ def _seed_lookups():
     IssueType.objects.get_or_create(name="Task", defaults={"category": "task"})
 
 
+class LiveRefreshActorTests(TestCase):
+    """The board must not tell you to refresh after your own change.
+
+    A client that moved a card has already drawn the new position, and every
+    other write path re-renders in place. The broadcast went to the whole project
+    group regardless, so the person who made the change got a "cambios en vivo —
+    refrescar tablero" banner for a board they had just updated themselves.
+
+    The fix needs the actor inside post_save, which has no idea who is acting.
+    A context variable carries it, because asgiref propagates the context into
+    the worker thread that asave() writes on. These tests pin both halves: that
+    the actor survives the trip, and that the client-side filter is present.
+    """
+
+    def setUp(self):
+        _seed_lookups()
+        self.alice = User.objects.create_user(username="alice", password="pw", email="a@x.com")
+        self.project = Project.objects.create(key="WEB", name="Web", lead=self.alice)
+        ProjectMembership.objects.create(project=self.project, user=self.alice, role="admin")
+
+    def _capture(self):
+        """Record the payload realtime would broadcast for the next issue save."""
+        from realtime import broadcast
+
+        sent = []
+        original = broadcast._send
+
+        def spy(group, type_, payload):
+            sent.append((group, type_, payload))
+
+        broadcast._send = spy
+        self.addCleanup(lambda: setattr(broadcast, "_send", original))
+        return sent
+
+    def test_the_actor_reaches_the_post_save_receiver(self):
+        """The whole point of the context variable; nothing else makes it work."""
+        from asgiref.sync import async_to_sync
+
+        from core import current_user
+
+        captured = []
+
+        def probe(sender, instance, **kwargs):
+            captured.append(current_user.actor_id())
+
+        from django.db.models.signals import post_save
+
+        post_save.connect(probe, sender=Issue, dispatch_uid="actor_probe", weak=False)
+        self.addCleanup(lambda: post_save.disconnect(dispatch_uid="actor_probe", sender=Issue))
+
+        # Resolved here, not inside the coroutine: a sync ORM lookup on the
+        # event loop raises SynchronousOnlyOperation, which is the rule this
+        # repository cares about most and not something a helper should break.
+        todo = Status.objects.get(name="To Do")
+        priority = Priority.objects.first()
+        issue_type = IssueType.objects.first()
+
+        async def create():
+            await Issue.objects.acreate(
+                project=self.project,
+                reporter=self.alice,
+                summary="s",
+                status=todo,
+                priority=priority,
+                issue_type=issue_type,
+            )
+
+        token = current_user.set_current_user(self.alice)
+        try:
+            async_to_sync(create)()
+        finally:
+            current_user.reset_current_user(token)
+        self.assertEqual(captured, [self.alice.pk], "the actor did not survive the save")
+
+    def test_the_broadcast_names_the_actor(self):
+        from asgiref.sync import async_to_sync
+
+        from core import current_user
+
+        sent = self._capture()
+        todo = Status.objects.get(name="To Do")
+        priority = Priority.objects.first()
+        issue_type = IssueType.objects.first()
+
+        async def create():
+            await Issue.objects.acreate(
+                project=self.project,
+                reporter=self.alice,
+                summary="s",
+                status=todo,
+                priority=priority,
+                issue_type=issue_type,
+            )
+
+        token = current_user.set_current_user(self.alice)
+        try:
+            async_to_sync(create)()
+        finally:
+            current_user.reset_current_user(token)
+
+        issue_events = [p for g, t, p in sent if t == "issue.event"]
+        self.assertEqual(len(issue_events), 1, f"no issue event broadcast: {sent}")
+        self.assertEqual(issue_events[0]["actor_id"], self.alice.pk)
+
+    def test_a_write_with_no_request_carries_no_actor(self):
+        """A management command has no user, and every client must react."""
+        sent = self._capture()
+        Issue.objects.create(
+            project=self.project,
+            reporter=self.alice,
+            summary="from a shell",
+            status=Status.objects.get(name="To Do"),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+        )
+        issue_events = [p for g, t, p in sent if t == "issue.event"]
+        self.assertEqual(len(issue_events), 1)
+        self.assertIsNone(issue_events[0]["actor_id"])
+
+    def test_the_browser_filter_is_present(self):
+        """The server half alone changes nothing for the user.
+
+        The banner is drawn by the page's own WebSocket handler, so the filter
+        has to be in the template. Checking the rendered HTML catches a missing
+        guard; this checks the guard is actually there.
+        """
+        import pathlib
+
+        template = pathlib.Path("templates/board/board.html").read_text()
+        self.assertIn("actor_id", template, "the client never looks at the actor")
+        self.assertIn("dataset.userId", template, "the client never learns its own id")
+        # And the comparison, not just the two names.
+        self.assertRegex(
+            template,
+            r"msg\.actor_id[^\n]*meId",
+            "the actor is read but never compared against the current user",
+        )
+
+    def test_the_body_exposes_the_user_id(self):
+        """Without data-user-id on <body> the comparison can never match."""
+        import pathlib
+
+        base = pathlib.Path("templates/base.html").read_text()
+        self.assertIn("data-user-id", base)
+
+    def test_the_actor_is_cleared_after_the_request(self):
+        """A leaked actor would silence another user's board indefinitely."""
+        from core import current_user
+
+        self.assertIsNone(current_user.actor_id())
+
+    def test_a_real_request_publishes_its_user(self):
+        """The middleware, end to end, through a real request.
+
+        This is the piece the other tests cannot reach. Reading a field off
+        ``request.user`` resolves the session, which is a synchronous query, and
+        on the event loop that raised SynchronousOnlyOperation — every login
+        answered 500 until the middleware used ``request.auser()``. Only a real
+        request through the stack finds that again.
+        """
+        from django.db.models.signals import post_save
+
+        from core.current_user import current_user_id
+
+        seen = []
+
+        def probe(sender, instance, **kwargs):
+            seen.append(current_user_id.get())
+
+        post_save.connect(probe, sender=Issue, dispatch_uid="mw_probe", weak=False)
+        self.addCleanup(lambda: post_save.disconnect(dispatch_uid="mw_probe", sender=Issue))
+
+        todo = Status.objects.get(name="To Do")
+        cards = [
+            Issue.objects.create(
+                project=self.project,
+                reporter=self.alice,
+                summary=f"c{n}",
+                status=todo,
+                priority=Priority.objects.first(),
+                issue_type=IssueType.objects.first(),
+            )
+            for n in range(2)
+        ]
+        seen.clear()
+        c = Client()
+        c.login(username="alice", password="pw")
+        # A real reorder, not a rejected one: the actor has to be observed on a
+        # request that actually writes, since that is the only path where it
+        # reaches a broadcast.
+        r = c.post(
+            f"/board/{self.project.key}/reorder/",
+            {"status": todo.pk, "keys": [cards[1].key, cards[0].key]},
+            headers={"HTTP_HX_REQUEST": "true"},
+        )
+        self.assertEqual(r.status_code, 204, r.content[:200])
+        self.assertTrue(seen, "the request saved nothing, so nothing was published")
+        self.assertEqual(set(seen), {self.alice.pk}, "the request published the wrong actor")
+
+    def test_an_anonymous_request_publishes_nothing(self):
+        from django.db.models.signals import post_save
+
+        from core import current_user
+
+        seen = []
+
+        def probe(sender, instance, **kwargs):
+            seen.append(current_user.actor_id())
+
+        post_save.connect(probe, sender=Issue, dispatch_uid="anon_probe", weak=False)
+        self.addCleanup(lambda: post_save.disconnect(dispatch_uid="anon_probe", sender=Issue))
+        self.assertIsNone(current_user.actor_id())
+
+    def test_login_still_works(self):
+        """A regression guard for the SynchronousOnlyOperation 500.
+
+        Every login resolved request.user on the event loop, which reads the
+        session, which is a synchronous query. It passed no test and answered 500
+        in the browser, so this asserts the thing that actually broke: that the
+        request finishes and the session is authenticated.
+        """
+        c = Client()
+        r = c.post("/accounts/login/", {"username": "alice", "password": "pw", "next": "/"})
+        self.assertNotEqual(r.status_code, 500, "login blew up in the middleware")
+        self.assertIn(r.status_code, (200, 302))
+        self.assertTrue(
+            r.wsgi_request.user.is_authenticated,
+            "the credentials were rejected",
+        )
+
+    def test_the_consumer_forwards_the_actor(self):
+        """The socket layer must not drop the new field.
+
+        ``issue_event`` splats the payload, so this is a guard against someone
+        replacing that with an explicit allow-list of fields later.
+        """
+        import asyncio
+
+        from realtime.consumers import ProjectConsumer
+
+        sent = []
+
+        class Fake(ProjectConsumer):
+            async def send_json(self, content, close=False):
+                sent.append(content)
+
+        consumer = Fake()
+        asyncio.run(consumer.issue_event({"payload": {"key": "WEB-1", "actor_id": 7, "summary": "x"}}))
+        self.assertEqual(sent, [{"type": "issue", "key": "WEB-1", "actor_id": 7, "summary": "x"}])
+
+
 class TemplateCommentTests(SimpleTestCase):
     """No template may leak its own syntax into a rendered page.
 

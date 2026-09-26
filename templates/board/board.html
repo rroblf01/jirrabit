@@ -175,9 +175,17 @@ document.addEventListener('change', e => {
     if (badge) { badge.remove(); badge = null; }
   }
   let pendingCount = 0;
+  // The user this tab belongs to, so its own changes can be ignored. base.html
+  // puts it on <body> as data-user-id for exactly this kind of check.
+  const meId = document.body.dataset.userId;
   ws.onmessage = ev => {
     const msg = JSON.parse(ev.data);
     if (msg.type !== 'issue') return;
+    // Our own change. This tab already shows it: the drag was applied
+    // optimistically before the request went out, and every other write path
+    // re-renders in place. Telling us to refresh would be telling us to reload
+    // what we just did, which is the banner this check removes.
+    if (msg.actor_id != null && String(msg.actor_id) === String(meId)) return;
     const t = document.querySelector("#board-last-updated time");
     if (t) {
       const iso = new Date().toISOString();

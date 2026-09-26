@@ -25,6 +25,8 @@ def _send(group: str, type_: str, payload: dict) -> None:
 
 
 def _on_issue(sender, instance, created, **kwargs):
+    from core.current_user import actor_id
+
     _send(
         _group_for(instance.project.key),
         "issue.event",
@@ -36,6 +38,13 @@ def _on_issue(sender, instance, created, **kwargs):
             "priority": str(instance.priority),
             "assignee": getattr(instance.assignee, "username", None),
             "created": created,
+            # Who caused it. The client compares this against its own user id and
+            # stays quiet: the browser that moved the card has already drawn the
+            # new position optimistically, and a "changes to refresh" banner for
+            # a board you just updated yourself is just noise. Absent for writes
+            # with no request behind them — a command, a shell, a background
+            # task — and then every client reacts, which is the right default.
+            "actor_id": actor_id(),
         },
     )
 

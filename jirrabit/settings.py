@@ -72,6 +72,8 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Ahead of everything that writes, so a signal can name the actor.
+    "core.middleware.current_user_middleware",
     "core.middleware.user_language_middleware",
     "core.middleware.login_throttle_middleware",
     "core.middleware.api_rate_limit_middleware",
