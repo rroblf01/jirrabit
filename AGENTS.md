@@ -11,8 +11,9 @@ Run from the repo root. `uv` manages the venv; do not create one by hand.
 uv sync --frozen                                    # deps; uv.lock is authoritative
 
 uv run ruff check .                                # lint (CI-blocking)
-uv run ruff format .                               # formatter, line-length 110
-uv run ty check .                                  # pre-release; CI ignores failures
+uv run ruff format --check .                       # formatter, line-length 110 (CI-blocking)
+uv run ruff format .                               # apply the formatter
+uv run ty check .                                  # type check (CI-blocking)
 
 JIRRABIT_DB_ENGINE=sqlite uv run python manage.py test tests
 JIRRABIT_DB_ENGINE=sqlite uv run python manage.py test tests.test_smoke.PermissionTests
@@ -77,6 +78,40 @@ Modes:
 - `JIRRABIT_ALLOWED_HOSTS` is a comma-separated list and is genuinely read. An
   unlisted `Host` gets a 400. Add `host.docker.internal` if a containerised
   jirrabit-mcp will reach this instance by that name.
+
+## Linting and types
+
+Three gates, all CI-blocking, and all three are clean:
+
+- **`ruff check`** — lint, line-length 110.
+- **`ruff format --check`** — the formatter. 46 files were committed unformatted
+  while only `ruff check` ran, so the two drifted for a long time; formatting
+  them was one dedicated commit with no logic changes. Do not reformat as a
+  side effect of a behavioural change.
+- **`ty check`** — type checking, **only meaningful with `django-stubs`**, which
+  is a dev dependency. Without it `ty` reported 436 diagnostics of which 401
+  were "Model has no attribute `objects`" and "Class has no attribute
+  `DoesNotExist`" — both added by Django's metaclass and invisible to a static
+  checker. It also meant the result was worthless: `ty` passed a file returning
+  a `str` from a `-> int` function because every rule that could have noticed was
+  switched off.
+
+  Three suppressions remain in `pyproject.toml`, each with its reasons written
+  out, and one per-line suppression in `accounts/admin_views.py`:
+
+  - `unresolved-attribute` — custom manager methods, Django's implicit `<fk>_id`
+    attributes, `request.htmx` (django-htmx ships no type information), and form
+    field attributes assigned at runtime.
+  - `invalid-method-override` — `core/async_views.py` replaces Django's generic
+    CBVs with `async def` ones, so `async def get` overrides a base class whose
+    `get` returns `HttpResponse`. That is the architecture, and no annotation can
+    say "dispatched by ASGI".
+  - `accounts/admin_views.py` awaits `View.dispatch`, which the stubs type as
+    returning `HttpResponseBase`. It returns a coroutine here because every
+    handler on those classes is `async def`.
+
+  `ty` is pinned. A new release may add rules, and a diagnostic appearing in an
+  unrelated commit is a reason to read it, not to reach for `|| true`.
 
 ## Architecture
 

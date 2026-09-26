@@ -11,6 +11,7 @@ existing clients. Two auth methods are accepted on every endpoint:
 List endpoints accept ``page`` (1-based) and ``size`` (default 50, max
 200) query params and wrap items in a ``Page`` envelope.
 """
+
 import inspect
 from datetime import date as _date
 from datetime import datetime
@@ -46,9 +47,11 @@ async def _visible_issue(request, key: str) -> Issue:
     # in memory: it calls .allowed_next.all(), which without the prefetch is a
     # synchronous query and raises SynchronousOnlyOperation from an async view.
     # Prefetching it costs nothing extra — the rows are needed either way.
-    qs = Issue.objects.filter(project__in=visible).select_related(
-        "project", "status", "priority", "issue_type", "assignee", "reporter", "parent"
-    ).prefetch_related("labels", "status__allowed_next")
+    qs = (
+        Issue.objects.filter(project__in=visible)
+        .select_related("project", "status", "priority", "issue_type", "assignee", "reporter", "parent")
+        .prefetch_related("labels", "status__allowed_next")
+    )
     try:
         return await qs.aget(key=key)
     except Issue.DoesNotExist as exc:
@@ -100,6 +103,7 @@ api = NinjaAPI(
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
+
 class Page[T](Schema):
     """Generic list-envelope returned by list endpoints."""
 
@@ -147,6 +151,7 @@ async def paginate(queryset, builder, page: int, size: int) -> dict:
 
 
 # --- schemas -------------------------------------------------------------
+
 
 class UserOut(ModelSchema):
     class Meta:
@@ -232,8 +237,12 @@ class WorkLogOut(Schema):
     @staticmethod
     def from_log(w: WorkLog) -> WorkLogOut:
         return WorkLogOut(
-            id=w.pk, issue=w.issue.key, author=str(w.author),
-            minutes=w.minutes, comment=w.comment, logged_at=w.logged_at.isoformat(),
+            id=w.pk,
+            issue=w.issue.key,
+            author=str(w.author),
+            minutes=w.minutes,
+            comment=w.comment,
+            logged_at=w.logged_at.isoformat(),
         )
 
 
@@ -355,8 +364,12 @@ class CommentOut(Schema):
     @staticmethod
     def from_comment(c: Comment) -> CommentOut:
         return CommentOut(
-            id=c.pk, issue=c.issue.key, author=str(c.author),
-            body=c.body, created_at=c.created_at.isoformat(), edited=c.edited,
+            id=c.pk,
+            issue=c.issue.key,
+            author=str(c.author),
+            body=c.body,
+            created_at=c.created_at.isoformat(),
+            edited=c.edited,
         )
 
 
@@ -381,6 +394,7 @@ class IssueLinkIn(Schema):
 
 
 # --- endpoints -----------------------------------------------------------
+
 
 @api.get("/projects/", response=Page[ProjectOut])
 async def list_projects(request, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
@@ -466,9 +480,13 @@ async def list_issues(
     assignee: str | None = None,
 ):
     project = await _visible_project(request, key)
-    qs = project.issues.select_related(
-        "status", "priority", "issue_type", "assignee", "reporter", "project", "parent"
-    ).prefetch_related("labels", "status__allowed_next").order_by("-updated_at")
+    qs = (
+        project.issues.select_related(
+            "status", "priority", "issue_type", "assignee", "reporter", "project", "parent"
+        )
+        .prefetch_related("labels", "status__allowed_next")
+        .order_by("-updated_at")
+    )
     if status:
         qs = qs.filter(status__name__iexact=status)
     if assignee:
@@ -486,6 +504,7 @@ async def _validate_assignee(project, user_id):
     )
     if not in_project:
         from ninja.errors import HttpError
+
         raise HttpError(400, "assignee no pertenece al proyecto")
     return user_id
 
@@ -495,6 +514,7 @@ async def _validate_sprint(project, sprint_id):
         return None
     if not await Sprint.objects.filter(pk=sprint_id, project=project).aexists():
         from ninja.errors import HttpError
+
         raise HttpError(400, "sprint no pertenece al proyecto")
     return sprint_id
 
@@ -502,18 +522,22 @@ async def _validate_sprint(project, sprint_id):
 @api.post("/projects/{key}/issues/", response=IssueOut)
 async def create_issue(request, key: str, payload: IssueIn):
     from ninja.errors import HttpError
+
     project = await _visible_project(request, key)
     try:
         status = (
-            await Status.objects.aget(pk=payload.status_id) if payload.status_id
+            await Status.objects.aget(pk=payload.status_id)
+            if payload.status_id
             else await Status.objects.order_by("order").afirst()
         )
         priority = (
-            await Priority.objects.aget(pk=payload.priority_id) if payload.priority_id
+            await Priority.objects.aget(pk=payload.priority_id)
+            if payload.priority_id
             else await Priority.objects.afirst()
         )
         itype = (
-            await IssueType.objects.aget(pk=payload.issue_type_id) if payload.issue_type_id
+            await IssueType.objects.aget(pk=payload.issue_type_id)
+            if payload.issue_type_id
             else await IssueType.objects.afirst()
         )
     except (Status.DoesNotExist, Priority.DoesNotExist, IssueType.DoesNotExist) as exc:
@@ -521,10 +545,17 @@ async def create_issue(request, key: str, payload: IssueIn):
     assignee_id = await _validate_assignee(project, payload.assignee_id)
     sprint_id = await _validate_sprint(project, payload.sprint_id)
     issue = await Issue.objects.acreate(
-        project=project, reporter=request.user, summary=payload.summary,
-        description=payload.description, status=status, priority=priority, issue_type=itype,
-        assignee_id=assignee_id, sprint_id=sprint_id,
-        story_points=payload.story_points, due_date=payload.due_date,
+        project=project,
+        reporter=request.user,
+        summary=payload.summary,
+        description=payload.description,
+        status=status,
+        priority=priority,
+        issue_type=itype,
+        assignee_id=assignee_id,
+        sprint_id=sprint_id,
+        story_points=payload.story_points,
+        due_date=payload.due_date,
     )
     return await IssueOut.afrom_issue(issue)
 
@@ -536,8 +567,14 @@ async def get_issue(request, key: str):
 
 
 _PATCHABLE_FIELDS = {
-    "summary", "description", "status_id", "priority_id",
-    "assignee_id", "sprint_id", "story_points", "due_date",
+    "summary",
+    "description",
+    "status_id",
+    "priority_id",
+    "assignee_id",
+    "sprint_id",
+    "story_points",
+    "due_date",
 }
 
 
@@ -572,9 +609,7 @@ async def patch_issue(request, key: str, payload: IssuePatch):
     # changed between the two.
     new_status_id = data.get("status_id")
     if new_status_id is not None and new_status_id != issue.status_id:
-        target_status = await Status.objects.prefetch_related("allowed_next").aget(
-            pk=new_status_id
-        )
+        target_status = await Status.objects.prefetch_related("allowed_next").aget(pk=new_status_id)
         if not issue.status.can_transition_to(target_status):
             raise HttpError(400, "transición de estado no permitida por el workflow")
 
@@ -596,9 +631,9 @@ async def patch_issue(request, key: str, payload: IssuePatch):
         # transaction has to be one unbroken block: an async rewrite would
         # release the row lock at every await. thread_sensitive keeps it on the
         # same thread as the rest of the request's database work.
-        _, _, allowed = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True
-        )(issue.pk, new_status_id, request.user.pk)
+        _, _, allowed = await sync_to_async(_change_status_atomic, thread_sensitive=True)(
+            issue.pk, new_status_id, request.user.pk
+        )
         if not allowed:
             raise HttpError(400, "transición de estado no permitida por el workflow")
         # Re-read the row rather than calling arefresh_from_db: the in-memory
@@ -645,11 +680,15 @@ _PROJECT_PATCHABLE = {"name", "description", "archived"}
 async def _assert_project_admin(request, project: Project) -> None:
     """Raise ninja HttpError(403) if the user isn't admin/lead on the project."""
     from ninja.errors import HttpError
+
     if request.user.is_superuser or project.lead_id == request.user.pk:
         return
     from projects.models import ProjectMembership
+
     is_admin = await ProjectMembership.objects.filter(
-        project=project, user=request.user, role="admin",
+        project=project,
+        user=request.user,
+        role="admin",
     ).aexists()
     if not is_admin:
         raise HttpError(403, "Requiere rol admin en el proyecto")
@@ -676,6 +715,7 @@ async def delete_project(request, key: str):
 
 
 # --- sprint mgmt ---
+
 
 @api.post("/projects/{key}/sprints/", response=SprintOut)
 async def create_sprint(request, key: str, payload: SprintIn):
@@ -707,10 +747,12 @@ async def create_sprint(request, key: str, payload: SprintIn):
 @api.get("/sprints/{sprint_id}/", response=SprintOut)
 async def get_sprint(request, sprint_id: int):
     from django.http import Http404
+
     visible = Project.objects.filter_visible(request.user)
     try:
         return await Sprint.objects.select_related("project").aget(
-            pk=sprint_id, project__in=visible,
+            pk=sprint_id,
+            project__in=visible,
         )
     except Sprint.DoesNotExist as exc:
         raise Http404 from exc
@@ -719,6 +761,7 @@ async def get_sprint(request, sprint_id: int):
 @api.patch("/sprints/{sprint_id}/", response=SprintOut)
 async def patch_sprint(request, sprint_id: int, payload: SprintIn):
     from django.http import Http404
+
     try:
         sprint = await Sprint.objects.select_related("project").aget(pk=sprint_id)
     except Sprint.DoesNotExist as exc:
@@ -735,6 +778,7 @@ async def patch_sprint(request, sprint_id: int, payload: SprintIn):
 @api.delete("/sprints/{sprint_id}/")
 async def delete_sprint(request, sprint_id: int):
     from django.http import Http404
+
     try:
         sprint = await Sprint.objects.select_related("project").aget(pk=sprint_id)
     except Sprint.DoesNotExist as exc:
@@ -746,6 +790,7 @@ async def delete_sprint(request, sprint_id: int):
 
 # --- worklogs ---
 
+
 @api.get("/issues/{key}/worklogs/", response=Page[WorkLogOut])
 async def list_worklogs(request, key: str, page: int = 1, size: int = DEFAULT_PAGE_SIZE):
     issue = await _visible_issue(request, key)
@@ -756,6 +801,7 @@ async def list_worklogs(request, key: str, page: int = 1, size: int = DEFAULT_PA
 @api.post("/issues/{key}/worklogs/", response=WorkLogOut)
 async def add_worklog(request, key: str, payload: WorkLogIn):
     from ninja.errors import HttpError
+
     issue = await _visible_issue(request, key)
     if payload.minutes <= 0:
         raise HttpError(400, "minutes debe ser > 0")
@@ -802,9 +848,7 @@ async def search_issues(
     visible = Project.objects.filter_visible(request.user)
     qs = (
         Issue.objects.filter(condition, project__in=visible)
-        .select_related(
-            "project", "status", "priority", "issue_type", "assignee", "reporter", "parent"
-        )
+        .select_related("project", "status", "priority", "issue_type", "assignee", "reporter", "parent")
         .prefetch_related("labels", "status__allowed_next")
         .order_by(*(order or ["-updated_at"]))
         .distinct()
@@ -960,9 +1004,7 @@ async def list_saved_filters(request):
     # A filter is visible if it belongs to the caller or was shared, and it must
     # not be able to reach projects the caller cannot see: filters whose JQL
     # references only hidden projects are dropped.
-    qs = SavedFilter.objects.filter(
-        models.Q(owner=request.user) | models.Q(scope="shared")
-    ).order_by("name")
+    qs = SavedFilter.objects.filter(models.Q(owner=request.user) | models.Q(scope="shared")).order_by("name")
     # No avalues_list exists on QuerySet, so fetch the rows and read the key
     # in Python rather than projecting in SQL.
     visible_keys = {p.key async for p in visible}

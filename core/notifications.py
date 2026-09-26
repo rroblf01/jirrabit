@@ -7,6 +7,7 @@ instance (assignee/reporter/watchers for issues, lead/members for projects,
 etc.). Email backend is whatever ``EMAIL_BACKEND`` points at — console in
 dev, SMTP in production.
 """
+
 import logging
 
 from django.conf import settings
@@ -35,14 +36,16 @@ def _broadcast_unread(user_id: int) -> None:
     try:
         count = User.objects.filter(pk=user_id).values_list("unread_count", flat=True).first() or 0
         async_to_sync(layer.group_send)(
-            f"user.{user_id}", {"type": "notif.unread", "count": count},
+            f"user.{user_id}",
+            {"type": "notif.unread", "count": count},
         )
-    except (ConnectionError, OSError, RuntimeError):
+    except ConnectionError, OSError, RuntimeError:
         logger.exception("Failed to broadcast unread count for user %s", user_id)
 
 
 def _send(subject: str, body: str, recipients: list[str]) -> None:
     import smtplib
+
     recipients = [r for r in recipients if r]
     if not recipients:
         return
@@ -54,7 +57,7 @@ def _send(subject: str, body: str, recipients: list[str]) -> None:
             recipients,
             fail_silently=False,
         )
-    except (smtplib.SMTPException, OSError):
+    except smtplib.SMTPException, OSError:
         logger.exception("Failed to send notification email to %s", recipients)
 
 
@@ -116,6 +119,7 @@ def _on_issue(sender, instance, created, **kwargs):
     )
     if instance.assignee_id:
         from accounts.models import Notification
+
         Notification.objects.create(
             recipient_id=instance.assignee_id,
             actor=instance.reporter if created else None,
@@ -156,23 +160,23 @@ def _create_in_app_notifications_for_comment(comment):
     recipients.discard(comment.author_id)
 
     from core.markdown import extract_teams
+
     mentioned_usernames = set(extract_mentions(comment.body))
     mentioned_team_slugs = set(extract_teams(comment.body))
-    mentioned_ids = set(
-        User.objects.filter(username__in=mentioned_usernames).values_list("pk", flat=True)
-    )
+    mentioned_ids = set(User.objects.filter(username__in=mentioned_usernames).values_list("pk", flat=True))
     if mentioned_team_slugs:
         from accounts.models import Team
-        team_member_ids = (
-            Team.objects.filter(slug__in=mentioned_team_slugs)
-            .values_list("members__id", flat=True)
+
+        team_member_ids = Team.objects.filter(slug__in=mentioned_team_slugs).values_list(
+            "members__id", flat=True
         )
         mentioned_ids.update(pk for pk in team_member_ids if pk)
 
     # Snoozed users: skip in-app notifications until ``until`` expires.
     snoozed_ids = set(
         NotificationSnooze.objects.filter(
-            issue=issue, until__gt=timezone.now(),
+            issue=issue,
+            until__gt=timezone.now(),
         ).values_list("user_id", flat=True)
     )
 
@@ -208,9 +212,11 @@ def _create_in_app_notifications_for_comment(comment):
 
     # Read receipts: one row per @mention to track if/when the recipient sees it.
     from accounts.models import MentionReceipt
+
     for user_id in mentioned_ids - {comment.author_id}:
         MentionReceipt.objects.get_or_create(
-            mentioned_id=user_id, comment=comment,
+            mentioned_id=user_id,
+            comment=comment,
             defaults={"actor": comment.author},
         )
 

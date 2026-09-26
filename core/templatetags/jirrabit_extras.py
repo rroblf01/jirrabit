@@ -1,4 +1,5 @@
 """Template tags/filters for jirrabit UI."""
+
 from django import template
 from django.utils.dateformat import format as date_format
 from django.utils.safestring import mark_safe
@@ -18,6 +19,4 @@ def rel_time(value, fmt="d M H:i"):
     except AttributeError:
         return value
     pretty = date_format(value, fmt)
-    return mark_safe(
-        f'<time datetime="{iso}" data-rel="1" title="{pretty}">{pretty}</time>'
-    )
+    return mark_safe(f'<time datetime="{iso}" data-rel="1" title="{pretty}">{pretty}</time>')

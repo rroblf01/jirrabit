@@ -13,6 +13,7 @@ User fields (``assignee``, ``reporter``) match against ``username``,
 ``display_name`` and ``first_name + last_name`` so callers can type either
 ``erin_ux``, ``"Erin Soto"`` or just ``erin``.
 """
+
 import re
 
 from django.db.models import Q
@@ -74,6 +75,7 @@ def _column_for(field: str) -> str:
     """Resolve a (lowercased) JQL field name to its lookup path."""
     return FIELD_COLUMNS[field]
 
+
 ORDER_MAP = {
     "created": "created_at",
     "updated": "updated_at",
@@ -90,9 +92,9 @@ def _parse_value(raw: str):
     raw = raw.strip()
     if raw.startswith("(") and raw.endswith(")"):
         inner = raw[1:-1]
-        parts = [p.strip().strip('"\'') for p in inner.split(",") if p.strip()]
+        parts = [p.strip().strip("\"'") for p in inner.split(",") if p.strip()]
         return parts
-    return raw.strip('"\'')
+    return raw.strip("\"'")
 
 
 def _user_match(prefix: str, value: str, op: str) -> Q:
@@ -160,10 +162,22 @@ def _m2m_empty_q(field: str, negate: bool) -> Q:
     field_obj = Issue._meta.get_field(attr_name)
     related = field_obj.related_model
     back_reference = field_obj.remote_field.get_accessor_name()
+    if back_reference is None:
+        # A ManyToMany declared with related_name="+" has no reverse accessor to
+        # subquery against. Django's own answer here is a TypeError about
+        # keyword names, which says nothing about the actual problem.
+        raise JQLError(
+            f"Campo '{field}': no se puede comprobar si está vacío, "
+            f"la relación no define un accessor inverso."
+        )
     has_related = Exists(related.objects.filter(**{back_reference: OuterRef("pk")}))
     # "is EMPTY" is the absence of related rows; "is not EMPTY" is their
     # presence. ``has_related`` is negated exactly once, here.
-    return has_related if negate else ~has_related
+    #
+    # The declared return type is wider than Q on purpose: Exists and
+    # ~Exists are expression objects, not Q, though Django's filter() accepts
+    # either.
+    return has_related if negate else ~has_related  # ty: ignore[invalid-return-type]
 
 
 def _empty_q(field: str, negate: bool) -> Q:
@@ -219,7 +233,7 @@ def parse_jql(query: str):
             q &= _empty_q(field, negate=bool(empty.group(2)))
             continue
 
-        m = re.match(r'^(\w+)\s*(=|!=|~|\bin\b)\s*(.+)$', chunk, flags=re.IGNORECASE)
+        m = re.match(r"^(\w+)\s*(=|!=|~|\bin\b)\s*(.+)$", chunk, flags=re.IGNORECASE)
         if not m:
             # Free text, but only when the fragment could not have been meant as
             # a clause. Treating a malformed clause as prose used to return an

@@ -25,6 +25,7 @@ What it creates:
 Signals that send notification emails are temporarily disconnected so the
 console backend doesn't flood stdout while the demo is loading.
 """
+
 import random
 from datetime import timedelta
 
@@ -75,34 +76,160 @@ DEMO_EPICS = [
 
 # (summary, type, priority, status, story_points, epic_idx, label_idxs, description, due_offset_days)
 DEMO_ISSUES = [
-    ("Calcular descuentos por cliente VIP", "Story", "High", "Done", 5, 0, [1, 2],
-     "Implementar tier VIP con descuento automático del 10% sobre líneas no rebajadas.", -3),
-    ("Endpoint /api/price/preview", "Task", "Medium", "Done", 3, 0, [1],
-     "Devolver el precio simulado para una cesta sin persistir.", -1),
-    ("Cache de reglas de precio en Redis", "Task", "High", "In Progress", 5, 0, [1, 5],
-     "Cargar reglas en caché con TTL de 5 min para no machacar la BD.", 2),
-    ("Bug: redondeo a 2 decimales en IVA", "Bug", "Highest", "In Progress", 2, 0, [1, 2],
-     "Los importes con IVA 21% se desvían 1 cent en algunos productos.", 1),
-    ("Auditoría de cambios en tarifa", "Story", "Medium", "To Do", 8, 0, [1],
-     "Guardar historial de cambios en `PriceList` para cumplir SOX.", 7),
-    ("Diseño del paso 'Dirección de envío'", "Story", "High", "Done", 5, 1, [3],
-     "Mockups en Figma + tokens de espaciado.", -5),
-    ("Validación asíncrona de código postal", "Task", "Medium", "In Review", 3, 1, [0, 1],
-     "Llamada al servicio externo CodPostal y debounce 400ms en el input.", 0),
-    ("Soportar Apple Pay en checkout", "Story", "High", "In Progress", 13, 1, [0, 1],
-     "Integrar Apple Pay JS y verificación de comerciante.", 4),
-    ("Bug: doble click en 'Pagar' duplica el pedido", "Bug", "Highest", "Blocked", 3, 1, [0, 1, 4],
-     "Hace falta lock de submit; reproducible en Safari iOS 17.", 1),
-    ("Tests E2E de checkout con Playwright", "Task", "Medium", "To Do", 5, 1, [4],
-     "Cobertura mínima 80% del happy path + 3 errores.", 9),
-    ("Métrica de abandono por paso", "Task", "Low", "To Do", 3, 1, [5],
-     "Eventos a Mixpanel: viewed_step, submitted_step, errored_step.", 12),
-    ("Bug: timeout al consultar stock", "Bug", "High", "In Progress", 2, None, [1, 2, 5],
-     "Consulta sin índice; afecta 0.3% de requests.", 0),
-    ("Refactor de Order.save() en celdas atómicas", "Task", "Medium", "To Do", 5, None, [1],
-     "Separar en transitions explícitas usando `django-fsm`.", 14),
-    ("Documentar el SDK de pagos para partners", "Story", "Low", "To Do", 3, None, [],
-     "README + ejemplos cURL + esquema OpenAPI.", 21),
+    (
+        "Calcular descuentos por cliente VIP",
+        "Story",
+        "High",
+        "Done",
+        5,
+        0,
+        [1, 2],
+        "Implementar tier VIP con descuento automático del 10% sobre líneas no rebajadas.",
+        -3,
+    ),
+    (
+        "Endpoint /api/price/preview",
+        "Task",
+        "Medium",
+        "Done",
+        3,
+        0,
+        [1],
+        "Devolver el precio simulado para una cesta sin persistir.",
+        -1,
+    ),
+    (
+        "Cache de reglas de precio en Redis",
+        "Task",
+        "High",
+        "In Progress",
+        5,
+        0,
+        [1, 5],
+        "Cargar reglas en caché con TTL de 5 min para no machacar la BD.",
+        2,
+    ),
+    (
+        "Bug: redondeo a 2 decimales en IVA",
+        "Bug",
+        "Highest",
+        "In Progress",
+        2,
+        0,
+        [1, 2],
+        "Los importes con IVA 21% se desvían 1 cent en algunos productos.",
+        1,
+    ),
+    (
+        "Auditoría de cambios en tarifa",
+        "Story",
+        "Medium",
+        "To Do",
+        8,
+        0,
+        [1],
+        "Guardar historial de cambios en `PriceList` para cumplir SOX.",
+        7,
+    ),
+    (
+        "Diseño del paso 'Dirección de envío'",
+        "Story",
+        "High",
+        "Done",
+        5,
+        1,
+        [3],
+        "Mockups en Figma + tokens de espaciado.",
+        -5,
+    ),
+    (
+        "Validación asíncrona de código postal",
+        "Task",
+        "Medium",
+        "In Review",
+        3,
+        1,
+        [0, 1],
+        "Llamada al servicio externo CodPostal y debounce 400ms en el input.",
+        0,
+    ),
+    (
+        "Soportar Apple Pay en checkout",
+        "Story",
+        "High",
+        "In Progress",
+        13,
+        1,
+        [0, 1],
+        "Integrar Apple Pay JS y verificación de comerciante.",
+        4,
+    ),
+    (
+        "Bug: doble click en 'Pagar' duplica el pedido",
+        "Bug",
+        "Highest",
+        "Blocked",
+        3,
+        1,
+        [0, 1, 4],
+        "Hace falta lock de submit; reproducible en Safari iOS 17.",
+        1,
+    ),
+    (
+        "Tests E2E de checkout con Playwright",
+        "Task",
+        "Medium",
+        "To Do",
+        5,
+        1,
+        [4],
+        "Cobertura mínima 80% del happy path + 3 errores.",
+        9,
+    ),
+    (
+        "Métrica de abandono por paso",
+        "Task",
+        "Low",
+        "To Do",
+        3,
+        1,
+        [5],
+        "Eventos a Mixpanel: viewed_step, submitted_step, errored_step.",
+        12,
+    ),
+    (
+        "Bug: timeout al consultar stock",
+        "Bug",
+        "High",
+        "In Progress",
+        2,
+        None,
+        [1, 2, 5],
+        "Consulta sin índice; afecta 0.3% de requests.",
+        0,
+    ),
+    (
+        "Refactor de Order.save() en celdas atómicas",
+        "Task",
+        "Medium",
+        "To Do",
+        5,
+        None,
+        [1],
+        "Separar en transitions explícitas usando `django-fsm`.",
+        14,
+    ),
+    (
+        "Documentar el SDK de pagos para partners",
+        "Story",
+        "Low",
+        "To Do",
+        3,
+        None,
+        [],
+        "README + ejemplos cURL + esquema OpenAPI.",
+        21,
+    ),
 ]
 
 COMMENT_TEMPLATES = [
@@ -117,22 +244,38 @@ COMMENT_TEMPLATES = [
 
 # (name, entity, event, state_filter csv, action code)
 DEMO_WEBHOOKS = [
-    ("Avisar al director cuando una issue se cierra",
-     "issue", "issue.status_changed", "Done", "email.director"),
-    ("Llamar al oncall si una issue se bloquea",
-     "issue", "issue.status_changed", "Blocked", "pagerduty.page_oncall"),
-    ("Postear en #incidents cuando un bug pasa a en curso",
-     "issue", "issue.status_changed", "In Progress", "slack.post_incidents"),
-    ("Asignar al lead cuando se crea una issue",
-     "issue", "issue.created", "", "jira.auto_assign_lead"),
-    ("Crear reunión cuando nace una epic",
-     "epic", "epic.created", "", "calendar.create_meeting"),
-    ("Snapshot de KPI cuando una epic se completa",
-     "epic", "epic.status_changed", "done", "kpi.snapshot"),
-    ("Borrador de post-mortem si una issue queda bloqueada",
-     "issue", "issue.status_changed", "Blocked", "postmortem.draft"),
-    ("Loggear cualquier comentario nuevo",
-     "comment", "issue.commented", "", "log.info"),
+    (
+        "Avisar al director cuando una issue se cierra",
+        "issue",
+        "issue.status_changed",
+        "Done",
+        "email.director",
+    ),
+    (
+        "Llamar al oncall si una issue se bloquea",
+        "issue",
+        "issue.status_changed",
+        "Blocked",
+        "pagerduty.page_oncall",
+    ),
+    (
+        "Postear en #incidents cuando un bug pasa a en curso",
+        "issue",
+        "issue.status_changed",
+        "In Progress",
+        "slack.post_incidents",
+    ),
+    ("Asignar al lead cuando se crea una issue", "issue", "issue.created", "", "jira.auto_assign_lead"),
+    ("Crear reunión cuando nace una epic", "epic", "epic.created", "", "calendar.create_meeting"),
+    ("Snapshot de KPI cuando una epic se completa", "epic", "epic.status_changed", "done", "kpi.snapshot"),
+    (
+        "Borrador de post-mortem si una issue queda bloqueada",
+        "issue",
+        "issue.status_changed",
+        "Blocked",
+        "postmortem.draft",
+    ),
+    ("Loggear cualquier comentario nuevo", "comment", "issue.commented", "", "log.info"),
 ]
 
 
@@ -154,6 +297,7 @@ def _disconnect_notifications():
     # save, each opening its own DB connection and quickly draining the
     # Postgres slot pool. Re-attached in ``_reconnect_notifications``.
     from django.db.models.signals import pre_save as _pre_save
+
     _pre_save.disconnect(sender=Issue, dispatch_uid="webhook_issue_pre")
     post_save.disconnect(sender=Issue, dispatch_uid="webhook_issue")
     post_save.disconnect(sender=Comment, dispatch_uid="webhook_comment")
@@ -163,6 +307,7 @@ def _disconnect_notifications():
 
 def _reconnect_notifications():
     from core import webhooks as _webhooks
+
     notifications.connect()
     _webhooks.connect()
 
@@ -176,9 +321,7 @@ def _ensure_base_lookups():
         ("Subtask", "subtask", "↳", "#0ea5e9"),
     ]
     for name, cat, icon, color in types:
-        IssueType.objects.get_or_create(
-            name=name, defaults={"category": cat, "icon": icon, "color": color}
-        )
+        IssueType.objects.get_or_create(name=name, defaults={"category": cat, "icon": icon, "color": color})
     statuses = [
         ("To Do", "todo", 10),
         ("In Progress", "in_progress", 20),
@@ -201,6 +344,7 @@ def _ensure_base_lookups():
 
 def _svg_avatar(initials: str, color: str) -> str:
     import base64
+
     svg = (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">'
         f'<rect width="80" height="80" rx="40" fill="{color}"/>'
@@ -238,9 +382,9 @@ class Command(BaseCommand):
                 self._webhooks(project)
         finally:
             _reconnect_notifications()
-        self.stdout.write(self.style.SUCCESS(
-            f"Demo listo. Login: alice_pm / demopass. Proyecto: /projects/{PROJECT_KEY}/"
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(f"Demo listo. Login: alice_pm / demopass. Proyecto: /projects/{PROJECT_KEY}/")
+        )
 
     # ------------------------------------------------------------------
     def _wipe(self):
@@ -280,6 +424,7 @@ class Command(BaseCommand):
 
     def _project(self, users: list[User]) -> Project:
         from projects.models import ProjectMembership
+
         project, _ = Project.objects.get_or_create(
             key=PROJECT_KEY,
             defaults={
@@ -359,9 +504,21 @@ class Command(BaseCommand):
         today = timezone.now()
 
         created_issues = []
-        for summary, type_name, prio_name, status_name, sp, epic_idx, label_idxs, desc, due_offset in DEMO_ISSUES:
+        for (
+            summary,
+            type_name,
+            prio_name,
+            status_name,
+            sp,
+            epic_idx,
+            label_idxs,
+            desc,
+            due_offset,
+        ) in DEMO_ISSUES:
             assignee = random.choice(users[1:])  # not alice (she's PM/reporter)
-            sprint = sprints["closed"] if status_name == "Done" and random.random() < 0.5 else sprints["active"]
+            sprint = (
+                sprints["closed"] if status_name == "Done" and random.random() < 0.5 else sprints["active"]
+            )
             issue, was_new = Issue.objects.get_or_create(
                 project=project,
                 summary=summary,
@@ -384,7 +541,7 @@ class Command(BaseCommand):
                 # watchers: random subset of 1-3 users excluding assignee
                 pool = [u for u in users if u != assignee]
                 random.shuffle(pool)
-                issue.watchers.set(pool[:random.randint(1, 3)])
+                issue.watchers.set(pool[: random.randint(1, 3)])
                 self._comments(issue, users, summary)
                 self._history(issue, users, status_name)
                 if random.random() < 0.3:
@@ -404,17 +561,24 @@ class Command(BaseCommand):
     def _history(self, issue: Issue, users: list[User], status_name: str):
         actor = users[0]
         HistoryEntry.objects.create(
-            issue=issue, actor=actor, field="status",
-            old_value="To Do", new_value=status_name,
+            issue=issue,
+            actor=actor,
+            field="status",
+            old_value="To Do",
+            new_value=status_name,
         )
         if status_name == "Done":
             HistoryEntry.objects.create(
-                issue=issue, actor=actor, field="resolved",
-                old_value="", new_value="resuelto",
+                issue=issue,
+                actor=actor,
+                field="resolved",
+                old_value="",
+                new_value="resuelto",
             )
 
     def _attachment(self, issue: Issue, user: User):
         import base64
+
         content = (
             f"Notas para {issue.key}\n"
             f"-----------------------\n"

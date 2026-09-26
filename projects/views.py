@@ -69,6 +69,7 @@ class ProjectDetailView(AsyncLoginRequiredMixin, AsyncDetailView):
 
     async def aget_object(self):
         from core.permissions import aassert_can_view
+
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
         return project
@@ -134,11 +135,10 @@ class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
         try:
-            epic = await Epic.objects.select_related("created_by").aget(
-                pk=self.kwargs["pk"], project=project
-            )
+            epic = await Epic.objects.select_related("created_by").aget(pk=self.kwargs["pk"], project=project)
         except Epic.DoesNotExist as exc:
             from django.http import Http404
+
             raise Http404("Epic") from exc
 
         issues_qs = (
@@ -155,16 +155,18 @@ class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
         todo = by_category.get("todo", 0)
         percent_done = int(round(done * 100 / total)) if total else 0
 
-        ctx.update({
-            "project": project,
-            "epic": epic,
-            "issues": issues,
-            "total": total,
-            "done_count": done,
-            "in_progress_count": in_progress,
-            "todo_count": todo,
-            "percent_done": percent_done,
-        })
+        ctx.update(
+            {
+                "project": project,
+                "epic": epic,
+                "issues": issues,
+                "total": total,
+                "done_count": done,
+                "in_progress_count": in_progress,
+                "todo_count": todo,
+                "percent_done": percent_done,
+            }
+        )
         return ctx
 
 
@@ -179,12 +181,14 @@ class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreate
 
     async def get(self, request, *args, **kwargs):
         from core.permissions import aassert_can_edit
+
         self.project = await self.aget_project()
         await aassert_can_edit(request.user, self.project)
         return await super().get(request, *args, **kwargs)
 
     async def post(self, request, *args, **kwargs):
         from core.permissions import aassert_can_edit
+
         self.project = await self.aget_project()
         await aassert_can_edit(request.user, self.project)
         return await super().post(request, *args, **kwargs)
@@ -211,12 +215,14 @@ class SprintCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCrea
 
     async def get(self, request, *args, **kwargs):
         from core.permissions import aassert_can_edit
+
         self.project = await self.aget_project()
         await aassert_can_edit(request.user, self.project)
         return await super().get(request, *args, **kwargs)
 
     async def post(self, request, *args, **kwargs):
         from core.permissions import aassert_can_edit
+
         self.project = await self.aget_project()
         await aassert_can_edit(request.user, self.project)
         return await super().post(request, *args, **kwargs)
@@ -250,14 +256,20 @@ class SprintCloseView(AsyncLoginRequiredMixin, View):
         carry_id = request.POST.get("carry_to", "").strip()
         carry = None
         if carry_id:
-            carry = await Sprint.objects.filter(
-                pk=carry_id, project=sprint.project,
-            ).exclude(status="closed").afirst()
+            carry = (
+                await Sprint.objects.filter(
+                    pk=carry_id,
+                    project=sprint.project,
+                )
+                .exclude(status="closed")
+                .afirst()
+            )
         await sprint.aclose(carry_to=carry)
         return await arender(request, "projects/_sprint_row.html", {"sprint": sprint})
 
 
 # --- activity feed, burndown, custom fields, webhooks UI, members admin ---
+
 
 class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
     """Capacity-aware sprint planning view.
@@ -274,6 +286,7 @@ class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         from core.permissions import aassert_can_view
         from issues.models import Issue
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
@@ -282,8 +295,10 @@ class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
         if sprint_id:
             sprint = await project.sprints.filter(pk=sprint_id).afirst()
         if sprint is None:
-            sprint = await project.sprints.filter(status="active").afirst() \
+            sprint = (
+                await project.sprints.filter(status="active").afirst()
                 or await project.sprints.exclude(status="closed").order_by("start_date").afirst()
+            )
         try:
             capacity = int(self.request.GET.get("capacity", "20"))
         except ValueError:
@@ -294,9 +309,10 @@ class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
         issues = []
         if sprint:
             issues = [
-                i async for i in
-                Issue.objects.filter(project=project, sprint=sprint)
-                .select_related("assignee", "status", "priority", "issue_type")
+                i
+                async for i in Issue.objects.filter(project=project, sprint=sprint).select_related(
+                    "assignee", "status", "priority", "issue_type"
+                )
             ]
             for i in issues:
                 sp = i.story_points or 0
@@ -311,13 +327,15 @@ class SprintPlanningView(AsyncLoginRequiredMixin, AsyncTemplateView):
         rows = []
         for m in members:
             load = sp_by_user.get(m.pk, 0)
-            rows.append({
-                "user": m,
-                "load": load,
-                "capacity": capacity,
-                "pct": min(100, int(round(100 * load / capacity))) if capacity else 0,
-                "over": load > capacity,
-            })
+            rows.append(
+                {
+                    "user": m,
+                    "load": load,
+                    "capacity": capacity,
+                    "pct": min(100, int(round(100 * load / capacity))) if capacity else 0,
+                    "over": load > capacity,
+                }
+            )
 
         ctx["project"] = project
         ctx["sprint"] = sprint
@@ -338,15 +356,17 @@ class ProjectDependencyGraphView(AsyncLoginRequiredMixin, AsyncTemplateView):
     async def aget_context_data(self, **kwargs):
         from core.permissions import aassert_can_view
         from issues.models import Issue, IssueLink
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
 
         # Only "blocks" edges are interesting (others are inverses / lateral).
         links = [
-            (link.source.key, link.target.key) async for link in
-            IssueLink.objects.filter(source__project=project, type="blocks")
-            .select_related("source", "target")
+            (link.source.key, link.target.key)
+            async for link in IssueLink.objects.filter(source__project=project, type="blocks").select_related(
+                "source", "target"
+            )
         ]
         # Collect nodes referenced by any block edge.
         referenced = set()
@@ -355,14 +375,17 @@ class ProjectDependencyGraphView(AsyncLoginRequiredMixin, AsyncTemplateView):
             referenced.add(t)
         nodes = []
         if referenced:
-            async for i in (
-                Issue.objects.filter(project=project, key__in=referenced)
-                .select_related("status", "priority")
+            async for i in Issue.objects.filter(project=project, key__in=referenced).select_related(
+                "status", "priority"
             ):
-                nodes.append({
-                    "key": i.key, "summary": i.summary,
-                    "status": str(i.status), "category": i.status.category,
-                })
+                nodes.append(
+                    {
+                        "key": i.key,
+                        "summary": i.summary,
+                        "status": str(i.status),
+                        "category": i.status.category,
+                    }
+                )
 
         # Layout: simple level-by-level BFS from "sources" (no incoming edges).
         in_deg = {n["key"]: 0 for n in nodes}
@@ -428,6 +451,7 @@ class ProjectRoadmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
         from django.utils import timezone
 
         from core.permissions import aassert_can_view
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
@@ -447,12 +471,18 @@ class ProjectRoadmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
             left_pct = ((e_start - start).days / total_days) * 100
             width_pct = max(2.0, ((e_end - e_start).days / total_days) * 100)
             pct_done = int(round(100 * done / count)) if count else 0
-            bars.append({
-                "epic": e, "left_pct": round(left_pct, 2),
-                "width_pct": round(width_pct, 2),
-                "pct_done": pct_done, "count": count, "done": done,
-                "start": e_start, "end": e_end,
-            })
+            bars.append(
+                {
+                    "epic": e,
+                    "left_pct": round(left_pct, 2),
+                    "width_pct": round(width_pct, 2),
+                    "pct_done": pct_done,
+                    "count": count,
+                    "done": done,
+                    "start": e_start,
+                    "end": e_end,
+                }
+            )
 
         # Vertical line for today.
         today_pct = ((timezone.localdate() - start).days / total_days) * 100
@@ -471,15 +501,25 @@ def _compute_roadmap_range(project):
     from django.utils import timezone
 
     from issues.models import Issue
+
     qs = Issue.objects.filter(project=project)
     agg = qs.aggregate(
-        min_c=Min("created_at"), max_d=Max("due_date"), max_r=Max("resolved_at"),
+        min_c=Min("created_at"),
+        max_d=Max("due_date"),
+        max_r=Max("resolved_at"),
     )
     today = timezone.localdate()
-    start = (agg["min_c"].date() if agg["min_c"] else today)
-    end = max(filter(None, [
-        agg["max_d"], agg["max_r"].date() if agg["max_r"] else None, today + timedelta(days=30),
-    ]))
+    start = agg["min_c"].date() if agg["min_c"] else today
+    end = max(
+        filter(
+            None,
+            [
+                agg["max_d"],
+                agg["max_r"].date() if agg["max_r"] else None,
+                today + timedelta(days=30),
+            ],
+        )
+    )
     if end <= start:
         end = start + timedelta(days=30)
     return start, end
@@ -487,6 +527,7 @@ def _compute_roadmap_range(project):
 
 def _epic_bounds(epic):
     from django.db.models import Max, Min
+
     qs = epic.issues.all()
     count = qs.count()
     done = qs.filter(status__category="done").count()
@@ -518,6 +559,7 @@ class ProjectSlaView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         from core.permissions import aassert_can_view
         from issues.models import HistoryEntry, Issue
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
@@ -528,24 +570,31 @@ class ProjectSlaView(AsyncLoginRequiredMixin, AsyncTemplateView):
         now = timezone.now()
         cutoff = now - timedelta(days=threshold)
         candidates = [
-            i async for i in
-            Issue.objects.filter(project=project, archived=False)
+            i
+            async for i in Issue.objects.filter(project=project, archived=False)
             .exclude(status__category="done")
             .select_related("status", "priority", "assignee")
             .order_by("updated_at")
         ]
         rows = []
         for i in candidates:
-            last_change = await HistoryEntry.objects.filter(
-                issue=i, field="status",
-            ).order_by("-created_at").afirst()
+            last_change = (
+                await HistoryEntry.objects.filter(
+                    issue=i,
+                    field="status",
+                )
+                .order_by("-created_at")
+                .afirst()
+            )
             entered_at = last_change.created_at if last_change else i.created_at
             if entered_at <= cutoff:
-                rows.append({
-                    "issue": i,
-                    "entered_at": entered_at,
-                    "days_in_status": int((now - entered_at).total_seconds() / 86400),
-                })
+                rows.append(
+                    {
+                        "issue": i,
+                        "entered_at": entered_at,
+                        "days_in_status": int((now - entered_at).total_seconds() / 86400),
+                    }
+                )
         ctx["project"] = project
         ctx["rows"] = sorted(rows, key=lambda r: -r["days_in_status"])
         ctx["threshold"] = threshold
@@ -564,13 +613,15 @@ class ProjectWikiView(AsyncLoginRequiredMixin, View):
         from core.permissions import aassert_can_view, aget_role, can_admin
 
         from .models import ProjectWiki
+
         project = await _aget_project(key)
         await aassert_can_view(request.user, project)
         wiki = await ProjectWiki.objects.filter(project=project).afirst()
         role = await aget_role(request.user, project)
         edit_mode = request.GET.get("edit") == "1"
         return await arender(
-            request, "projects/wiki.html",
+            request,
+            "projects/wiki.html",
             {
                 "project": project,
                 "wiki": wiki,
@@ -584,6 +635,7 @@ class ProjectWikiView(AsyncLoginRequiredMixin, View):
         from core.permissions import aassert_can_admin
 
         from .models import ProjectWiki
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         body = request.POST.get("body", "")
@@ -612,6 +664,7 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         from core.permissions import aassert_can_view
         from issues.models import Issue
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, project)
@@ -625,10 +678,11 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         members = [m async for m in project.members.defer("avatar").order_by("username")]
         load: dict[int, dict] = defaultdict(lambda: defaultdict(int))
-        async for i in (
-            Issue.objects.filter(project=project, assignee__isnull=False).only(
-                "assignee_id", "story_points", "resolved_at", "due_date",
-            )
+        async for i in Issue.objects.filter(project=project, assignee__isnull=False).only(
+            "assignee_id",
+            "story_points",
+            "resolved_at",
+            "due_date",
         ):
             sp = i.story_points or 0
             if not sp:
@@ -643,9 +697,13 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
                     continue
                 load[i.assignee_id][day] += sp
 
-        max_load = max(
-            (n for u in load.values() for n in u.values()), default=0,
-        ) or 1
+        max_load = (
+            max(
+                (n for u in load.values() for n in u.values()),
+                default=0,
+            )
+            or 1
+        )
         rows = []
         for m in members:
             cells = []
@@ -677,6 +735,7 @@ class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         from core.permissions import aassert_can_view
+
         await aassert_can_view(self.request.user, project)
         ctx["project"] = project
 
@@ -684,26 +743,30 @@ class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
         now = timezone.now()
         weeks_back = 8
         week_start = (now - timedelta(days=now.weekday())).replace(
-            hour=0, minute=0, second=0, microsecond=0,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
         )
         first_week = week_start - timedelta(weeks=weeks_back - 1)
         resolved = [
-            i async for i in
-            Issue.objects.filter(
-                project=project, resolved_at__gte=first_week,
+            i
+            async for i in Issue.objects.filter(
+                project=project,
+                resolved_at__gte=first_week,
             ).only("resolved_at")
         ]
         buckets = {first_week + timedelta(weeks=w): 0 for w in range(weeks_back)}
         for i in resolved:
             b = (i.resolved_at - timedelta(days=i.resolved_at.weekday())).replace(
-                hour=0, minute=0, second=0, microsecond=0,
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
             )
             if b in buckets:
                 buckets[b] += 1
-        throughput = [
-            {"week": b.strftime("%Y-W%V"), "count": c}
-            for b, c in sorted(buckets.items())
-        ]
+        throughput = [{"week": b.strftime("%Y-W%V"), "count": c} for b, c in sorted(buckets.items())]
         ctx["throughput"] = throughput
         ctx["throughput_max"] = max((t["count"] for t in throughput), default=0) or 1
 
@@ -711,18 +774,26 @@ class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
         # and resolved_at, for issues resolved in the last 90 days.
         cycle_since = now - timedelta(days=90)
         recent_resolved = [
-            i async for i in
-            Issue.objects.filter(
-                project=project, resolved_at__gte=cycle_since,
+            i
+            async for i in Issue.objects.filter(
+                project=project,
+                resolved_at__gte=cycle_since,
             ).only("id", "key", "resolved_at", "created_at")
         ]
         recent_ids = [i.pk for i in recent_resolved]
         starts = {}
         if recent_ids:
-            async for h in HistoryEntry.objects.filter(
-                issue_id__in=recent_ids, field="status",
-            ).order_by("issue_id", "created_at").only(
-                "issue_id", "new_value", "created_at",
+            async for h in (
+                HistoryEntry.objects.filter(
+                    issue_id__in=recent_ids,
+                    field="status",
+                )
+                .order_by("issue_id", "created_at")
+                .only(
+                    "issue_id",
+                    "new_value",
+                    "created_at",
+                )
             ):
                 if h.issue_id in starts:
                     continue
@@ -735,10 +806,7 @@ class ProjectReportsView(AsyncLoginRequiredMixin, AsyncTemplateView):
         if durations:
             durations.sort()
             mid = len(durations) // 2
-            median_h = (
-                durations[mid] if len(durations) % 2
-                else (durations[mid - 1] + durations[mid]) / 2
-            )
+            median_h = durations[mid] if len(durations) % 2 else (durations[mid - 1] + durations[mid]) / 2
             avg_h = sum(durations) / len(durations)
             p90_h = durations[int(0.9 * (len(durations) - 1))]
         else:
@@ -767,6 +835,7 @@ class ProjectActivityView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from issues.models import AuditEntry, HistoryEntry
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         try:
@@ -776,20 +845,21 @@ class ProjectActivityView(AsyncLoginRequiredMixin, AsyncTemplateView):
         offset = (page - 1) * self.PAGE_SIZE
         end = offset + self.PAGE_SIZE + 1
         audits = [
-            a async for a in
-            AuditEntry.objects.filter(project=project)
-            .select_related("actor")[offset:end]
+            a async for a in AuditEntry.objects.filter(project=project).select_related("actor")[offset:end]
         ]
         history = [
-            h async for h in
-            HistoryEntry.objects.filter(issue__project=project)
-            .select_related("actor", "issue")[offset:end]
+            h
+            async for h in HistoryEntry.objects.filter(issue__project=project).select_related(
+                "actor", "issue"
+            )[offset:end]
         ]
         ctx["project"] = project
         ctx["audits"] = audits[: self.PAGE_SIZE]
         ctx["history"] = history[: self.PAGE_SIZE]
         ctx["page"] = page
-        ctx["next_page"] = page + 1 if (len(audits) > self.PAGE_SIZE or len(history) > self.PAGE_SIZE) else None
+        ctx["next_page"] = (
+            page + 1 if (len(audits) > self.PAGE_SIZE or len(history) > self.PAGE_SIZE) else None
+        )
         ctx["prev_page"] = page - 1 if page > 1 else None
         return ctx
 
@@ -801,6 +871,7 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
         from datetime import timedelta
 
         from django.utils import timezone
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         sprint_id = self.request.GET.get("sprint")
@@ -808,7 +879,10 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
         if sprint_id:
             sprint = await project.sprints.filter(pk=sprint_id).afirst()
         if sprint is None:
-            sprint = await project.sprints.filter(status="active").afirst() or await project.sprints.order_by("-start_date").afirst()
+            sprint = (
+                await project.sprints.filter(status="active").afirst()
+                or await project.sprints.order_by("-start_date").afirst()
+            )
         ctx["project"] = project
         ctx["sprint"] = sprint
         ctx["sprints"] = [s async for s in project.sprints.all()]
@@ -817,15 +891,15 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
         # completed (sum SP of issues resolved during the sprint).
         # Single query for all sprint issues, grouped in Python.
         from issues.models import Issue
-        closed_sprints = [
-            s async for s in
-            project.sprints.filter(status="closed").order_by("end_date")[:12]
-        ]
+
+        closed_sprints = [s async for s in project.sprints.filter(status="closed").order_by("end_date")[:12]]
         closed_ids = [s.pk for s in closed_sprints]
         issues_by_sprint: dict[int, list] = {sid: [] for sid in closed_ids}
         if closed_ids:
             async for i in Issue.objects.filter(sprint_id__in=closed_ids).only(
-                "sprint_id", "story_points", "resolved_at",
+                "sprint_id",
+                "story_points",
+                "resolved_at",
             ):
                 issues_by_sprint[i.sprint_id].append(i)
         velocity = []
@@ -833,8 +907,11 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
             sprint_issues = issues_by_sprint.get(s.pk, [])
             committed = sum(i.story_points or 0 for i in sprint_issues)
             completed = sum(
-                (i.story_points or 0) for i in sprint_issues
-                if i.resolved_at and s.start_date and s.end_date
+                (i.story_points or 0)
+                for i in sprint_issues
+                if i.resolved_at
+                and s.start_date
+                and s.end_date
                 and s.start_date <= i.resolved_at.date() <= s.end_date
             )
             velocity.append({"name": s.name, "committed": committed, "completed": completed})
@@ -860,9 +937,9 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
         if sprint and sprint.start_date and sprint.end_date:
             from issues.models import Issue
+
             issues = [
-                i async for i in
-                Issue.objects.filter(sprint=sprint).only("story_points", "resolved_at")
+                i async for i in Issue.objects.filter(sprint=sprint).only("story_points", "resolved_at")
             ]
             total_sp = sum(i.story_points or 0 for i in issues)
             days = (sprint.end_date - sprint.start_date).days or 1
@@ -871,8 +948,7 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
             for i in range(days + 1):
                 d = sprint.start_date + timedelta(days=i)
                 remaining = sum(
-                    (i.story_points or 0) for i in issues
-                    if not (i.resolved_at and i.resolved_at.date() <= d)
+                    (i.story_points or 0) for i in issues if not (i.resolved_at and i.resolved_at.date() <= d)
                 )
                 actual = remaining if d <= today else None
                 ideal = total_sp - (total_sp / days) * i
@@ -887,25 +963,27 @@ class ProjectBurndownView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
 # --- members admin (project role management) ---
 
+
 class ProjectMembersView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/members.html"
 
     async def aget_context_data(self, **kwargs):
         from accounts.models import User
+
         ctx = await super().aget_context_data(**kwargs)
         project = await _aget_project(self.kwargs["key"])
         await aassert_can_admin(self.request.user, project)
         ctx["project"] = project
         ctx["memberships"] = [
-            m async for m in
-            project.memberships.select_related("user").defer("user__avatar")
+            m async for m in project.memberships.select_related("user").defer("user__avatar")
         ]
         member_ids = {m.user_id for m in ctx["memberships"]}
         ctx["available_users"] = [
-            u async for u in
-            User.objects.filter(is_active=True)
+            u
+            async for u in User.objects.filter(is_active=True)
             .defer("avatar")
-            .exclude(pk__in=member_ids).order_by("username")
+            .exclude(pk__in=member_ids)
+            .order_by("username")
         ]
         return ctx
 
@@ -916,11 +994,12 @@ class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
 
         from accounts.models import User
         from projects.models import ProjectMembership
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         try:
             user_id = int(request.POST.get("user_id", ""))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return HttpResponseBadRequest("user_id inválido")
         role = request.POST.get("role", "member")
         if role not in {"admin", "member", "viewer"}:
@@ -929,7 +1008,9 @@ class ProjectMembershipAddView(AsyncLoginRequiredMixin, View):
         if user is None:
             return HttpResponseBadRequest("usuario no encontrado")
         await ProjectMembership.objects.aget_or_create(
-            project=project, user=user, defaults={"role": role},
+            project=project,
+            user=user,
+            defaults={"role": role},
         )
         return redirect("projects:members", key=project.key)
 
@@ -939,6 +1020,7 @@ class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
         from django.http import Http404
 
         from projects.models import ProjectMembership
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         m = await ProjectMembership.objects.filter(pk=pk, project=project).afirst()
@@ -951,6 +1033,7 @@ class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
             new_role = request.POST.get("role", m.role)
             if new_role not in {"admin", "member", "viewer"}:
                 from django.http import HttpResponseBadRequest
+
                 return HttpResponseBadRequest("rol inválido")
             m.role = new_role
             await m.asave(update_fields=["role"])
@@ -958,6 +1041,7 @@ class ProjectMembershipUpdateView(AsyncLoginRequiredMixin, View):
 
 
 # --- custom fields admin ---
+
 
 class ProjectCustomFieldsView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/custom_fields.html"
@@ -976,6 +1060,7 @@ class ProjectCustomFieldCreateView(AsyncLoginRequiredMixin, View):
         from django.utils.text import slugify
 
         from projects.models import CustomFieldDef
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         name = request.POST.get("name", "").strip()
@@ -995,6 +1080,7 @@ class ProjectCustomFieldCreateView(AsyncLoginRequiredMixin, View):
 class ProjectCustomFieldDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from projects.models import CustomFieldDef
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         await CustomFieldDef.objects.filter(pk=pk, project=project).adelete()
@@ -1002,6 +1088,7 @@ class ProjectCustomFieldDeleteView(AsyncLoginRequiredMixin, View):
 
 
 # --- webhooks ---
+
 
 class ProjectWebhooksView(AsyncLoginRequiredMixin, AsyncTemplateView):
     template_name = "projects/webhooks.html"
@@ -1067,6 +1154,7 @@ class ProjectWebhookCreateView(AsyncLoginRequiredMixin, View):
 class ProjectWebhookDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from projects.models import Webhook
+
         project = await _aget_project(key)
         await aassert_can_admin(request.user, project)
         await Webhook.objects.filter(pk=pk, project=project).adelete()

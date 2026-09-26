@@ -80,9 +80,9 @@ async def _apply_board_order(project, status, ordered_keys, user):
         if issue.status_id == status.pk:
             continue
         sources.setdefault(issue.status_id, []).append(key)
-        moved, _new, ok = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True
-        )(issue.pk, status.pk, user.pk)
+        moved, _new, ok = await sync_to_async(_change_status_atomic, thread_sensitive=True)(
+            issue.pk, status.pk, user.pk
+        )
         if not ok:
             raise ValueError(f"transición de estado no permitida: {key}")
         found[key] = moved
@@ -127,9 +127,11 @@ async def _renumber(project, status_id, keys=None):
             .only("key")
         ]
     for index, key in enumerate(keys):
-        issue = await Issue.objects.filter(
-            key=key, project=project, status_id=status_id
-        ).only("pk", "rank").afirst()
+        issue = (
+            await Issue.objects.filter(key=key, project=project, status_id=status_id)
+            .only("pk", "rank")
+            .afirst()
+        )
         if issue is None or issue.rank == index:
             continue
         issue.rank = index
@@ -156,9 +158,12 @@ async def _append_to_column(issues, status):
     cards = [i for i in issues if i is not None]
     if not cards:
         return
-    last = await Issue.objects.filter(
-        project=cards[0].project, status_id=status.pk
-    ).exclude(pk__in=[i.pk for i in cards]).order_by("-rank").afirst()
+    last = (
+        await Issue.objects.filter(project=cards[0].project, status_id=status.pk)
+        .exclude(pk__in=[i.pk for i in cards])
+        .order_by("-rank")
+        .afirst()
+    )
     base = (last.rank + 1) if last is not None else 0
     for offset, issue in enumerate(cards):
         issue.rank = base + offset
@@ -188,17 +193,20 @@ async def _filtered_issues_qs(project, request):
     text = request.GET.get("text", "").strip()
     if text:
         from django.db.models import Q
+
         qs = qs.filter(Q(summary__icontains=text) | Q(key__icontains=text))
     stale = request.GET.get("stale")
     if stale and stale.isdigit():
         from datetime import timedelta
 
         from django.utils import timezone
+
         cutoff = timezone.now() - timedelta(days=int(stale))
         qs = qs.filter(updated_at__lt=cutoff).exclude(status__category="done")
     due = request.GET.get("due")
     if due == "overdue":
         from django.utils import timezone
+
         qs = qs.filter(due_date__lt=timezone.localdate()).exclude(status__category="done")
     if request.GET.get("urgent"):
         qs = qs.filter(priority__weight__gte=40)
@@ -208,6 +216,7 @@ async def _filtered_issues_qs(project, request):
         from datetime import timedelta
 
         from django.utils import timezone
+
         qs = qs.filter(updated_at__gte=timezone.now() - timedelta(hours=24))
     return qs
 
@@ -235,8 +244,7 @@ class BoardView(AsyncLoginRequiredMixin, AsyncTemplateView):
         all_issues = [i async for i in issues_qs.order_by("rank", "-updated_at")]
         ctx["project"] = project
         ctx["columns"] = [
-            {"status": s, "issues": [i for i in all_issues if i.status_id == s.pk]}
-            for s in statuses
+            {"status": s, "issues": [i for i in all_issues if i.status_id == s.pk]} for s in statuses
         ]
         ctx["active_sprint"] = active_sprint
         ctx["sprints"] = [s async for s in project.sprints.all()]
@@ -246,11 +254,13 @@ class BoardView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["filter_epic"] = self.request.GET.get("epic", "")
         ctx["filter_text"] = self.request.GET.get("text", "")
         from issues.models import IssueType, Priority
+
         ctx["types"] = [t async for t in IssueType.objects.all()]
         ctx["priorities"] = [p async for p in Priority.objects.all()]
         ctx["epics"] = [e async for e in project.epics.filter(done=False)]
         ctx["members"] = [m async for m in project.members.defer("avatar").all()]
         from issues.models import Label
+
         ctx["labels"] = [lab async for lab in Label.objects.all().order_by("name")]
         return ctx
 
@@ -277,7 +287,8 @@ class MoveCardView(AsyncLoginRequiredMixin, View):
         from issues.views import _change_status_atomic
 
         issue, status, ok = await sync_to_async(
-            _change_status_atomic, thread_sensitive=True,
+            _change_status_atomic,
+            thread_sensitive=True,
         )(issue.pk, status.pk, request.user.pk)
         if not ok:
             return HttpResponseBadRequest(f"Transición no permitida: {issue.status} → {status}")
@@ -364,9 +375,9 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             target_status = await Status.objects.aget(pk=target_id)
             moved_issues = []
             async for issue in qs.only("pk"):
-                moved, _new, ok = await sync_to_async(
-                    _change_status_atomic, thread_sensitive=True
-                )(issue.pk, target_id, request.user.pk)
+                moved, _new, ok = await sync_to_async(_change_status_atomic, thread_sensitive=True)(
+                    issue.pk, target_id, request.user.pk
+                )
                 if not ok:
                     return HttpResponseBadRequest("transición de estado no permitida por el workflow")
                 moved_issues.append(moved)
@@ -377,9 +388,12 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
                 from django.db.models import Q as _Q
 
                 from accounts.models import User
-                ok = await User.objects.filter(pk=value).filter(
-                    _Q(memberships__project=project) | _Q(led_projects=project)
-                ).aexists()
+
+                ok = (
+                    await User.objects.filter(pk=value)
+                    .filter(_Q(memberships__project=project) | _Q(led_projects=project))
+                    .aexists()
+                )
                 if not ok:
                     return HttpResponseBadRequest("usuario no en proyecto")
             await _asave_each(qs, "assignee_id", int(value) if value else None)
@@ -402,8 +416,10 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             through = Issue.labels.through
             issue_ids = [pk async for pk in qs.values_list("pk", flat=True)]
             existing = {
-                pk async for pk in through.objects.filter(
-                    issue_id__in=issue_ids, label_id=label_id,
+                pk
+                async for pk in through.objects.filter(
+                    issue_id__in=issue_ids,
+                    label_id=label_id,
                 ).values_list("issue_id", flat=True)
             }
             await through.objects.abulk_create(
@@ -416,7 +432,8 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             through = Issue.labels.through
             issue_ids = [pk async for pk in qs.values_list("pk", flat=True)]
             await through.objects.filter(
-                issue_id__in=issue_ids, label_id=label_id,
+                issue_id__in=issue_ids,
+                label_id=label_id,
             ).adelete()
         else:
             return HttpResponseBadRequest("action desconocida")
@@ -440,8 +457,8 @@ class BacklogView(AsyncLoginRequiredMixin, AsyncTemplateView):
         # here: sorting by it would order the backlog by whatever column index
         # each card happens to hold.
         sprint_issues = [
-            i async for i in
-            project.issues.filter(sprint_id__in=sprint_ids)
+            i
+            async for i in project.issues.filter(sprint_id__in=sprint_ids)
             .select_related("status", "priority", "issue_type", "assignee")
             .order_by("-updated_at")
         ]
@@ -449,7 +466,13 @@ class BacklogView(AsyncLoginRequiredMixin, AsyncTemplateView):
         for i in sprint_issues:
             by_sprint[i.sprint_id].append(i)
         groups = [{"sprint": s, "issues": by_sprint[s.pk]} for s in sprints]
-        unassigned = [i async for i in project.issues.filter(sprint__isnull=True).exclude(status__category="done").select_related("status", "priority", "issue_type", "assignee").order_by("-updated_at")]
+        unassigned = [
+            i
+            async for i in project.issues.filter(sprint__isnull=True)
+            .exclude(status__category="done")
+            .select_related("status", "priority", "issue_type", "assignee")
+            .order_by("-updated_at")
+        ]
         groups.append({"sprint": None, "issues": unassigned})
         ctx["project"] = project
         ctx["groups"] = groups
@@ -466,6 +489,7 @@ class BoardColumnQuickCreateView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from issues.models import IssueType, Priority, Status
+
         project = await _aget_project(key)
         await aassert_can_edit(request.user, project)
         summary = request.POST.get("summary", "").strip()
@@ -479,9 +503,13 @@ class BoardColumnQuickCreateView(AsyncLoginRequiredMixin, View):
         itype = await IssueType.objects.afirst()
         num = await project.anext_issue_number()
         issue = Issue(
-            project=project, reporter=request.user,
-            summary=summary[:255], description="",
-            status=status, priority=priority, issue_type=itype,
+            project=project,
+            reporter=request.user,
+            summary=summary[:255],
+            description="",
+            status=status,
+            priority=priority,
+            issue_type=itype,
             key=f"{project.key}-{num}",
         )
         await issue.asave()
@@ -493,14 +521,13 @@ class BoardViewListView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request, key):
         from .models import SavedBoardView
+
         project = await _aget_project(key)
         await aassert_can_view(request.user, project)
-        views = [
-            v async for v in
-            SavedBoardView.objects.filter(user=request.user, project=project)
-        ]
+        views = [v async for v in SavedBoardView.objects.filter(user=request.user, project=project)]
         return await arender(
-            request, "board/_view_picker.html",
+            request,
+            "board/_view_picker.html",
             {"project": project, "views": views, "current": request.GET.urlencode()},
         )
 
@@ -510,6 +537,7 @@ class BoardViewSaveView(AsyncLoginRequiredMixin, View):
 
     async def post(self, request, key):
         from .models import SavedBoardView
+
         project = await _aget_project(key)
         await aassert_can_view(request.user, project)
         name = request.POST.get("name", "").strip()[:80]
@@ -518,20 +546,34 @@ class BoardViewSaveView(AsyncLoginRequiredMixin, View):
         # The set of params we know about — anything else is ignored to keep
         # links predictable when the schema evolves.
         keys = (
-            "assignee", "type", "priority", "epic", "sprint",
-            "stale", "due", "text", "urgent", "review", "recent",
+            "assignee",
+            "type",
+            "priority",
+            "epic",
+            "sprint",
+            "stale",
+            "due",
+            "text",
+            "urgent",
+            "review",
+            "recent",
         )
         filters = {k: request.POST.get(k, "") for k in keys if request.POST.get(k)}
         await SavedBoardView.objects.aupdate_or_create(
-            user=request.user, project=project, name=name,
+            user=request.user,
+            project=project,
+            name=name,
             defaults={"filters": filters},
         )
-        return HttpResponse(status=204, headers={"HX-Redirect": f"/board/{project.key}/?{request.POST.urlencode()}"})
+        return HttpResponse(
+            status=204, headers={"HX-Redirect": f"/board/{project.key}/?{request.POST.urlencode()}"}
+        )
 
 
 class BoardViewDeleteView(AsyncLoginRequiredMixin, View):
     async def post(self, request, key, pk):
         from .models import SavedBoardView
+
         await SavedBoardView.objects.filter(pk=pk, user=request.user).adelete()
         return redirect("board:board", key=key)
 
@@ -548,6 +590,7 @@ class BacklogMoveView(AsyncLoginRequiredMixin, View):
         sprint_id = request.POST.get("sprint", "").strip()
         if sprint_id:
             from projects.models import Sprint
+
             issue.sprint = await Sprint.objects.aget(pk=int(sprint_id))
         else:
             issue.sprint = None

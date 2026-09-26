@@ -17,6 +17,7 @@ The CSV is expected to have at least these columns (case-insensitive):
 multiple ``Labels`` columns are merged), ``Comment`` (optional; multiple
 ``Comment`` columns are merged — Jira splits one per column).
 """
+
 import csv
 from datetime import datetime
 from pathlib import Path
@@ -44,7 +45,8 @@ class Command(BaseCommand):
             help="Username used as fallback reporter when the CSV's value is unknown.",
         )
         parser.add_argument(
-            "--dry-run", action="store_true",
+            "--dry-run",
+            action="store_true",
             help="Parse the CSV and report counts without touching the DB.",
         )
 
@@ -111,9 +113,15 @@ class Command(BaseCommand):
                 labels = all_of("labels")
                 comments = all_of("comment")
 
-                itype = type_cache.get(type_name.lower()) or self._make_type(type_name, type_cache, opts["dry_run"])
-                status = status_cache.get(status_name.lower()) or self._make_status(status_name, status_cache, opts["dry_run"])
-                priority = priority_cache.get(priority_name.lower()) or self._make_priority(priority_name, priority_cache, opts["dry_run"])
+                itype = type_cache.get(type_name.lower()) or self._make_type(
+                    type_name, type_cache, opts["dry_run"]
+                )
+                status = status_cache.get(status_name.lower()) or self._make_status(
+                    status_name, status_cache, opts["dry_run"]
+                )
+                priority = priority_cache.get(priority_name.lower()) or self._make_priority(
+                    priority_name, priority_cache, opts["dry_run"]
+                )
 
                 assignee = users.get(assignee_name.lower()) if assignee_name else None
                 reporter = users.get(reporter_name.lower()) if reporter_name else None
@@ -169,9 +177,11 @@ class Command(BaseCommand):
                     Comment.objects.create(issue=issue, author=reporter, body=body)
                 created += 1
 
-        self.stdout.write(self.style.SUCCESS(
-            f"{'[dry-run] ' if opts['dry_run'] else ''}Imported {created} issues, skipped {skipped}."
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"{'[dry-run] ' if opts['dry_run'] else ''}Imported {created} issues, skipped {skipped}."
+            )
+        )
 
     def _make_type(self, name, cache, dry):
         if dry:

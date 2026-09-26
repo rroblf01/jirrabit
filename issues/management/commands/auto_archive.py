@@ -4,6 +4,7 @@ Run via cron or systemd timer:
 
     uv run python manage.py auto_archive --days 30
 """
+
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
@@ -22,7 +23,9 @@ class Command(BaseCommand):
     def handle(self, *args, days, dry_run, **kwargs):
         cutoff = timezone.now() - timedelta(days=days)
         qs = Issue.objects.filter(
-            archived=False, status__category="done", resolved_at__lt=cutoff,
+            archived=False,
+            status__category="done",
+            resolved_at__lt=cutoff,
         )
         count = qs.count()
         if dry_run:

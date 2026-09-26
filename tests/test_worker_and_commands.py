@@ -10,6 +10,7 @@ The commands are here for the same reason. They are sync by necessity — Django
 the one place a sync ORM call is correct, and nothing was checking that they
 still work.
 """
+
 import asyncio
 from io import StringIO
 
@@ -166,17 +167,16 @@ class WorkerTests(TestCase):
 class PurgeOldDataTests(TestCase):
     def setUp(self):
         _seed_lookups()
-        self.user = User.objects.create_user(
-            username="alice", password="pw", email="a@x.com"
-        )
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
         self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
-        ProjectMembership.objects.create(
-            project=self.project, user=self.user, role="admin"
-        )
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
         self.issue = Issue.objects.create(
-            project=self.project, reporter=self.user, summary="old",
+            project=self.project,
+            reporter=self.user,
+            summary="old",
             status=Status.objects.get(name="Done"),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
 
     def _age(self, model, pk, days):
@@ -184,9 +184,7 @@ class PurgeOldDataTests(TestCase):
 
         from django.utils import timezone
 
-        model.objects.filter(pk=pk).update(
-            created_at=timezone.now() - timedelta(days=days)
-        )
+        model.objects.filter(pk=pk).update(created_at=timezone.now() - timedelta(days=days))
 
     def test_dry_run_counts_but_deletes_nothing(self):
         self._age(AuditEntry, AuditEntry.objects.first().pk, 400)
@@ -201,9 +199,16 @@ class PurgeOldDataTests(TestCase):
         for row in AuditEntry.objects.all():
             self._age(AuditEntry, row.pk, 400)
         # read=True: purge_old_data only takes notifications the user has seen.
-        self._age(Notification, Notification.objects.create(
-            recipient=self.user, kind="status", text="old", read=True,
-        ).pk, 400)
+        self._age(
+            Notification,
+            Notification.objects.create(
+                recipient=self.user,
+                kind="status",
+                text="old",
+                read=True,
+            ).pk,
+            400,
+        )
         self.assertGreater(AuditEntry.objects.count(), 0)
         call_command("purge_old_data", "--days", "30", stdout=StringIO())
         self.assertEqual(AuditEntry.objects.count(), 0)
@@ -216,7 +221,10 @@ class PurgeOldDataTests(TestCase):
         because it is old is data loss, not housekeeping.
         """
         unread = Notification.objects.create(
-            recipient=self.user, kind="status", text="unread but old", read=False,
+            recipient=self.user,
+            kind="status",
+            text="unread but old",
+            read=False,
         )
         self._age(Notification, unread.pk, 400)
         call_command("purge_old_data", "--days", "30", stdout=StringIO())
@@ -230,28 +238,35 @@ class PurgeOldDataTests(TestCase):
 class AutoArchiveTests(TestCase):
     def setUp(self):
         _seed_lookups()
-        self.user = User.objects.create_user(
-            username="alice", password="pw", email="a@x.com"
-        )
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
         self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
-        ProjectMembership.objects.create(
-            project=self.project, user=self.user, role="admin"
-        )
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
         self.done = Status.objects.get(name="Done")
         self.issue = Issue.objects.create(
-            project=self.project, reporter=self.user, summary="shipped",
-            status=self.done, priority=Priority.objects.first(),
-            issue_type=IssueType.objects.first(), resolved_at=self._ago(90),
+            project=self.project,
+            reporter=self.user,
+            summary="shipped",
+            status=self.done,
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+            resolved_at=self._ago(90),
         )
         self.fresh = Issue.objects.create(
-            project=self.project, reporter=self.user, summary="just done",
-            status=self.done, priority=Priority.objects.first(),
-            issue_type=IssueType.objects.first(), resolved_at=self._ago(2),
+            project=self.project,
+            reporter=self.user,
+            summary="just done",
+            status=self.done,
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+            resolved_at=self._ago(2),
         )
         self.open_issue = Issue.objects.create(
-            project=self.project, reporter=self.user, summary="still open",
+            project=self.project,
+            reporter=self.user,
+            summary="still open",
             status=Status.objects.get(name="To Do"),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
 
     @staticmethod
@@ -296,22 +311,19 @@ class SprintPlanningTests(TestCase):
 
     def setUp(self):
         _seed_lookups()
-        self.user = User.objects.create_user(
-            username="alice", password="pw", email="a@x.com"
-        )
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
         self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
-        ProjectMembership.objects.create(
-            project=self.project, user=self.user, role="admin"
-        )
-        self.sprint = Sprint.objects.create(
-            project=self.project, name="S1", status="active"
-        )
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
+        self.sprint = Sprint.objects.create(project=self.project, name="S1", status="active")
 
     def _issue(self, status_name="To Do"):
         return Issue.objects.create(
-            project=self.project, reporter=self.user, summary="x",
+            project=self.project,
+            reporter=self.user,
+            summary="x",
             status=Status.objects.get(name=status_name),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
             sprint=self.sprint,
         )
 
@@ -324,9 +336,7 @@ class SprintPlanningTests(TestCase):
         unfinished.refresh_from_db()
         finished.refresh_from_db()
         self.assertIsNone(unfinished.sprint_id, "unfinished work goes back to the backlog")
-        self.assertEqual(
-            finished.sprint_id, self.sprint.pk, "a done issue stays where it is"
-        )
+        self.assertEqual(finished.sprint_id, self.sprint.pk, "a done issue stays where it is")
 
     def test_aclose_reaches_the_assignee_of_a_carried_issue(self):
         """The point of asave over aupdate: the receiver has to actually fire.
@@ -337,19 +347,13 @@ class SprintPlanningTests(TestCase):
         """
         from asgiref.sync import async_to_sync
 
-        assignee = User.objects.create_user(
-            username="bob", password="pw", email="b@x.com"
-        )
-        ProjectMembership.objects.create(
-            project=self.project, user=assignee, role="member"
-        )
+        assignee = User.objects.create_user(username="bob", password="pw", email="b@x.com")
+        ProjectMembership.objects.create(project=self.project, user=assignee, role="member")
         issue = self._issue()
         issue.assignee = assignee
         issue.save()
         before = Notification.objects.filter(recipient=assignee).count()
-        target = Sprint.objects.create(
-            project=self.project, name="S2", status="planned"
-        )
+        target = Sprint.objects.create(project=self.project, name="S2", status="planned")
         async_to_sync(self.sprint.aclose)(carry_to=target)
         issue.refresh_from_db()
         self.assertEqual(issue.sprint_id, target.pk)

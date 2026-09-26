@@ -13,6 +13,7 @@ The worker resolves the webhook's ``action`` code against the registry
 and runs the callable. Failures land on the ``Webhook`` row
 (``last_status``, ``last_error``).
 """
+
 import inspect
 import logging
 
@@ -91,16 +92,19 @@ def fan_out_event(event: str, project, payload: dict, current_state: str | None 
 
 # ---- signal wiring (event emitters) -------------------------------------
 
+
 @webhook_event("issue.created", "Issue creada", entity="issue")
 def _emit_issue_created(instance):
-    fan_out_event("issue.created", instance.project, _serialize_issue(instance),
-                  current_state=str(instance.status))
+    fan_out_event(
+        "issue.created", instance.project, _serialize_issue(instance), current_state=str(instance.status)
+    )
 
 
 @webhook_event("issue.updated", "Issue actualizada", entity="issue")
 def _emit_issue_updated(instance):
-    fan_out_event("issue.updated", instance.project, _serialize_issue(instance),
-                  current_state=str(instance.status))
+    fan_out_event(
+        "issue.updated", instance.project, _serialize_issue(instance), current_state=str(instance.status)
+    )
 
 
 @webhook_event(
@@ -110,8 +114,12 @@ def _emit_issue_updated(instance):
     state_filterable=True,
 )
 def _emit_issue_status_changed(instance):
-    fan_out_event("issue.status_changed", instance.project, _serialize_issue(instance),
-                  current_state=str(instance.status))
+    fan_out_event(
+        "issue.status_changed",
+        instance.project,
+        _serialize_issue(instance),
+        current_state=str(instance.status),
+    )
 
 
 @webhook_event("issue.commented", "Comentario nuevo", entity="comment")
@@ -196,9 +204,7 @@ def _on_epic_pre_save(sender, instance, **kwargs):
     if not instance.pk:
         instance._old_done = None
         return
-    instance._old_done = (
-        sender.objects.filter(pk=instance.pk).values_list("done", flat=True).first()
-    )
+    instance._old_done = sender.objects.filter(pk=instance.pk).values_list("done", flat=True).first()
 
 
 def _on_epic_save(sender, instance, created, **kwargs):
@@ -229,6 +235,7 @@ def connect() -> None:
 # bodies with real integrations (SMTP, Slack, Calendar API, PagerDuty…) in
 # production. Register your own with ``@webhook_action`` in any module
 # loaded at startup (e.g. an app's ``ready()`` hook).
+
 
 @webhook_action("log.info", "Loggear en jirrabit.webhooks (info)")
 def _action_log(event, payload, state):
@@ -293,7 +300,9 @@ def _action_page_oncall(event, payload, state):
     severity = "critical" if (payload.get("priority", "").lower() in ("blocker", "critical")) else "warning"
     logger.warning(
         "[webhook] PagerDutyStub: incidente severity=%s · key=%s · summary=%r",
-        severity, payload.get("key", "?"), payload.get("summary"),
+        severity,
+        payload.get("key", "?"),
+        payload.get("summary"),
     )
 
 
@@ -325,7 +334,9 @@ async def _action_auto_assign_lead(event, payload, state):
 def _action_block_release(event, payload, state):
     logger.error(
         "[webhook] RELEASE BLOCKED — issue=%s estado=%s prio=%s",
-        payload.get("key", "?"), state, payload.get("priority", "?"),
+        payload.get("key", "?"),
+        state,
+        payload.get("priority", "?"),
     )
 
 
@@ -333,7 +344,10 @@ def _action_block_release(event, payload, state):
 def _action_kpi_snapshot(event, payload, state):
     logger.info(
         "[webhook] KPIStub: snapshot {evento=%s, estado=%s, sprint=%s, sp=%s}",
-        event, state, payload.get("sprint"), payload.get("story_points"),
+        event,
+        state,
+        payload.get("sprint"),
+        payload.get("story_points"),
     )
 
 

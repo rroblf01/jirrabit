@@ -18,12 +18,17 @@ the database's connection slots (``FATAL: sorry, too many clients``).
 import asyncio
 import logging
 import threading
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable, Coroutine
 from typing import Any
 
 logger = logging.getLogger("jirrabit.worker")
 
-_queue: asyncio.Queue | None = None
+# (coroutine function, args, kwargs). A Coroutine rather than a bare Awaitable
+# because that is what a coroutine function returns, and asyncio.run() requires
+# one; saying Awaitable here made the type checker reject our own call.
+_Task = tuple[Callable[..., Coroutine[Any, Any, Any]], tuple, dict]
+
+_queue: asyncio.Queue[_Task] | None = None
 _worker_task: asyncio.Task | None = None
 _main_loop: asyncio.AbstractEventLoop | None = None
 # The loop _queue was built for, tracked here rather than read back off the
@@ -64,7 +69,7 @@ async def _run():
             _queue.task_done()
 
 
-def enqueue(coro: Callable[..., Awaitable[Any]], *args, **kwargs) -> None:
+def enqueue(coro: Callable[..., Coroutine[Any, Any, Any]], *args, **kwargs) -> None:
     """Schedule ``coro(*args, **kwargs)`` on the worker. Fire-and-forget."""
     if _ensure_started():
         assert _queue is not None

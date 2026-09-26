@@ -9,18 +9,16 @@ class ProjectQuerySet(models.QuerySet):
     def filter_visible(self, user):
         if user.is_superuser:
             return self.all()
-        return self.filter(
-            models.Q(lead=user) | models.Q(memberships__user=user)
-        ).distinct()
+        return self.filter(models.Q(lead=user) | models.Q(memberships__user=user)).distinct()
 
 
 class Project(models.Model):
-    key = models.CharField(max_length=10, unique=True, help_text="Short prefix used for issue keys, e.g. WEB.")
+    key = models.CharField(
+        max_length=10, unique=True, help_text="Short prefix used for issue keys, e.g. WEB."
+    )
     name = models.CharField(max_length=120)
     description = models.TextField(blank=True)
-    lead = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="led_projects"
-    )
+    lead = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="led_projects")
     members = models.ManyToManyField(
         settings.AUTH_USER_MODEL,
         related_name="projects",
@@ -57,9 +55,7 @@ class Project(models.Model):
         # anybody created an issue. The counter is an implementation detail, not
         # a user-visible edit, so being signal-free is the correct behaviour.
         # See board/views.py::_asave_each for the opposite case.
-        await Project.objects.filter(pk=self.pk).aupdate(
-            issue_counter=models.F("issue_counter") + 1
-        )
+        await Project.objects.filter(pk=self.pk).aupdate(issue_counter=models.F("issue_counter") + 1)
         await self.arefresh_from_db(fields=["issue_counter"])
         return self.issue_counter
 
@@ -87,12 +83,17 @@ class ProjectWiki(models.Model):
     """Markdown wiki page attached to a project. One row per project."""
 
     project = models.OneToOneField(
-        Project, on_delete=models.CASCADE, related_name="wiki",
+        Project,
+        on_delete=models.CASCADE,
+        related_name="wiki",
     )
     body = models.TextField(blank=True, default="")
     updated_at = models.DateTimeField(auto_now=True)
     updated_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
 
     def __str__(self):
@@ -101,7 +102,9 @@ class ProjectWiki(models.Model):
 
 class SavedFilter(models.Model):
     SCOPE_CHOICES = (("private", _("Privado")), ("shared", _("Compartido")))
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="saved_filters"
+    )
     name = models.CharField(max_length=120)
     query = models.TextField(help_text="JQL-lite query expression.")
     scope = models.CharField(max_length=10, choices=SCOPE_CHOICES, default="private")
@@ -115,7 +118,9 @@ class SavedFilter(models.Model):
 
 
 class Webhook(models.Model):
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="webhooks", null=True, blank=True)
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="webhooks", null=True, blank=True
+    )
     name = models.CharField(max_length=80)
     action = models.CharField(
         max_length=120,
@@ -225,7 +230,8 @@ class Sprint(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     retro_notes = models.TextField(
-        blank=True, default="",
+        blank=True,
+        default="",
         help_text=_("Notas de retrospectiva: qué fue bien, qué mejorar."),
     )
 
@@ -254,12 +260,15 @@ class Sprint(models.Model):
         """Close the sprint. If ``carry_to`` is given, move incomplete (non-done)
         issues to that sprint; otherwise send them back to backlog."""
         from issues.models import Issue
+
         self.status = "closed"
         self.closed_at = timezone.now()
         await self.asave()
-        incomplete = Issue.objects.filter(sprint=self).exclude(
-            status__category="done"
-        ).select_related("project", "status")
+        incomplete = (
+            Issue.objects.filter(sprint=self)
+            .exclude(status__category="done")
+            .select_related("project", "status")
+        )
         new_sprint_id = carry_to.pk if carry_to is not None else None
         # One asave per row rather than aupdate(sprint_id=...). QuerySet.aupdate
         # is silent about post_save, and four receivers hang off it —

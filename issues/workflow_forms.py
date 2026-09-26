@@ -3,6 +3,7 @@
 Status, Priority, IssueType and Label live in a single global pool.
 These forms power the ``/workflow/`` admin UI.
 """
+
 from django import forms
 from django.utils.translation import gettext_lazy as _
 

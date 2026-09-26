@@ -20,6 +20,8 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "django-stubs>=6.1.1",
+    "django-stubs-ext>=6.1.1",
     "ruff==0.15.13",
     "ty==0.0.38",
 ]
@@ -52,14 +54,21 @@ include = ["accounts", "board", "core", "issues", "jirrabit", "projects", "realt
 exclude = ["**/migrations/**", "**/.venv/**", "staticfiles"]
 
 [tool.ty.rules]
-# Django Field descriptors (CharField/TextField/IntegerField/...) confuse ty:
-# it sees the field class instead of the str/int/bool the descriptor returns.
-# Silence the noisy rules until ty ships a django-stubs equivalent.
+# django-stubs is a dev dependency and teaches ty the model layer, which took the
+# diagnostic count from 436 to 113. What is left falls into four groups, none of
+# which is a defect in this codebase. They are enumerated so a future reader can
+# tell "suppressed and understood" apart from "suppressed because it was noisy":
+#
+#   1. Custom manager methods. Project.objects.filter_visible() is 13 of them.
+#   2. Django's implicit <fk>_id attributes, e.g. issue.status_id.
+#   3. Attributes a third party attaches at runtime: request.htmx comes from
+#      django-htmx's middleware and django_htmx ships no type information.
+#   4. Form field attributes assigned at runtime, e.g. form.fields["x"].queryset.
 unresolved-attribute = "ignore"
-unresolved-reference = "ignore"
-invalid-argument-type = "ignore"
-invalid-assignment = "ignore"
-invalid-return-type = "ignore"
-not-subscriptable = "ignore"
-missing-argument = "ignore"
-unsupported-operator = "ignore"
+
+# jirrabit replaces Django's generic class-based views with async ones, so
+# `async def get` overrides a base class whose `get` is declared to return
+# HttpResponse. That is the architecture rather than an accident — see
+# core/async_views.py — and no annotation can say "this override is dispatched
+# by ASGI". A narrower fix would be per-line suppressions across every view.
+invalid-method-override = "ignore"

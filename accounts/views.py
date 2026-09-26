@@ -206,11 +206,7 @@ class UserListView(AsyncLoginRequiredMixin, AsyncListView):
         qs = User.objects.order_by("username")
         q = self.request.GET.get("q", "").strip()
         if q:
-            qs = qs.filter(
-                Q(username__icontains=q)
-                | Q(display_name__icontains=q)
-                | Q(email__icontains=q)
-            )
+            qs = qs.filter(Q(username__icontains=q) | Q(display_name__icontains=q) | Q(email__icontains=q))
         try:
             page = max(int(self.request.GET.get("page", "1")), 1)
         except ValueError:
@@ -310,12 +306,14 @@ class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
         count = await sync_to_async(recompute, thread_sensitive=True)(request.user.pk)
         try:
             from channels.layers import get_channel_layer
+
             layer = get_channel_layer()
             if layer is not None:
                 await layer.group_send(
-                    f"user.{request.user.pk}", {"type": "notif.unread", "count": count},
+                    f"user.{request.user.pk}",
+                    {"type": "notif.unread", "count": count},
                 )
-        except (ConnectionError, OSError, RuntimeError):
+        except ConnectionError, OSError, RuntimeError:
             pass
         # Re-render the SAME page the user is on (read or unread filter +
         # pagination must stay the same — otherwise the list jumps).
@@ -326,8 +324,10 @@ class NotificationMarkReadView(AsyncLoginRequiredMixin, View):
         page_size = NotificationInboxView.PAGE_SIZE
         offset = (page - 1) * page_size
         notifs = [
-            n async for n in Notification.objects.filter(recipient=request.user)
-            .select_related("actor")[offset : offset + page_size]
+            n
+            async for n in Notification.objects.filter(recipient=request.user).select_related("actor")[
+                offset : offset + page_size
+            ]
         ]
         return await arender(request, "notifications/_list.html", {"notifications": notifs})
 
@@ -397,9 +397,7 @@ class NotificationCountView(AsyncLoginRequiredMixin, View):
 
     async def get(self, request):
         count = (
-            await User.objects.filter(pk=request.user.pk)
-            .values_list("unread_count", flat=True)
-            .afirst()
+            await User.objects.filter(pk=request.user.pk).values_list("unread_count", flat=True).afirst()
         ) or 0
         request.unread_notifications = count
         return await arender(

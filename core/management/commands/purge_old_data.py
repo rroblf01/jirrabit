@@ -11,6 +11,7 @@ Targets:
 
 Use ``--dry-run`` to see what would be deleted without touching the DB.
 """
+
 from datetime import timedelta
 
 from django.core.management.base import BaseCommand
@@ -55,9 +56,9 @@ class Command(BaseCommand):
         # memory and so each transaction stays short.
         deleted_audit = self._chunked_delete(audit_qs)
         deleted_notif = self._chunked_delete(notif_qs)
-        self.stdout.write(self.style.SUCCESS(
-            f"Deleted {deleted_audit} AuditEntry + {deleted_notif} Notification rows."
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(f"Deleted {deleted_audit} AuditEntry + {deleted_notif} Notification rows.")
+        )
 
     def _chunked_delete(self, qs, chunk: int = 5_000) -> int:
         """Delete ``qs`` in ``chunk``-sized batches by primary key.

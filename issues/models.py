@@ -17,7 +17,8 @@ class IssueType(models.Model):
     icon = models.CharField(max_length=8, default="✷")  # decorative
     color = models.CharField(max_length=20, default="#1e6fff")
     description_template = models.TextField(
-        blank=True, default="",
+        blank=True,
+        default="",
         help_text="Markdown shown as default description when creating an issue of this type.",
     )
 
@@ -38,7 +39,9 @@ class Status(models.Model):
     # server-side so teams can override on the fly.
     wip_limit = models.PositiveSmallIntegerField(null=True, blank=True)
     # Allowed forward transitions. Empty = any transition allowed (open workflow).
-    allowed_next = models.ManyToManyField("self", symmetrical=False, blank=True, related_name="reachable_from")
+    allowed_next = models.ManyToManyField(
+        "self", symmetrical=False, blank=True, related_name="reachable_from"
+    )
 
     class Meta:
         ordering = ("order", "id")
@@ -78,8 +81,11 @@ class Label(models.Model):
 
 
 class Issue(models.Model):
-    archived = models.BooleanField(default=False, db_index=True,
-        help_text="Auto-archived after configured retention; hidden from default views.")
+    archived = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Auto-archived after configured retention; hidden from default views.",
+    )
     project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="issues")
     key = models.CharField(max_length=30, unique=True, db_index=True)
     issue_type = models.ForeignKey(IssueType, on_delete=models.PROTECT, related_name="issues")
@@ -111,9 +117,7 @@ class Issue(models.Model):
         blank=True,
         related_name="assigned_issues",
     )
-    watchers = models.ManyToManyField(
-        settings.AUTH_USER_MODEL, related_name="watched_issues", blank=True
-    )
+    watchers = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="watched_issues", blank=True)
 
     story_points = models.PositiveSmallIntegerField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
@@ -166,6 +170,7 @@ class Issue(models.Model):
             )
             self.rank = (last + 1) if last is not None else 0
         from core.markdown import render_markdown
+
         self.description_html_cache = render_markdown(self.description)
         super().save(*args, **kwargs)
 
@@ -177,6 +182,7 @@ class Issue(models.Model):
         if self.description_html_cache:
             return self.description_html_cache
         from core.markdown import render_markdown
+
         return render_markdown(self.description)
 
 
@@ -184,13 +190,18 @@ class Comment(models.Model):
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="comments")
     author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     parent = models.ForeignKey(
-        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="replies",
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="replies",
     )
     body = models.TextField()
     body_html_cache = models.TextField(blank=True, default="")
     edited = models.BooleanField(default=False)
     is_internal = models.BooleanField(
-        default=False, db_index=True,
+        default=False,
+        db_index=True,
         help_text="Visible solo a staff/superusuarios. Útil para notas privadas del equipo.",
     )
     deleted_at = models.DateTimeField(null=True, blank=True, db_index=True)
@@ -205,6 +216,7 @@ class Comment(models.Model):
 
     def save(self, *args, **kwargs):
         from core.markdown import render_markdown
+
         self.body_html_cache = render_markdown(self.body)
         super().save(*args, **kwargs)
 
@@ -213,6 +225,7 @@ class Comment(models.Model):
         if self.body_html_cache:
             return self.body_html_cache
         from core.markdown import render_markdown
+
         return render_markdown(self.body)
 
 
@@ -317,9 +330,7 @@ class Visit(models.Model):
     ``update_or_create``.
     """
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="visits"
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="visits")
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="visits")
     viewed_at = models.DateTimeField(auto_now=True)
 
@@ -335,28 +346,37 @@ class Visit(models.Model):
 class Pin(models.Model):
     """Bookmark for a user. Pins an issue OR a project (not both)."""
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pins"
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pins")
     issue = models.ForeignKey(
-        Issue, on_delete=models.CASCADE, null=True, blank=True, related_name="pinned_by",
+        Issue,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="pinned_by",
     )
     project = models.ForeignKey(
-        "projects.Project", on_delete=models.CASCADE,
-        null=True, blank=True, related_name="pinned_by",
+        "projects.Project",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="pinned_by",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ("-created_at",)
         constraints = [
-            models.UniqueConstraint(fields=["user", "issue"], name="unique_pin_issue",
-                                    condition=models.Q(issue__isnull=False)),
-            models.UniqueConstraint(fields=["user", "project"], name="unique_pin_project",
-                                    condition=models.Q(project__isnull=False)),
+            models.UniqueConstraint(
+                fields=["user", "issue"], name="unique_pin_issue", condition=models.Q(issue__isnull=False)
+            ),
+            models.UniqueConstraint(
+                fields=["user", "project"],
+                name="unique_pin_project",
+                condition=models.Q(project__isnull=False),
+            ),
             models.CheckConstraint(
                 condition=(models.Q(issue__isnull=False) & models.Q(project__isnull=True))
-                          | (models.Q(issue__isnull=True) & models.Q(project__isnull=False)),
+                | (models.Q(issue__isnull=True) & models.Q(project__isnull=False)),
                 name="pin_xor_target",
             ),
         ]
@@ -368,9 +388,7 @@ class Pin(models.Model):
 class NotificationSnooze(models.Model):
     """Mute notifications for an issue until ``until`` for this user."""
 
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="snoozes"
-    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="snoozes")
     issue = models.ForeignKey(Issue, on_delete=models.CASCADE, related_name="snoozes")
     until = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
@@ -451,7 +469,10 @@ class BranchLink(models.Model):
     commit_sha = models.CharField(max_length=64, blank=True)
     message = models.CharField(max_length=255, blank=True)
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -472,7 +493,9 @@ class IssueTemplate(models.Model):
     """
 
     project = models.ForeignKey(
-        "projects.Project", on_delete=models.CASCADE, related_name="issue_templates",
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="issue_templates",
     )
     name = models.CharField(max_length=80)
     issue_type = models.ForeignKey(IssueType, on_delete=models.PROTECT)
@@ -481,7 +504,10 @@ class IssueTemplate(models.Model):
     priority = models.ForeignKey(Priority, on_delete=models.SET_NULL, null=True, blank=True)
     labels = models.ManyToManyField(Label, blank=True)
     created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -496,9 +522,7 @@ class IssueTemplate(models.Model):
 class AuditEntry(models.Model):
     """Project-wide activity feed. Captures any tracked event."""
 
-    project = models.ForeignKey(
-        "projects.Project", on_delete=models.CASCADE, related_name="audit"
-    )
+    project = models.ForeignKey("projects.Project", on_delete=models.CASCADE, related_name="audit")
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     verb = models.CharField(max_length=40)
     target_type = models.CharField(max_length=40, help_text="Model name, e.g. issue/comment/sprint.")

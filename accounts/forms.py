@@ -37,8 +37,15 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = User
         fields = (
-            "display_name", "first_name", "last_name", "email",
-            "job_title", "timezone", "language", "palette", "notify_email",
+            "display_name",
+            "first_name",
+            "last_name",
+            "email",
+            "job_title",
+            "timezone",
+            "language",
+            "palette",
+            "notify_email",
         )
         widgets = {
             "palette": forms.Select(choices=()),  # populated in __init__
@@ -47,15 +54,19 @@ class ProfileForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         from core.palettes import palette_choices_simple
+
         self.fields["palette"].widget = forms.Select(choices=palette_choices_simple())
         self.fields["palette"].label = _("Paleta de colores")
         from django.conf import settings as _s
+
         self.fields["language"] = forms.ChoiceField(
-            choices=_s.LANGUAGES, label=_("Idioma"),
+            choices=_s.LANGUAGES,
+            label=_("Idioma"),
         )
         self.fields["notify_email"].label = _("Recibir correos")
         self.fields["timezone"] = forms.ChoiceField(
-            choices=_timezone_choices(), label=_("Zona horaria"),
+            choices=_timezone_choices(),
+            label=_("Zona horaria"),
         )
         self.fields["muted_kinds_list"].choices = User.NOTIFY_KINDS
         if self.instance and self.instance.pk:
@@ -105,4 +116,5 @@ class ProfileForm(forms.ModelForm):
 
 def _timezone_choices():
     import zoneinfo
+
     return [(t, t) for t in sorted(zoneinfo.available_timezones())]

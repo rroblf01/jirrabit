@@ -3,6 +3,7 @@
 Each handler exposes the templates and an ``apply`` coroutine that mutates
 ``issue`` in-place. The view does the actual ``await issue.asave()``.
 """
+
 from datetime import date as date_cls
 
 from django.core.exceptions import PermissionDenied, ValidationError
@@ -20,6 +21,7 @@ def register(name):
     def deco(cls):
         INLINE_FIELDS[name] = cls()
         return cls
+
     return deco
 
 
@@ -121,10 +123,12 @@ class _AssigneeField(_Base):
     async def context(self, issue):
         project = issue.project
         options = [
-            u async for u in
-            User.objects.filter(is_active=True).filter(
-                models.Q(memberships__project=project) | models.Q(led_projects=project)
-            ).defer("avatar").distinct().order_by("username")
+            u
+            async for u in User.objects.filter(is_active=True)
+            .filter(models.Q(memberships__project=project) | models.Q(led_projects=project))
+            .defer("avatar")
+            .distinct()
+            .order_by("username")
         ]
         return {
             "field": "assignee",
@@ -142,11 +146,14 @@ class _AssigneeField(_Base):
         else:
             pk = _parse_pk(raw)
             project = issue.project
-            user = await User.objects.filter(
-                pk=pk, is_active=True,
-            ).filter(
-                models.Q(memberships__project=project) | models.Q(led_projects=project)
-            ).afirst()
+            user = (
+                await User.objects.filter(
+                    pk=pk,
+                    is_active=True,
+                )
+                .filter(models.Q(memberships__project=project) | models.Q(led_projects=project))
+                .afirst()
+            )
             if user is None:
                 raise PermissionDenied("Usuario no pertenece al proyecto.")
             issue.assignee = user
@@ -214,7 +221,12 @@ class _EpicField(_Base):
 
 
 TSHIRT_TO_SP = {
-    "XS": 1, "S": 2, "M": 3, "L": 5, "XL": 8, "XXL": 13,
+    "XS": 1,
+    "S": 2,
+    "M": 3,
+    "L": 5,
+    "XL": 8,
+    "XXL": 13,
 }
 
 

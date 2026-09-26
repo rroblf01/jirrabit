@@ -3,6 +3,7 @@
 Requires the requesting user to be a Django superuser. Distinct from
 project-scoped roles (those live in ``projects.ProjectMembership``).
 """
+
 import secrets
 from datetime import timedelta
 
@@ -26,11 +27,18 @@ class AsyncSuperuserRequiredMixin(AsyncLoginRequiredMixin):
         user = await request.auser()
         if not (user.is_authenticated and user.is_superuser):
             from django.utils.translation import gettext as _
+
             raise PermissionDenied(_("Solo administradores."))
         request.user = user
-        # bypass AsyncLoginRequiredMixin (already validated)
+        # Bypass AsyncLoginRequiredMixin, which is already satisfied. Going
+        # straight to View.dispatch skips its dispatch without going through
+        # as_view(), so the method it looks up is this class' own async handler
+        # and View.dispatch therefore returns a coroutine — hence the await.
+        # django-stubs types dispatch as returning HttpResponseBase, because it
+        # assumes every handler is a plain `def`, which is not the case here.
         from django.views import View
-        return await View.dispatch(self, request, *args, **kwargs)
+
+        return await View.dispatch(self, request, *args, **kwargs)  # ty: ignore[invalid-await,invalid-argument-type]
 
 
 class AdminUserListView(AsyncSuperuserRequiredMixin, AsyncListView):
@@ -42,6 +50,7 @@ class AdminUserListView(AsyncSuperuserRequiredMixin, AsyncListView):
         q = self.request.GET.get("q", "").strip()
         if q:
             from django.db.models import Q
+
             qs = qs.filter(Q(username__icontains=q) | Q(email__icontains=q) | Q(display_name__icontains=q))
         return qs
 
@@ -128,7 +137,8 @@ class AdminInviteCreateView(AsyncSuperuserRequiredMixin, View):
         )
         url = request.build_absolute_uri(f"/accounts/register/?token={invite.token}")
         return await arender(
-            request, "accounts/admin/_invite_row.html",
+            request,
+            "accounts/admin/_invite_row.html",
             {"i": invite, "url": url, "fresh": True},
         )
 
@@ -142,10 +152,12 @@ class AdminInviteRevokeView(AsyncSuperuserRequiredMixin, View):
         if i:
             return await arender(request, "accounts/admin/_invite_row.html", {"i": i})
         from django.http import HttpResponse
+
         return HttpResponse("")
 
 
 # --- Teams ------------------------------------------------------------------
+
 
 class AdminTeamListView(AsyncSuperuserRequiredMixin, AsyncListView):
     template_name = "accounts/admin/team_list.html"
@@ -159,19 +171,22 @@ class AdminTeamCreateView(AsyncSuperuserRequiredMixin, View):
     async def get(self, request):
         users = [u async for u in User.objects.filter(is_active=True).defer("avatar").order_by("username")]
         return await arender(
-            request, "accounts/admin/team_form.html",
+            request,
+            "accounts/admin/team_form.html",
             {"team": None, "users": users, "member_ids": set()},
         )
 
     async def post(self, request):
         from django.http import HttpResponseBadRequest
         from django.utils.text import slugify
+
         name = request.POST.get("name", "").strip()
         if not name:
             return HttpResponseBadRequest("nombre requerido")
         slug = slugify(request.POST.get("slug", "") or name)[:40]
         team = await Team.objects.acreate(
-            name=name, slug=slug,
+            name=name,
+            slug=slug,
             description=request.POST.get("description", "").strip()[:255],
         )
         member_ids = [int(i) for i in request.POST.getlist("members") if i.isdigit()]
@@ -188,7 +203,8 @@ class AdminTeamEditView(AsyncSuperuserRequiredMixin, View):
         users = [u async for u in User.objects.filter(is_active=True).defer("avatar").order_by("username")]
         member_ids = {m async for m in team.members.values_list("pk", flat=True)}
         return await arender(
-            request, "accounts/admin/team_form.html",
+            request,
+            "accounts/admin/team_form.html",
             {"team": team, "users": users, "member_ids": member_ids},
         )
 
@@ -219,6 +235,7 @@ class TeamDetailView(AsyncLoginRequiredMixin, View):
             raise Http404
         members = [m async for m in team.members.defer("avatar").order_by("username")]
         return await arender(
-            request, "accounts/team_detail.html",
+            request,
+            "accounts/team_detail.html",
             {"team": team, "members": members},
         )

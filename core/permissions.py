@@ -31,9 +31,8 @@ async def aget_role(user, project) -> str | None:
     if project.lead_id == user.pk:
         return "admin"
     from projects.models import ProjectMembership
-    membership = await ProjectMembership.objects.filter(
-        project=project, user=user
-    ).afirst()
+
+    membership = await ProjectMembership.objects.filter(project=project, user=user).afirst()
     return membership.role if membership else None
 
 
@@ -56,6 +55,7 @@ async def aassert_can_view(user, project):
     if not can_view(role):
         from django.core.exceptions import PermissionDenied
         from django.utils.translation import gettext as _
+
         raise PermissionDenied(_("No tienes acceso a este proyecto."))
     return role
 
@@ -67,6 +67,7 @@ async def aassert_can_edit(user, project):
     if not can_edit(role):
         from django.core.exceptions import PermissionDenied
         from django.utils.translation import gettext as _
+
         raise PermissionDenied(_("Necesitas rol 'member' o superior."))
     return role
 
@@ -78,5 +79,6 @@ async def aassert_can_admin(user, project):
     if not can_admin(role):
         from django.core.exceptions import PermissionDenied
         from django.utils.translation import gettext as _
+
         raise PermissionDenied(_("Necesitas rol 'admin' en el proyecto."))
     return role

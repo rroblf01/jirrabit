@@ -9,6 +9,7 @@ anyone else watching the board.
 These tests assert the side effects, not the field value, because the field was
 always set correctly. That is why the bug survived.
 """
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
@@ -27,9 +28,7 @@ def _seed_lookups():
 
 
 def _make_user(username="alice", **extras):
-    return User.objects.create_user(
-        username=username, password="pw", email=f"{username}@x.com", **extras
-    )
+    return User.objects.create_user(username=username, password="pw", email=f"{username}@x.com", **extras)
 
 
 def _make_project(lead, key="WEB"):
@@ -62,9 +61,7 @@ class BoardBulkUpdateTests(TestCase):
         self.url = reverse("board:bulk_update", args=[self.project.key])
 
     def _post(self, action, value=""):
-        return self.c.post(
-            self.url, {"keys": [i.key for i in self.issues], "action": action, "value": value}
-        )
+        return self.c.post(self.url, {"keys": [i.key for i in self.issues], "action": action, "value": value})
 
     def test_bulk_status_consults_the_workflow(self):
         """A restricted workflow must reject the whole bulk operation.
@@ -96,9 +93,7 @@ class BoardBulkUpdateTests(TestCase):
             # resolved_at is maintained by the chokepoint, not by a raw write.
             self.assertIsNotNone(i.resolved_at)
             self.assertTrue(
-                HistoryEntry.objects.filter(
-                    issue=i, field="status", new_value=str(done)
-                ).exists(),
+                HistoryEntry.objects.filter(issue=i, field="status", new_value=str(done)).exists(),
                 f"{i.key} has no status HistoryEntry",
             )
         # Two saves per card, and both are real: the status transition through
@@ -106,9 +101,7 @@ class BoardBulkUpdateTests(TestCase):
         # value that has to move with the card. One user action, two audit
         # rows — noisy, but each row describes a field that genuinely changed.
         self.assertEqual(
-            AuditEntry.objects.filter(
-                target_type="issue", verb="updated"
-            ).count(),
+            AuditEntry.objects.filter(target_type="issue", verb="updated").count(),
             2 * len(self.issues),
             "bulk status change did not write an audit row per save",
         )
@@ -145,9 +138,7 @@ class SprintCloseTests(TestCase):
         self.sprint = Sprint.objects.create(project=self.project, name="S1", status="active")
         self.target = Sprint.objects.create(project=self.project, name="S2", status="planned")
         self.done_status = Status.objects.get(name="Done")
-        self.open_issues = [
-            _make_issue(self.project, self.user, f"open{n}") for n in range(2)
-        ]
+        self.open_issues = [_make_issue(self.project, self.user, f"open{n}") for n in range(2)]
         for i in self.open_issues:
             i.sprint = self.sprint
             i.save()

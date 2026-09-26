@@ -18,6 +18,7 @@ class SearchSuggestView(AsyncLoginRequiredMixin, View):
         from django.db.models import Q
 
         from projects.models import Project
+
         q = request.GET.get("q", "").strip()
         if len(q) < 2:
             return await arender(request, "search/_typeahead.html", {"items": [], "q": q})
@@ -46,6 +47,7 @@ class QuickSwitchView(AsyncLoginRequiredMixin, View):
         from django.http import HttpResponse
 
         from projects.models import Project
+
         q = request.GET.get("q", "").strip()
         items: list[dict] = []
         if not q:
@@ -58,34 +60,40 @@ class QuickSwitchView(AsyncLoginRequiredMixin, View):
             .select_related("status", "project")
             .order_by("-updated_at")[:8]
         ):
-            items.append({
-                "type": "issue",
-                "label": f"{i.key} — {i.summary}",
-                "hint": str(i.status),
-                "url": i.get_absolute_url(),
-            })
+            items.append(
+                {
+                    "type": "issue",
+                    "label": f"{i.key} — {i.summary}",
+                    "hint": str(i.status),
+                    "url": i.get_absolute_url(),
+                }
+            )
         # Projects
-        async for p in (
-            visible.filter(Q(key__icontains=q) | Q(name__icontains=q)).order_by("key")[:5]
-        ):
-            items.append({
-                "type": "project",
-                "label": f"{p.key} — {p.name}",
-                "hint": "Proyecto",
-                "url": p.get_absolute_url(),
-            })
+        async for p in visible.filter(Q(key__icontains=q) | Q(name__icontains=q)).order_by("key")[:5]:
+            items.append(
+                {
+                    "type": "project",
+                    "label": f"{p.key} — {p.name}",
+                    "hint": "Proyecto",
+                    "url": p.get_absolute_url(),
+                }
+            )
         # Saved filters
         async for f in (
             SavedFilter.objects.filter(
                 Q(owner=request.user) | Q(scope="shared"),
-            ).filter(name__icontains=q).order_by("name")[:5]
+            )
+            .filter(name__icontains=q)
+            .order_by("name")[:5]
         ):
-            items.append({
-                "type": "filter",
-                "label": f.name,
-                "hint": "Saved filter",
-                "url": f"/search/?q={f.query}",
-            })
+            items.append(
+                {
+                    "type": "filter",
+                    "label": f.name,
+                    "hint": "Saved filter",
+                    "url": f"/search/?q={f.query}",
+                }
+            )
         return HttpResponse(json.dumps({"items": items}), content_type="application/json")
 
 
@@ -101,6 +109,7 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
 
     async def aget_context_data(self, **kwargs):
         from .jql import JQLError
+
         ctx = await super().aget_context_data(**kwargs)
         query = self.request.GET.get("q", "").strip()
         try:
@@ -132,20 +141,17 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
                     .distinct()
                     .order_by(*(order or ["-updated_at"]))
                 )
-                rows = [
-                    i async for i in qs[offset : offset + self.PAGE_SIZE + 1]
-                ]
+                rows = [i async for i in qs[offset : offset + self.PAGE_SIZE + 1]]
                 has_more = len(rows) > self.PAGE_SIZE
                 issues = rows[: self.PAGE_SIZE]
             except JQLError as e:
                 import difflib
+
                 error = str(e)
                 if "Campo desconocido:" in error:
                     bad = error.split("'")[1] if "'" in error else ""
                     if bad:
-                        suggestions = difflib.get_close_matches(
-                            bad, list(VALID_FIELDS), n=3, cutoff=0.5
-                        )
+                        suggestions = difflib.get_close_matches(bad, list(VALID_FIELDS), n=3, cutoff=0.5)
         ctx["query"] = query
         ctx["issues"] = issues
         ctx["error"] = error
@@ -155,8 +161,10 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["prev_page"] = page - 1 if page > 1 else None
         ctx["valid_fields"] = sorted(VALID_FIELDS)
         from django.db.models import Q
+
         ctx["saved_filters"] = [
-            f async for f in SavedFilter.objects.filter(
+            f
+            async for f in SavedFilter.objects.filter(
                 Q(owner=self.request.user) | Q(scope="shared")
             ).order_by("name")
         ]
@@ -171,7 +179,9 @@ class SavedFilterCreateView(AsyncLoginRequiredMixin, View):
         if not name or not query:
             return HttpResponse(status=400)
         await SavedFilter.objects.acreate(
-            owner=request.user, name=name, query=query,
+            owner=request.user,
+            name=name,
+            query=query,
             scope="shared" if scope == "shared" else "private",
         )
         return redirect(f"/search/?q={query}")
@@ -186,9 +196,11 @@ class SavedFilterDeleteView(AsyncLoginRequiredMixin, View):
         if f is None:
             from django.core.exceptions import PermissionDenied
             from django.utils.translation import gettext as _
+
             raise PermissionDenied(_("No puedes borrar este filtro."))
         await f.adelete()
         if request.htmx:
             from django.http import HttpResponse
+
             return HttpResponse("")
         return redirect("/search/")

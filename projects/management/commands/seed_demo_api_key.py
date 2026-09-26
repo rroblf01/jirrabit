@@ -24,6 +24,7 @@ not be valid anywhere else.
 Idempotent, because ``seed_demo`` may run on every boot: re-running grants the
 same key, and un-revokes it if somebody revoked it.
 """
+
 import os
 
 from django.core.management.base import BaseCommand, CommandError

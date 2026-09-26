@@ -9,6 +9,7 @@ They live here as ordinary TestCase tests against the sync test client, which is
 what a request handler sees anyway; the difference from the script is only that
 the assertions now run in CI.
 """
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 
@@ -28,9 +29,7 @@ User = get_user_model()
 
 def _seed_lookups():
     Status.objects.get_or_create(name="To Do", defaults={"category": "todo", "order": 10})
-    Status.objects.get_or_create(
-        name="In Progress", defaults={"category": "in_progress", "order": 20}
-    )
+    Status.objects.get_or_create(name="In Progress", defaults={"category": "in_progress", "order": 20})
     Status.objects.get_or_create(name="Done", defaults={"category": "done", "order": 50})
     Priority.objects.get_or_create(name="High", defaults={"weight": 40})
     IssueType.objects.get_or_create(name="Task", defaults={"category": "task"})
@@ -39,23 +38,18 @@ def _seed_lookups():
 class InteractiveFlowTests(TestCase):
     def setUp(self):
         _seed_lookups()
-        self.user = User.objects.create_user(
-            username="alice", password="pw", email="a@x.com"
-        )
-        self.other = User.objects.create_user(
-            username="bob", password="pw", email="b@x.com"
-        )
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
+        self.other = User.objects.create_user(username="bob", password="pw", email="b@x.com")
         self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
-        ProjectMembership.objects.create(
-            project=self.project, user=self.user, role="admin"
-        )
-        ProjectMembership.objects.create(
-            project=self.project, user=self.other, role="member"
-        )
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
+        ProjectMembership.objects.create(project=self.project, user=self.other, role="member")
         self.issue = Issue.objects.create(
-            project=self.project, reporter=self.user, summary="Original",
+            project=self.project,
+            reporter=self.user,
+            summary="Original",
             status=Status.objects.get(name="To Do"),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
         self.c = Client()
         self.c.login(username="alice", password="pw")
@@ -87,9 +81,7 @@ class InteractiveFlowTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.summary, "Edited inline")
-        self.assertTrue(
-            HistoryEntry.objects.filter(issue=self.issue, field="summary").exists()
-        )
+        self.assertTrue(HistoryEntry.objects.filter(issue=self.issue, field="summary").exists())
 
     def test_inline_edit_of_a_relation_checks_project_membership(self):
         r = self.c.post(
@@ -102,9 +94,7 @@ class InteractiveFlowTests(TestCase):
         self.assertEqual(self.issue.assignee_id, self.other.pk)
 
     def test_inline_edit_rejects_an_assignee_outside_the_project(self):
-        stranger = User.objects.create_user(
-            username="eve", password="pw", email="e@x.com"
-        )
+        stranger = User.objects.create_user(username="eve", password="pw", email="e@x.com")
         r = self.c.post(
             f"/issues/{self.issue.key}/inline/assignee/",
             {"value": str(stranger.pk)},
@@ -115,9 +105,7 @@ class InteractiveFlowTests(TestCase):
         self.assertIsNone(self.issue.assignee_id)
 
     def test_inline_edit_of_an_unknown_field_is_404(self):
-        r = self.c.post(
-            f"/issues/{self.issue.key}/inline/nonsense/", {"x": "1"}, **self.htmx
-        )
+        r = self.c.post(f"/issues/{self.issue.key}/inline/nonsense/", {"x": "1"}, **self.htmx)
         self.assertEqual(r.status_code, 404)
 
     # --- the advance button ----------------------------------------------
@@ -128,9 +116,7 @@ class InteractiveFlowTests(TestCase):
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.status.name, "In Progress")
         self.assertTrue(
-            HistoryEntry.objects.filter(
-                issue=self.issue, field="status", new_value="In Progress"
-            ).exists()
+            HistoryEntry.objects.filter(issue=self.issue, field="status", new_value="In Progress").exists()
         )
 
     def test_advance_honours_a_restricted_workflow(self):
@@ -190,15 +176,11 @@ class InteractiveFlowTests(TestCase):
     # --- comment lifecycle -------------------------------------------------
 
     def test_comment_lifecycle(self):
-        r = self.c.post(
-            f"/issues/{self.issue.key}/comment/", {"body": "first"}, **self.htmx
-        )
+        r = self.c.post(f"/issues/{self.issue.key}/comment/", {"body": "first"}, **self.htmx)
         self.assertEqual(r.status_code, 200, r.content[:200])
         comment = Comment.objects.get(issue=self.issue)
 
-        r = self.c.post(
-            f"/issues/comment/{comment.pk}/edit/", {"body": "second"}, **self.htmx
-        )
+        r = self.c.post(f"/issues/comment/{comment.pk}/edit/", {"body": "second"}, **self.htmx)
         self.assertEqual(r.status_code, 200)
         comment.refresh_from_db()
         self.assertEqual(comment.body, "second")
@@ -214,13 +196,9 @@ class InteractiveFlowTests(TestCase):
         self.assertIsNone(comment.deleted_at)
 
     def test_a_non_author_cannot_edit_someone_elses_comment(self):
-        comment = Comment.objects.create(
-            issue=self.issue, author=self.user, body="mine"
-        )
+        comment = Comment.objects.create(issue=self.issue, author=self.user, body="mine")
         self.c.login(username="bob", password="pw")
-        r = self.c.post(
-            f"/issues/comment/{comment.pk}/edit/", {"body": "hijacked"}, **self.htmx
-        )
+        r = self.c.post(f"/issues/comment/{comment.pk}/edit/", {"body": "hijacked"}, **self.htmx)
         self.assertEqual(r.status_code, 403)
         comment.refresh_from_db()
         self.assertEqual(comment.body, "mine")
@@ -242,9 +220,12 @@ class InteractiveFlowTests(TestCase):
 
     def test_jql_search_from_the_web(self):
         Issue.objects.create(
-            project=self.project, reporter=self.user, summary="Segundo",
+            project=self.project,
+            reporter=self.user,
+            summary="Segundo",
             status=Status.objects.get(name="In Progress"),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
         r = self.c.get("/search/", {"q": "project = WEB"})
         self.assertEqual(r.status_code, 200)
@@ -264,9 +245,12 @@ class InteractiveFlowTests(TestCase):
         """Project.objects.filter_visible is the only gate; search must use it."""
         hidden = Project.objects.create(key="OPS", name="Ops", lead=self.other)
         secret = Issue.objects.create(
-            project=hidden, reporter=self.other, summary="clasificado",
+            project=hidden,
+            reporter=self.other,
+            summary="clasificado",
             status=Status.objects.get(name="To Do"),
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
         r = self.c.get("/search/", {"q": "project = OPS"})
         self.assertEqual(r.status_code, 200)

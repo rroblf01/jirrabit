@@ -7,4 +7,5 @@ class RealtimeConfig(AppConfig):
 
     def ready(self):
         from . import broadcast
+
         broadcast.connect()

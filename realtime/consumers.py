@@ -57,11 +57,8 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
         # reconnect (refresh, tab regain focus, etc.). Read from the
         # denormalised counter so we don't run a COUNT(*) per connect.
         from accounts.models import User
-        count = (
-            await User.objects.filter(pk=user.pk)
-            .values_list("unread_count", flat=True)
-            .afirst()
-        ) or 0
+
+        count = (await User.objects.filter(pk=user.pk).values_list("unread_count", flat=True).afirst()) or 0
         await self.send_json({"type": "unread", "count": count})
 
     async def disconnect(self, code):
@@ -92,30 +89,41 @@ class IssuePresenceConsumer(AsyncJsonWebsocketConsumer):
         self.group = f"issue.{self.key}"
         await self.channel_layer.group_add(self.group, self.channel_name)
         await self.accept()
-        await self.channel_layer.group_send(self.group, {
-            "type": "presence.join",
-            "username": user.username,
-            "display": str(user),
-        })
-        await self.channel_layer.group_send(self.group, {
-            "type": "presence.ping",
-            "from_channel": self.channel_name,
-        })
+        await self.channel_layer.group_send(
+            self.group,
+            {
+                "type": "presence.join",
+                "username": user.username,
+                "display": str(user),
+            },
+        )
+        await self.channel_layer.group_send(
+            self.group,
+            {
+                "type": "presence.ping",
+                "from_channel": self.channel_name,
+            },
+        )
 
     async def disconnect(self, code):
         if getattr(self, "group", None):
-            await self.channel_layer.group_send(self.group, {
-                "type": "presence.leave",
-                "username": self.user.username,
-            })
+            await self.channel_layer.group_send(
+                self.group,
+                {
+                    "type": "presence.leave",
+                    "username": self.user.username,
+                },
+            )
             await self.channel_layer.group_discard(self.group, self.channel_name)
 
     async def presence_join(self, event):
-        await self.send_json({
-            "type": "join",
-            "username": event["username"],
-            "display": event.get("display", event["username"]),
-        })
+        await self.send_json(
+            {
+                "type": "join",
+                "username": event["username"],
+                "display": event.get("display", event["username"]),
+            }
+        )
 
     async def presence_leave(self, event):
         await self.send_json({"type": "leave", "username": event["username"]})
@@ -123,8 +131,11 @@ class IssuePresenceConsumer(AsyncJsonWebsocketConsumer):
     async def presence_ping(self, event):
         if event.get("from_channel") == self.channel_name:
             return
-        await self.channel_layer.send(event["from_channel"], {
-            "type": "presence.join",
-            "username": self.user.username,
-            "display": str(self.user),
-        })
+        await self.channel_layer.send(
+            event["from_channel"],
+            {
+                "type": "presence.join",
+                "username": self.user.username,
+                "display": str(self.user),
+            },
+        )

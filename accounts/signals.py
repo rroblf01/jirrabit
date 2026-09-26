@@ -5,6 +5,7 @@ A bulk ``aupdate(read=True)`` does not fire ``post_save`` (Django bypasses
 signals on QuerySet updates), so ``NotificationMarkReadView`` recomputes
 the affected counters explicitly.
 """
+
 from django.db.models import F
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
@@ -21,9 +22,7 @@ def _delta(user_id: int, delta: int) -> None:
 @receiver(pre_save, sender=Notification, dispatch_uid="notif_track_old_read")
 def _track_old_read(sender, instance, **kwargs):
     if instance.pk:
-        instance._old_read = (
-            sender.objects.filter(pk=instance.pk).values_list("read", flat=True).first()
-        )
+        instance._old_read = sender.objects.filter(pk=instance.pk).values_list("read", flat=True).first()
     else:
         instance._old_read = None
 

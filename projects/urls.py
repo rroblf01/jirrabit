@@ -27,9 +27,19 @@ urlpatterns = [
     path("<str:key>/members/add/", views.ProjectMembershipAddView.as_view(), name="member_add"),
     path("<str:key>/members/<int:pk>/", views.ProjectMembershipUpdateView.as_view(), name="member_update"),
     path("<str:key>/custom-fields/", views.ProjectCustomFieldsView.as_view(), name="custom_fields"),
-    path("<str:key>/custom-fields/new/", views.ProjectCustomFieldCreateView.as_view(), name="custom_field_create"),
-    path("<str:key>/custom-fields/<int:pk>/delete/", views.ProjectCustomFieldDeleteView.as_view(), name="custom_field_delete"),
+    path(
+        "<str:key>/custom-fields/new/",
+        views.ProjectCustomFieldCreateView.as_view(),
+        name="custom_field_create",
+    ),
+    path(
+        "<str:key>/custom-fields/<int:pk>/delete/",
+        views.ProjectCustomFieldDeleteView.as_view(),
+        name="custom_field_delete",
+    ),
     path("<str:key>/webhooks/", views.ProjectWebhooksView.as_view(), name="webhooks"),
     path("<str:key>/webhooks/new/", views.ProjectWebhookCreateView.as_view(), name="webhook_create"),
-    path("<str:key>/webhooks/<int:pk>/delete/", views.ProjectWebhookDeleteView.as_view(), name="webhook_delete"),
+    path(
+        "<str:key>/webhooks/<int:pk>/delete/", views.ProjectWebhookDeleteView.as_view(), name="webhook_delete"
+    ),
 ]

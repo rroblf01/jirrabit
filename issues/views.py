@@ -88,8 +88,15 @@ async def _aget_project(key):
 
 async def _aget_issue(key):
     qs = Issue.objects.select_related(
-        "project", "status", "priority", "issue_type",
-        "assignee", "reporter", "epic", "sprint", "parent",
+        "project",
+        "status",
+        "priority",
+        "issue_type",
+        "assignee",
+        "reporter",
+        "epic",
+        "sprint",
+        "parent",
     )
     try:
         return await qs.aget(key=key)
@@ -981,10 +988,12 @@ class ReactToggleView(AsyncLoginRequiredMixin, View):
                     f"project.{comment.issue.project.key}",
                     {"type": "reaction.event", "payload": {"comment_id": comment.pk}},
                 )
-        except (ConnectionError, OSError, RuntimeError):
+        except ConnectionError, OSError, RuntimeError:
             import logging
+
             logging.getLogger("jirrabit.realtime").exception(
-                "reaction broadcast failed for comment %s", comment.pk,
+                "reaction broadcast failed for comment %s",
+                comment.pk,
             )
         reactions = await sync_to_async(_aggregate_reactions)(
             comment.pk,

@@ -8,6 +8,7 @@ Returns a ``datetime.date`` or ``None`` if nothing matches. Designed to
 be forgiving: if the input is unparseable, the caller falls back to the
 original picker.
 """
+
 from __future__ import annotations
 
 import re
@@ -15,13 +16,37 @@ from datetime import date, timedelta
 
 _DAY_NAMES = {
     # english
-    "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3, "friday": 4,
-    "saturday": 5, "sunday": 6,
-    "mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6,
+    "monday": 0,
+    "tuesday": 1,
+    "wednesday": 2,
+    "thursday": 3,
+    "friday": 4,
+    "saturday": 5,
+    "sunday": 6,
+    "mon": 0,
+    "tue": 1,
+    "wed": 2,
+    "thu": 3,
+    "fri": 4,
+    "sat": 5,
+    "sun": 6,
     # spanish
-    "lunes": 0, "martes": 1, "miercoles": 2, "miércoles": 2, "jueves": 3,
-    "viernes": 4, "sabado": 5, "sábado": 5, "domingo": 6,
-    "lun": 0, "mar": 1, "mie": 2, "jue": 3, "vie": 4, "sab": 5, "dom": 6,
+    "lunes": 0,
+    "martes": 1,
+    "miercoles": 2,
+    "miércoles": 2,
+    "jueves": 3,
+    "viernes": 4,
+    "sabado": 5,
+    "sábado": 5,
+    "domingo": 6,
+    "lun": 0,
+    "mar": 1,
+    "mie": 2,
+    "jue": 3,
+    "vie": 4,
+    "sab": 5,
+    "dom": 6,
 }
 
 _TODAY_WORDS = {"today", "hoy"}
@@ -62,7 +87,7 @@ def parse_due_date(text: str, today: date | None = None) -> date | None:
     is_next = False
     for prefix in _NEXT_PREFIXES:
         if s.startswith(prefix):
-            bare = s[len(prefix):]
+            bare = s[len(prefix) :]
             is_next = True
             break
     if bare in _DAY_NAMES:

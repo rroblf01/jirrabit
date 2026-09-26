@@ -183,7 +183,9 @@ class JQLQueryTests(TestCase):
     def test_label_is_empty_and_not_empty(self):
         label = Label.objects.create(name="frontend")
         self.mine.labels.add(label)
-        self.assertEqual(self._search("label is EMPTY"), {self.theirs.key, self.finished.key, self.unassigned.key})
+        self.assertEqual(
+            self._search("label is EMPTY"), {self.theirs.key, self.finished.key, self.unassigned.key}
+        )
         self.assertEqual(self._search("label is not EMPTY"), {self.mine.key})
 
     def test_sprint_is_empty(self):

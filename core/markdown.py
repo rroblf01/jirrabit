@@ -1,14 +1,39 @@
 """Markdown rendering with HTML sanitisation."""
+
 import re
 
 import bleach
 import markdown as md
 
 _ALLOWED_TAGS = [
-    "p", "br", "hr", "strong", "em", "code", "pre", "blockquote",
-    "ul", "ol", "li", "h1", "h2", "h3", "h4", "h5", "h6",
-    "a", "img", "table", "thead", "tbody", "tr", "th", "td",
-    "del", "input", "span",
+    "p",
+    "br",
+    "hr",
+    "strong",
+    "em",
+    "code",
+    "pre",
+    "blockquote",
+    "ul",
+    "ol",
+    "li",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "a",
+    "img",
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "del",
+    "input",
+    "span",
 ]
 _ALLOWED_ATTRS = {
     # ``data-mention`` carries the username for the side-panel JS so it
@@ -50,11 +75,10 @@ def render_markdown(text: str) -> str:
     )
     html = _MENTION_RE.sub(
         r'<a href="/accounts/users/?q=\1" class="mention" rel="noopener" '
-        r'hx-boost="false" data-mention="\1">@\1</a>', html
+        r'hx-boost="false" data-mention="\1">@\1</a>',
+        html,
     )
-    html = _ISSUE_KEY_RE.sub(
-        r'<a href="/issues/\1/" class="issue-key" rel="noopener">\1</a>', html
-    )
+    html = _ISSUE_KEY_RE.sub(r'<a href="/issues/\1/" class="issue-key" rel="noopener">\1</a>', html)
     cleaned = bleach.clean(
         html,
         tags=_ALLOWED_TAGS,

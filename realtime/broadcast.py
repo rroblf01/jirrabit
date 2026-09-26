@@ -1,4 +1,5 @@
 """Bridge Django signals into Channels groups."""
+
 import logging
 
 from asgiref.sync import async_to_sync
@@ -17,7 +18,7 @@ def _send(group: str, type_: str, payload: dict) -> None:
         return
     try:
         async_to_sync(layer.group_send)(group, {"type": type_, "payload": payload})
-    except (ConnectionError, OSError, RuntimeError):
+    except ConnectionError, OSError, RuntimeError:
         # Backend down (Redis), event loop not running, etc. Realtime is
         # best-effort — log and continue, the DB write already succeeded.
         logger.exception("Channels group_send failed for %s", group)
@@ -28,8 +29,10 @@ def _on_issue(sender, instance, created, **kwargs):
         _group_for(instance.project.key),
         "issue.event",
         {
-            "key": instance.key, "summary": instance.summary,
-            "status": str(instance.status), "status_id": instance.status_id,
+            "key": instance.key,
+            "summary": instance.summary,
+            "status": str(instance.status),
+            "status_id": instance.status_id,
             "priority": str(instance.priority),
             "assignee": getattr(instance.assignee, "username", None),
             "created": created,

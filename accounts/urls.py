@@ -48,10 +48,18 @@ urlpatterns = [
     path("admin/users/", admin_views.AdminUserListView.as_view(), name="admin_user_list"),
     path("admin/users/new/", admin_views.AdminUserCreateView.as_view(), name="admin_user_create"),
     path("admin/users/<int:pk>/edit/", admin_views.AdminUserEditView.as_view(), name="admin_user_edit"),
-    path("admin/users/<int:pk>/toggle/", admin_views.AdminUserToggleActiveView.as_view(), name="admin_user_toggle"),
+    path(
+        "admin/users/<int:pk>/toggle/",
+        admin_views.AdminUserToggleActiveView.as_view(),
+        name="admin_user_toggle",
+    ),
     path("admin/invites/", admin_views.AdminInviteListView.as_view(), name="admin_invite_list"),
     path("admin/invites/new/", admin_views.AdminInviteCreateView.as_view(), name="admin_invite_create"),
-    path("admin/invites/<int:pk>/revoke/", admin_views.AdminInviteRevokeView.as_view(), name="admin_invite_revoke"),
+    path(
+        "admin/invites/<int:pk>/revoke/",
+        admin_views.AdminInviteRevokeView.as_view(),
+        name="admin_invite_revoke",
+    ),
     path("admin/teams/", admin_views.AdminTeamListView.as_view(), name="admin_team_list"),
     path("admin/teams/new/", admin_views.AdminTeamCreateView.as_view(), name="admin_team_create"),
     path("admin/teams/<int:pk>/edit/", admin_views.AdminTeamEditView.as_view(), name="admin_team_edit"),
@@ -62,7 +70,9 @@ urlpatterns = [
     path("api-keys/<int:pk>/revoke/", views.APIKeyRevokeView.as_view(), name="api_key_revoke"),
     path("notifications/", views.NotificationInboxView.as_view(), name="notifications"),
     path("notifications/count/", views.NotificationCountView.as_view(), name="notifications_count"),
-    path("notifications/mark-read/", views.NotificationMarkReadView.as_view(), name="notifications_mark_read"),
+    path(
+        "notifications/mark-read/", views.NotificationMarkReadView.as_view(), name="notifications_mark_read"
+    ),
     path("mentions/search/", views.UserMentionSearchView.as_view(), name="mention_search"),
     path("palette-preview/", views.PalettePreviewView.as_view(), name="palette_preview"),
 ]

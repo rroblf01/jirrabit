@@ -102,9 +102,13 @@ class APIIssueLinkTests(TestCase):
     def test_create_link_with_model_key(self):
         r = self.c.post(
             f"/api/v1/issues/{self.a.key}/links/",
-            data=json.dumps({
-                "link_type": "blocks", "inward_issue_key": self.b.key, "outward_issue_key": self.a.key,
-            }),
+            data=json.dumps(
+                {
+                    "link_type": "blocks",
+                    "inward_issue_key": self.b.key,
+                    "outward_issue_key": self.a.key,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 200)
@@ -114,9 +118,13 @@ class APIIssueLinkTests(TestCase):
         """Agents write Jira's display names, not the model's keys."""
         r = self.c.post(
             f"/api/v1/issues/{self.a.key}/links/",
-            data=json.dumps({
-                "link_type": "Relates", "inward_issue_key": self.b.key, "outward_issue_key": self.a.key,
-            }),
+            data=json.dumps(
+                {
+                    "link_type": "Relates",
+                    "inward_issue_key": self.b.key,
+                    "outward_issue_key": self.a.key,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 200)
@@ -125,23 +133,39 @@ class APIIssueLinkTests(TestCase):
     def test_create_link_rejects_unknown_type(self):
         r = self.c.post(
             f"/api/v1/issues/{self.a.key}/links/",
-            data=json.dumps({
-                "link_type": "nonsense", "inward_issue_key": self.b.key, "outward_issue_key": self.a.key,
-            }),
+            data=json.dumps(
+                {
+                    "link_type": "nonsense",
+                    "inward_issue_key": self.b.key,
+                    "outward_issue_key": self.a.key,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 400)
 
     def test_create_link_rejects_duplicate(self):
         payload = {
-            "link_type": "blocks", "inward_issue_key": self.b.key, "outward_issue_key": self.a.key,
+            "link_type": "blocks",
+            "inward_issue_key": self.b.key,
+            "outward_issue_key": self.a.key,
         }
         self.assertEqual(
-            self.c.post(f"/api/v1/issues/{self.a.key}/links/", data=json.dumps(payload),
-                        content_type="application/json").status_code, 200)
+            self.c.post(
+                f"/api/v1/issues/{self.a.key}/links/",
+                data=json.dumps(payload),
+                content_type="application/json",
+            ).status_code,
+            200,
+        )
         self.assertEqual(
-            self.c.post(f"/api/v1/issues/{self.a.key}/links/", data=json.dumps(payload),
-                        content_type="application/json").status_code, 400)
+            self.c.post(
+                f"/api/v1/issues/{self.a.key}/links/",
+                data=json.dumps(payload),
+                content_type="application/json",
+            ).status_code,
+            400,
+        )
 
     def test_create_link_cannot_target_an_invisible_issue(self):
         """The other end goes through the same visibility gate."""
@@ -152,9 +176,13 @@ class APIIssueLinkTests(TestCase):
         c.login(username="mallory", password="pw")
         r = c.post(
             f"/api/v1/issues/{self.a.key}/links/",
-            data=json.dumps({
-                "link_type": "blocks", "inward_issue_key": secret.key, "outward_issue_key": self.a.key,
-            }),
+            data=json.dumps(
+                {
+                    "link_type": "blocks",
+                    "inward_issue_key": secret.key,
+                    "outward_issue_key": self.a.key,
+                }
+            ),
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 404)
@@ -175,10 +203,13 @@ class APIIssueLinkTests(TestCase):
         """
         self.c.post(
             f"/api/v1/issues/{self.a.key}/links/",
-            data=json.dumps({
-                "link_type": "blocks", "inward_issue_key": self.b.key,
-                "outward_issue_key": self.a.key,
-            }),
+            data=json.dumps(
+                {
+                    "link_type": "blocks",
+                    "inward_issue_key": self.b.key,
+                    "outward_issue_key": self.a.key,
+                }
+            ),
             content_type="application/json",
         )
         row = self.c.get(f"/api/v1/issues/{self.a.key}/links/").json()[0]
@@ -313,7 +344,9 @@ class APISavedFilterTests(TestCase):
 
     def test_lists_own_and_shared(self):
         mine = SavedFilter.objects.create(owner=self.user, name="mine", query="project = WEB")
-        shared = SavedFilter.objects.create(owner=self.bob, name="shared", query="project = WEB", scope="shared")
+        shared = SavedFilter.objects.create(
+            owner=self.bob, name="shared", query="project = WEB", scope="shared"
+        )
         someone_elses = SavedFilter.objects.create(owner=self.bob, name="private", query="project = WEB")
         names = {f["name"] for f in self.c.get("/api/v1/filters/").json()}
         self.assertIn(mine.name, names)
@@ -333,9 +366,7 @@ class APISavedFilterTests(TestCase):
         self.assertNotIn(hidden.name, names)
 
     def test_keeps_shared_filter_with_no_project_clause(self):
-        shared = SavedFilter.objects.create(
-            owner=self.bob, name="text-only", query="urgent", scope="shared"
-        )
+        shared = SavedFilter.objects.create(owner=self.bob, name="text-only", query="urgent", scope="shared")
         names = {f["name"] for f in self.c.get("/api/v1/filters/").json()}
         self.assertIn(shared.name, names)
 

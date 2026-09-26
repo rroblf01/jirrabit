@@ -40,12 +40,27 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: ruff
+      - name: ruff lint
         run: uv run ruff check .
 
+      - name: ruff format
+        run: uv run ruff format --check .
+        # 46 files in this repository were committed unformatted while only
+        # ``ruff check`` ran, so the formatter drifted a long way from the lint
+        # gate. Formatting them was its own commit; this keeps it from
+        # happening again.
+
       - name: ty (type-check)
-        run: uv run ty check . || true
-        # ``ty`` is still pre-release; don't fail the build on its findings.
+        run: uv run ty check .
+        # Was ``|| true`` until django-stubs became a dev dependency. With it,
+        # the 436 diagnostics it used to report were 401 cases of ty not
+        # understanding that Model.objects and Model.DoesNotExist are added by
+        # the metaclass, and the rest were downstream of the same confusion.
+        # What is genuinely invisible to it is now three documented rule
+        # suppressions in pyproject.toml, each with its reasons, plus one
+        # per-line suppression where an async view deliberately awaits a sync
+        # base method. Pinned ty==0.0.38 so a new release cannot change the
+        # verdict on an unrelated commit.
 
       - name: Django system check
         run: JIRRABIT_DB_ENGINE=sqlite uv run python manage.py check

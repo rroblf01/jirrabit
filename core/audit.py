@@ -4,6 +4,7 @@ Captures any save on tracked models as an ``issues.AuditEntry`` row scoped
 to the relevant project. Plays nice with the in-app notifications module —
 audit is the *historical record*, notifications are the *unread inbox*.
 """
+
 import logging
 
 from django.db import DatabaseError
@@ -13,8 +14,14 @@ logger = logging.getLogger("jirrabit.audit")
 
 
 _TRACKED = {
-    "Issue", "Comment", "Attachment", "Epic", "Sprint", "Project",
-    "WorkLog", "IssueLink",
+    "Issue",
+    "Comment",
+    "Attachment",
+    "Epic",
+    "Sprint",
+    "Project",
+    "WorkLog",
+    "IssueLink",
 }
 
 
@@ -40,6 +47,7 @@ def _audit_save(sender, instance, created, **kwargs):
     if project is None or project.pk is None:
         return
     from issues.models import AuditEntry
+
     try:
         AuditEntry.objects.create(
             project=project,
@@ -62,6 +70,7 @@ def _audit_delete(sender, instance, **kwargs):
     if project is None or project.pk is None:
         return
     from issues.models import AuditEntry
+
     try:
         AuditEntry.objects.create(
             project=project,
@@ -72,8 +81,12 @@ def _audit_delete(sender, instance, **kwargs):
         )
     except DatabaseError:
         # CASCADE delete may have already removed the project — expected.
-        logger.debug("AuditEntry delete-row failed for %s pk=%s (cascade?)",
-                     sender.__name__, instance.pk, exc_info=True)
+        logger.debug(
+            "AuditEntry delete-row failed for %s pk=%s (cascade?)",
+            sender.__name__,
+            instance.pk,
+            exc_info=True,
+        )
 
 
 def connect() -> None:
@@ -82,4 +95,6 @@ def connect() -> None:
 
     for model in (Issue, Comment, Attachment, Epic, Sprint, Project, WorkLog, IssueLink):
         post_save.connect(_audit_save, sender=model, dispatch_uid=f"audit_save_{model.__name__}", weak=False)
-        post_delete.connect(_audit_delete, sender=model, dispatch_uid=f"audit_delete_{model.__name__}", weak=False)
+        post_delete.connect(
+            _audit_delete, sender=model, dispatch_uid=f"audit_delete_{model.__name__}", weak=False
+        )

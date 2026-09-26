@@ -23,11 +23,15 @@ class IssueForm(forms.ModelForm):
             "due_date",
         )
         widgets = {
-            "description": forms.Textarea(attrs={
-                "rows": 8, "data-mentions": "1",
-                "data-md-preview": "1", "data-slash": "1",
-                "data-md-toolbar": "1",
-            }),
+            "description": forms.Textarea(
+                attrs={
+                    "rows": 8,
+                    "data-mentions": "1",
+                    "data-md-preview": "1",
+                    "data-slash": "1",
+                    "data-md-toolbar": "1",
+                }
+            ),
             "due_date": forms.DateInput(attrs={"type": "date"}),
             "labels": forms.SelectMultiple(attrs={"size": 4}),
         }
@@ -39,13 +43,13 @@ class IssueForm(forms.ModelForm):
             self.fields["sprint"].queryset = project.sprints.all()
             self.fields["parent"].queryset = project.issues.exclude(pk=self.instance.pk or 0)
         # Accept loose date phrases ("tomorrow", "next friday", "3d").
-        self.fields["due_date"].widget = forms.TextInput(attrs={
-            "placeholder": "YYYY-MM-DD, mañana, viernes, 3d…",
-            "data-date-hint": "1",
-        })
-        self.fields["due_date"].help_text = (
-            "Formatos: 2026-05-30 · mañana · viernes · 3d · +2w · fin de mes"
+        self.fields["due_date"].widget = forms.TextInput(
+            attrs={
+                "placeholder": "YYYY-MM-DD, mañana, viernes, 3d…",
+                "data-date-hint": "1",
+            }
         )
+        self.fields["due_date"].help_text = "Formatos: 2026-05-30 · mañana · viernes · 3d · +2w · fin de mes"
 
     def clean_due_date(self):
         raw = self.cleaned_data.get("due_date")
@@ -69,12 +73,15 @@ class CommentForm(forms.ModelForm):
         model = Comment
         fields = ("body", "is_internal")
         widgets = {
-            "body": forms.Textarea(attrs={
-                "rows": 3,
-                "placeholder": "Escribe un comentario… (Markdown soportado, prueba /)",
-                "data-mentions": "1", "data-slash": "1",
-                "data-md-toolbar": "1",
-            }),
+            "body": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "placeholder": "Escribe un comentario… (Markdown soportado, prueba /)",
+                    "data-mentions": "1",
+                    "data-slash": "1",
+                    "data-md-toolbar": "1",
+                }
+            ),
             "is_internal": forms.CheckboxInput(),
         }
         labels = {"is_internal": "Nota interna (solo staff)"}
@@ -89,8 +96,12 @@ class IssueTemplateForm(forms.ModelForm):
         model = IssueTemplate
         fields = ("name", "issue_type", "summary", "description", "priority", "labels")
         widgets = {
-            "description": forms.Textarea(attrs={
-                "rows": 6, "data-md-toolbar": "1", "data-mentions": "1",
-            }),
+            "description": forms.Textarea(
+                attrs={
+                    "rows": 6,
+                    "data-md-toolbar": "1",
+                    "data-mentions": "1",
+                }
+            ),
             "labels": forms.SelectMultiple(attrs={"size": 4}),
         }

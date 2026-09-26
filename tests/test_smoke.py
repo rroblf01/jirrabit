@@ -4,6 +4,7 @@ Cover: auth, project + issue CRUD via UI, inline edit, comment lifecycle,
 workflow validation, permissions, REST API, JQL search. Each test owns
 its setup; no shared fixtures.
 """
+
 import json
 
 from django.contrib.auth import get_user_model
@@ -22,7 +23,9 @@ def _seed_lookups():
     Status.objects.get_or_create(name="Done", defaults={"category": "done", "order": 50})
     Priority.objects.get_or_create(name="High", defaults={"weight": 40, "color": "#f97316"})
     Priority.objects.get_or_create(name="Medium", defaults={"weight": 30, "color": "#1e6fff"})
-    IssueType.objects.get_or_create(name="Task", defaults={"category": "task", "icon": "✓", "color": "#1e6fff"})
+    IssueType.objects.get_or_create(
+        name="Task", defaults={"category": "task", "icon": "✓", "color": "#1e6fff"}
+    )
 
 
 def _make_user(username="alice", **extras):
@@ -38,7 +41,9 @@ def _make_project(lead, key="WEB"):
 
 def _make_issue(project, reporter, summary="Test"):
     return Issue.objects.create(
-        project=project, reporter=reporter, summary=summary,
+        project=project,
+        reporter=reporter,
+        summary=summary,
         status=Status.objects.first(),
         priority=Priority.objects.first(),
         issue_type=IssueType.objects.first(),
@@ -162,6 +167,7 @@ class CommentTests(TestCase):
 
     def test_add_edit_delete_comment(self):
         from issues.models import Comment
+
         # add
         r = self.c.post(
             reverse("issues:add_comment", args=[self.issue.key]),
@@ -308,7 +314,9 @@ class WorkflowEditorTests(TestCase):
     def setUp(self):
         _seed_lookups()
         self.admin = User.objects.create_superuser(
-            username="root", password="pw", email="root@x.com",
+            username="root",
+            password="pw",
+            email="root@x.com",
         )
         self.regular = _make_user("alice")
         self.c_admin = Client()
@@ -342,8 +350,11 @@ class WorkflowEditorTests(TestCase):
         s = Status.objects.get(name="To Do")
         Issue.objects.create(
             project=_make_project(_make_user("bob", is_superuser=False)),
-            reporter=self.admin, summary="x", status=s,
-            priority=Priority.objects.first(), issue_type=IssueType.objects.first(),
+            reporter=self.admin,
+            summary="x",
+            status=s,
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
         )
         r = self.c_admin.post(reverse("workflow:status_delete", args=[s.pk]))
         self.assertEqual(r.status_code, 302)
@@ -398,6 +409,7 @@ class ProductivityTests(TestCase):
 
     def test_pin_toggle(self):
         from issues.models import Pin
+
         r = self.c.post(reverse("issues:pin_toggle", args=["issue", self.issue.pk]))
         self.assertEqual(r.status_code, 204)
         self.assertTrue(Pin.objects.filter(user=self.user, issue=self.issue).exists())
@@ -423,6 +435,7 @@ class ProductivityTests(TestCase):
 
     def test_snooze_and_unsnooze(self):
         from issues.models import NotificationSnooze
+
         r = self.c.post(reverse("issues:snooze", args=[self.issue.key]), data={"hours": "4"})
         self.assertEqual(r.status_code, 302)
         self.assertTrue(NotificationSnooze.objects.filter(user=self.user, issue=self.issue).exists())
@@ -432,6 +445,7 @@ class ProductivityTests(TestCase):
 
     def test_timer_start_stop_logs_work(self):
         from issues.models import Timer, WorkLog
+
         r = self.c.post(reverse("issues:timer_start", args=[self.issue.key]))
         self.assertEqual(r.status_code, 302)
         self.assertTrue(Timer.objects.filter(user=self.user, issue=self.issue).exists())
@@ -448,7 +462,8 @@ class ProductivityTests(TestCase):
         c2.login(username="bob", password="pw")
         r = c2.post(
             reverse("issues:add_comment", args=[self.issue.key]),
-            data={"body": "hola"}, HTTP_HX_REQUEST="true",
+            data={"body": "hola"},
+            HTTP_HX_REQUEST="true",
         )
         self.assertEqual(r.status_code, 200)
         self.assertIn(bob, self.issue.watchers.all())
@@ -515,6 +530,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_subtask_create_and_toggle(self):
         from issues.models import Issue, IssueType
+
         IssueType.objects.get_or_create(name="Subtask", defaults={"category": "subtask"})
         r = self.c.post(
             reverse("issues:subtask_create", args=[self.issue.key]),
@@ -530,6 +546,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_reaction_toggle(self):
         from issues.models import Comment, Reaction
+
         c = Comment.objects.create(issue=self.issue, author=self.user, body="hi")
         r = self.c.post(reverse("issues:react", args=[c.pk]), data={"emoji": "+1"})
         self.assertEqual(r.status_code, 200)
@@ -541,6 +558,7 @@ class AdvancedFeatureTests(TestCase):
         from datetime import date, timedelta
 
         from core.dates import parse_due_date
+
         today = date(2026, 5, 18)  # Monday
         self.assertEqual(parse_due_date("tomorrow", today), today + timedelta(days=1))
         self.assertEqual(parse_due_date("mañana", today), today + timedelta(days=1))
@@ -554,6 +572,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_tshirt_sizing(self):
         from issues.inline import TSHIRT_TO_SP
+
         r = self.c.post(
             reverse("issues:inline_edit", args=[self.issue.key, "story_points"]),
             data={"value": "L"},
@@ -564,6 +583,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_team_mention_expansion(self):
         from accounts.models import Notification, Team
+
         bob = _make_user("bob")
         ProjectMembership.objects.create(project=self.project, user=bob, role="member")
         team = Team.objects.create(slug="qa", name="QA")
@@ -578,6 +598,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_branch_link_create_delete(self):
         from issues.models import BranchLink
+
         r = self.c.post(
             reverse("issues:branch_create", args=[self.issue.key]),
             data={"branch": "feature/login", "repo_url": "https://example.com/repo"},
@@ -590,6 +611,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_auto_link_issue_keys_in_markdown(self):
         from core.markdown import render_markdown
+
         html = render_markdown(f"see {self.issue.key} for details")
         self.assertIn(f'href="/issues/{self.issue.key}/"', html)
         # ``team:foo`` should not capture as a user mention.
@@ -610,6 +632,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_comment_edit_history(self):
         from issues.models import Comment, CommentEdit
+
         c = Comment.objects.create(issue=self.issue, author=self.user, body="v1")
         r = self.c.post(reverse("issues:comment_edit", args=[c.pk]), data={"body": "v2"})
         self.assertEqual(r.status_code, 200)
@@ -617,6 +640,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_board_column_quick_create(self):
         from issues.models import Issue, Status
+
         before = Issue.objects.filter(project=self.project).count()
         status = Status.objects.first()
         r = self.c.post(
@@ -628,6 +652,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_saved_board_view(self):
         from board.models import SavedBoardView
+
         r = self.c.post(
             reverse("board:view_save", args=[self.project.key]),
             data={"name": "Mías P1", "assignee": "me", "priority": "1"},
@@ -638,6 +663,7 @@ class AdvancedFeatureTests(TestCase):
 
     def test_project_wiki_create_and_read(self):
         from projects.models import ProjectWiki
+
         r = self.c.post(
             reverse("projects:wiki", args=[self.project.key]),
             data={"body": "# Welcome\n\nproject readme"},
@@ -655,10 +681,12 @@ class AdvancedFeatureTests(TestCase):
         from django.utils import timezone
 
         from issues.models import Issue, Status
+
         done = Status.objects.get(name="Done")
         old = _make_issue(self.project, self.user, summary="old done")
         Issue.objects.filter(pk=old.pk).update(
-            status=done, resolved_at=timezone.now() - timedelta(days=60),
+            status=done,
+            resolved_at=timezone.now() - timedelta(days=60),
         )
         call_command("auto_archive", "--days", "30")
         old.refresh_from_db()
@@ -666,11 +694,13 @@ class AdvancedFeatureTests(TestCase):
 
     def test_dashboard_config_persists(self):
         from accounts.models import DashboardWidget
+
         r = self.c.post(
             reverse("core:dashboard_config"),
             data={
                 "order": ["assigned", "watching", "pinned"],
-                "enabled_assigned": "1", "enabled_watching": "1",
+                "enabled_assigned": "1",
+                "enabled_watching": "1",
             },
         )
         self.assertEqual(r.status_code, 302)

@@ -69,9 +69,7 @@ class APIKey(models.Model):
     expose live keys.
     """
 
-    owner = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_keys"
-    )
+    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_keys")
     name = models.CharField(max_length=80)
     prefix = models.CharField(max_length=12, db_index=True, help_text="First chars, shown in UI.")
     token_hash = models.CharField(max_length=64, unique=True)
@@ -92,6 +90,7 @@ class APIKey(models.Model):
     @staticmethod
     def hash_token(plain: str) -> str:
         import hashlib
+
         return hashlib.sha256(plain.encode("utf-8")).hexdigest()
 
     @classmethod
@@ -101,6 +100,7 @@ class APIKey(models.Model):
         The plaintext is **only** available here.
         """
         import secrets
+
         plain = secrets.token_urlsafe(36)
         instance = cls.objects.create(
             owner=owner,
@@ -150,10 +150,10 @@ class APIKey(models.Model):
                 instance.save(update_fields=changed)
         return instance, plain
 
-
     @classmethod
     async def acreate_for(cls, *, owner, name: str) -> tuple[APIKey, str]:
         import secrets
+
         plain = secrets.token_urlsafe(36)
         instance = await cls.objects.acreate(
             owner=owner,
@@ -182,7 +182,11 @@ class InviteToken(models.Model):
     expires_at = models.DateTimeField()
     used_at = models.DateTimeField(null=True, blank=True)
     used_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="invites_consumed"
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="invites_consumed",
     )
 
     class Meta:
@@ -194,6 +198,7 @@ class InviteToken(models.Model):
     @property
     def is_valid(self) -> bool:
         from django.utils import timezone
+
         if self.used_at:
             return False
         return self.expires_at > timezone.now()
@@ -271,7 +276,9 @@ class DashboardWidget(models.Model):
         ("overdue", _("Vencidas")),
     )
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="dashboard_widgets",
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="dashboard_widgets",
     )
     kind = models.CharField(max_length=20, choices=KIND_CHOICES)
     order = models.PositiveIntegerField(default=0)
@@ -292,13 +299,19 @@ class MentionReceipt(models.Model):
     """
 
     actor = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mentions_made",
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mentions_made",
     )
     mentioned = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mentions_received",
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mentions_received",
     )
     comment = models.ForeignKey(
-        "issues.Comment", on_delete=models.CASCADE, related_name="mention_receipts",
+        "issues.Comment",
+        on_delete=models.CASCADE,
+        related_name="mention_receipts",
     )
     created_at = models.DateTimeField(auto_now_add=True)
     seen_at = models.DateTimeField(null=True, blank=True)

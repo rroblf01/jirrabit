@@ -16,6 +16,7 @@ Action signature::
 
     def my_action(event: str, payload: dict, state: str | None) -> None
 """
+
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
