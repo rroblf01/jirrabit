@@ -154,6 +154,32 @@ The general rule: in a request path, prefer a loop of `asave()` over any bulk
 write. If a bulk write is genuinely right, it must be one of the two exceptions
 documented under **Workflow**, and it must say in a comment why.
 
+### Board ordering
+
+`Issue.rank` is the card's 0-based index inside its `(project, status)` column,
+and the invariant is that a column is always a dense `0..n-1` run. Three things
+maintain it, and a new path that moves a card between columns has to call one of
+them or the board grows a hole:
+
+- `board.views._apply_board_order` renumbers a column to a caller-supplied
+  order. `ReorderView` uses it, taking the whole column as the browser sees it
+  rather than `before`/`after` neighbours, which is idempotent and has no
+  midpoint arithmetic.
+- `board.views._append_to_column` puts a card at the end of its new column.
+  Every status change that carries no position information goes through it: the
+  move endpoint, the advance button, the bulk status action.
+- `Issue.save()` appends a new card, on insert only.
+
+`static/js/board.js` reads the drop point from the DOM and sends the resulting
+column order. The board orders by `("rank", "-updated_at")` and then groups by
+status in Python, which works because the grouping is stable. **The backlog
+deliberately does not order by `rank`** — it is a board-column concept and means
+nothing in a flat list.
+
+A card's status change and its re-rank are two saves, so one drag writes two
+`AuditEntry` rows. That is honest rather than tidy: both describe a field that
+really changed.
+
 ### Workflow
 
 `Status.allowed_next` is a self-M2M. **An empty list means an open workflow** —
@@ -171,6 +197,8 @@ Both write paths now go through it, including the two that used to bypass it:
   issue afterwards because the in-memory copy predates the transition.
 - `board.BulkUpdateView` loops the chokepoint over the selected issues, so the
   board cannot reach a status the workflow forbids.
+- `board.ReorderView` also routes a card whose status changed through it, so a
+  drag between columns is validated exactly like a drag inside one.
 
 Remaining gaps, verified:
 
@@ -246,7 +274,10 @@ saves row by row and says why.
 - `Issue.description_html` and `Comment.body_html` are render-on-save caches with
   a lazy fallback.
 - `Comment.is_internal` is force-cleared for non-staff on every submit.
-- `Issue.rank` is declared and never written; the kanban orders by `updated_at`.
+- `Issue.rank` is the card's index inside its `(project, status)` board column,
+  and it is written. It used to be declared, read by the board and never written,
+  which is why the kanban silently fell back to `updated_at` — see
+  **Board ordering** below.
 - `core/worker.enqueue()` is an in-process `asyncio.Queue`, not a broker. Tasks
   are lost on restart.
 - `core/webhooks.py` dispatches to in-process stub actions that mostly log. There

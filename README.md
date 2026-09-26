@@ -86,7 +86,7 @@ There is no dotenv loader: `.env` is consumed only by `docker-compose.yml`.
 |---|---|---|
 | `JIRRABIT_SECRET_KEY` | dev fallback | **Required** when `JIRRABIT_DEBUG=0` |
 | `JIRRABIT_DEBUG` | `1` | `0` forces secure cookies, HSTS, SSL redirect, invite-only registration |
-| `JIRRABIT_ALLOWED_HOSTS` | `jirrabit.ricardorobles.es,localhost,127.0.0.1` | Comma-separated. An unlisted `Host` gets a 400 |
+| `JIRRABIT_ALLOWED_HOSTS` | `localhost,127.0.0.1` | Comma-separated. An unlisted `Host` gets a 400, so set your own domain here |
 | `JIRRABIT_DATABASE_URI` | — | `postgres://…`. **Required** unless `JIRRABIT_DB_ENGINE=sqlite` |
 | `JIRRABIT_DB_ENGINE` | `postgres` | `sqlite` for local work and tests |
 | `REDIS_URL` | — | Absent means the in-memory channel layer, so no WebSockets across processes |
@@ -152,10 +152,33 @@ token always lands on the same key rather than piling up duplicates. It is a
 separate command rather than part of `seed_demo` so that `JIRRABIT_DEMO_API_KEY`
 is not a switch that quietly publishes credentials on every demo seed.
 
-**This token is public by design, because it is printed in this README. Anyone
-who can reach your instance can act as `alice_pm`.** It is a demo convenience for
-a local `docker compose up`, not a credential. Do not use it on anything that
-matters, and do not copy it to a shared or reachable deployment.
+#### This repository is public, so read this before using that token
+
+**The token above is printed in a public README. Anyone on the internet can read
+it.** The only thing standing between that token and your data is whether your
+instance is reachable and whether you seeded it. Specifically:
+
+- On a laptop, or any instance behind a firewall or a VPN, the token is
+  unreachable and harmless. That is the case it is meant for.
+- On an instance with a public hostname — and this repository ships
+  `jirrabit.ricardorobles.es` in its own `.env` — anyone who reads this README can
+  authenticate as `alice_pm` and do everything that user can do, including
+  reading every issue, every comment and every attachment.
+
+So: never run `seed_demo_api_key` against an instance you care about, and never
+reuse the token. If you want the convenience on a shared instance, generate a
+different token and keep it out of version control:
+
+```bash
+docker compose exec -T -e JIRRABIT_DEMO_API_KEY="$(openssl rand -hex 24)" \
+  web python manage.py seed_demo_api_key
+```
+
+The same applies to `.env`, which is committed to this public repository. Its
+`JIRRABIT_SECRET_KEY` and `POSTGRES_PASSWORD` are development placeholders
+(`django-insecure-…`, `jirrabit-local-dev`) and are in the git history
+permanently. Treat both files as public, and set fresh values in the
+environment of anything you deploy.
 
 With the MCP in Docker, the instance is reachable by its compose service name.
 A stdio client launches the binary through `docker exec`, and the transport has
@@ -214,6 +237,40 @@ JIRRABIT_DB_ENGINE=sqlite uv run python manage.py test tests
 
 The `JIRRABIT_DB_ENGINE=sqlite` prefix is required for any host-side
 `manage.py` call, or Django tries to reach a Postgres that is not there.
+
+## Backup and restore
+
+Everything lives in Postgres. Attachments are base64 in a `TextField` rather
+than files on disk, so there is no second thing to back up and no path to keep
+in sync — a `pg_dump` of the database is a complete backup of the instance.
+
+```bash
+# Back up. Plain SQL by default: inspectable, and it restores anywhere.
+docker compose exec -T jirrabit-db pg_dump -U jirrabit jirrabit > jirrabit-$(date +%F).sql
+
+# Faster, but binary and only restorable into a compatible Postgres.
+docker compose exec -T jirrabit-db pg_dump -U jirrabit -Fc jirrabit > jirrabit-$(date +%F).dump
+
+# Restore. DESTRUCTIVE: it replaces the current contents.
+docker compose exec -T jirrabit-db psql -U jirrabit -c 'SELECT 1' >/dev/null
+docker compose exec -T jirrabit-db dropdb -U jirrabit jirrabit
+docker compose exec -T jirrabit-db createdb -U jirrabit jirrabit
+docker compose exec -T -i jirrabit-db psql -U jirrabit -d jirrabit < jirrabit-2026-01-01.sql
+```
+
+Restore into a **stopped** `web`, or the running process will keep writing to a
+database that is being replaced underneath it. Migrations are not re-run by a
+restore: the dump carries `django_migrations`, so the schema and the recorded
+migrations agree by construction.
+
+A nightly cron is the whole story for a self-hosted instance:
+
+```cron
+17 3 * * * cd /srv/jirrabit && docker compose exec -T jirrabit-db pg_dump -U jirrabit jirrabit | gzip > backups/jirrabit-$(date +%F).sql.gz
+```
+
+A backup you have not restored from is a hypothesis. Once a quarter, restore one
+into a scratch database and check the issue count.
 
 ## Management commands
 

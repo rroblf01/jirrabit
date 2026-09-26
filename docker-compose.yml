@@ -1,5 +1,9 @@
 services:
   jirrabit-db:
+    # On a self-hosted box a container that stays down after a daemon restart is
+    # worse than one that crashes: nothing says why. Every long-lived service
+    # here is unless-stopped, matching the MCP service.
+    restart: unless-stopped
     image: postgres:18.3-alpine3.23
     env_file:
       - .env
@@ -19,6 +23,7 @@ services:
       retries: 10
 
   redis:
+    restart: unless-stopped
     image: redis:8.6.3-alpine3.23
     env_file:
       - .env
@@ -30,6 +35,7 @@ services:
       retries: 10
 
   web:
+    restart: unless-stopped
     build: .
     env_file:
       - .env

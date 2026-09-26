@@ -38,7 +38,11 @@ if not SECRET_KEY:
 
 ALLOWED_HOSTS = [
     host.strip()
-    for host in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "jirrabit.ricardorobles.es,localhost,127.0.0.1").split(",")
+    # Localhost only. A domain belongs in the deployment's .env, not in a
+    # default that every other install would inherit: an unlisted Host gets a
+    # 400, so baking one in silently means every fork answers 400 for a host it
+    # has never heard of while looking correctly configured.
+    for host in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if host.strip()
 ]
 
@@ -205,6 +209,23 @@ if _REDIS_URL:
             "CONFIG": {"hosts": [_REDIS_URL]},
         }
     }
+elif not DEBUG:
+    # In production, an in-process channel layer is a trap rather than a
+    # default: it works perfectly with one worker and silently breaks the moment
+    # a second one exists, because a group_send from one process never reaches
+    # a consumer held by another. The symptom is a board that updates for the
+    # person who moved the card and for nobody else, with nothing in the logs.
+    #
+    # Failing here is the honest option. The alternative -- carrying on quietly
+    # -- is how a realtime feature dies in production while looking healthy in
+    # every test.
+    raise RuntimeError(
+        "REDIS_URL must be set when JIRRABIT_DEBUG=0. Without it the channel "
+        "layer is in-process, so WebSocket groups do not cross workers and "
+        "realtime updates reach only the browser that made them. Set REDIS_URL "
+        "to a redis:// URL, or keep JIRRABIT_DEBUG=1 for a single-process "
+        "development instance."
+    )
 else:
     CHANNEL_LAYERS = {
         "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
