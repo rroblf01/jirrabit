@@ -114,8 +114,11 @@ class APIKey(models.Model):
     def create_with_token(cls, *, owner, name: str, plain: str) -> tuple[APIKey, str]:
         """Create or re-grant a key with a *known* plaintext.
 
-        Idempotent, which matters because ``seed_jirrabit`` and ``seed_demo`` run
-        on every boot:
+        Synchronous, because its only caller is a management command and Django
+        6's BaseCommand has no async support. See the note in
+        ``seed_demo_api_key`` for the reasoning.
+
+        Idempotent, which matters because the demo seed may run on every boot:
 
         - ``token_hash`` is unique, so a repeated run finds the existing row
           instead of failing or creating a second key.
@@ -146,6 +149,7 @@ class APIKey(models.Model):
             if changed:
                 instance.save(update_fields=changed)
         return instance, plain
+
 
     @classmethod
     async def acreate_for(cls, *, owner, name: str) -> tuple[APIKey, str]:

@@ -63,6 +63,13 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opts):
+        # Synchronous on purpose, and not by preference: Django 6's BaseCommand
+        # has no async support at all — execute() calls handle() and writes the
+        # result to stdout, so an ``async def handle`` would hand it a coroutine
+        # and fail with "'coroutine' object has no attribute 'endswith'". A
+        # management command's ORM calls therefore have to be the sync ones.
+        # Everything outside a management command in this project is async; see
+        # jirrabit/api.py for the pattern.
         token = (os.environ.get(ENV_VAR) or "").strip()
         if not token:
             raise CommandError(
@@ -80,13 +87,12 @@ class Command(BaseCommand):
         from django.contrib.auth import get_user_model
 
         username = opts["username"]
-        try:
-            user = get_user_model().objects.get(username=username)
-        except get_user_model().DoesNotExist as exc:
+        user = get_user_model().objects.filter(username=username).first()
+        if user is None:
             raise CommandError(
                 f"No user named {username!r}. Run seed_demo first: it creates the "
                 "demo accounts and this command only attaches a key to one of them."
-            ) from exc
+            )
 
         if not user.is_superuser and not opts["force"]:
             raise CommandError(
