@@ -37,9 +37,9 @@ if not SECRET_KEY:
         raise RuntimeError("JIRRABIT_SECRET_KEY must be set when JIRRABIT_DEBUG=0.")
 
 ALLOWED_HOSTS = [
-    "jirrabit.ricardorobles.es",
-    "localhost",
-    "127.0.0.1",
+    host.strip()
+    for host in os.environ.get("JIRRABIT_ALLOWED_HOSTS", "jirrabit.ricardorobles.es,localhost,127.0.0.1").split(",")
+    if host.strip()
 ]
 
 
