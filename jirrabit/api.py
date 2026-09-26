@@ -485,6 +485,7 @@ _PATCHABLE_FIELDS = {
 @api.patch("/issues/{key}/", response=IssueOut)
 def patch_issue(request, key: str, payload: IssuePatch):
     from ninja.errors import HttpError
+
     issue = _visible_issue(request, key)
     data = payload.dict(exclude_unset=True)
     if "status_id" in data:
@@ -497,12 +498,42 @@ def patch_issue(request, key: str, payload: IssuePatch):
         _validate_assignee(issue.project, data["assignee_id"])
     if "sprint_id" in data:
         _validate_sprint(issue.project, data["sprint_id"])
+
+    # A status change goes through the workflow chokepoint rather than a plain
+    # assignment. _change_status_atomic validates the transition, takes the row
+    # lock, maintains resolved_at and writes the HistoryEntry — none of which a
+    # setattr + save() does. Importing it across apps mirrors board.views, which
+    # already does the same.
+    #
+    # The check runs twice on purpose. The pre-check below rejects an illegal
+    # transition with a 400 *before* anything is written, so a PATCH carrying
+    # both a summary and a bad status does not half-apply. The authoritative
+    # check still happens inside the atomic block, because the workflow may have
+    # changed between the two.
+    new_status_id = data.get("status_id")
+    if new_status_id is not None and new_status_id != issue.status_id:
+        if not issue.status.can_transition_to(Status.objects.get(pk=new_status_id)):
+            raise HttpError(400, "transición de estado no permitida por el workflow")
+
+    # status_id is applied separately below, so drop it from the generic loop.
+    data.pop("status_id", None)
     for field, value in data.items():
         if field not in _PATCHABLE_FIELDS:
             continue
         setattr(issue, field, value)
     issue.save()
-    issue.refresh_from_db()
+
+    if new_status_id is not None and new_status_id != issue.status_id:
+        from issues.views import _change_status_atomic
+
+        _, _, allowed = _change_status_atomic(issue.pk, new_status_id, request.user.pk)
+        if not allowed:
+            raise HttpError(400, "transición de estado no permitida por el workflow")
+        # The in-memory copy predates the transition, so drop it before the
+        # response is built: a later save() from this stale object would
+        # otherwise write the old status back over the new one.
+        issue.refresh_from_db()
+
     return IssueOut.from_issue(issue)
 
 

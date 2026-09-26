@@ -4,11 +4,13 @@ Cover: auth, project + issue CRUD via UI, inline edit, comment lifecycle,
 workflow validation, permissions, REST API, JQL search. Each test owns
 its setup; no shared fixtures.
 """
+import json
+
 from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from issues.models import Issue, IssueType, Priority, Status
+from issues.models import HistoryEntry, Issue, IssueType, Priority, Status
 from projects.models import Project, ProjectMembership
 
 User = get_user_model()
@@ -211,6 +213,95 @@ class APITests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.issue.refresh_from_db()
         self.assertEqual(self.issue.summary, "via API")
+
+    def test_api_patch_status_rejects_without_partial_writes(self):
+        """A rejected transition must not apply the rest of the PATCH.
+
+        Otherwise an agent that sends summary and status together gets half the
+        change and a 400, with no way to tell which half landed.
+        """
+        in_progress = Status.objects.get(name="In Progress")
+        done = Status.objects.get(name="Done")
+        # The issue starts in To Do, and allowed_next is read off the status
+        # being left, so this is the row that has to be restricted.
+        todo = Status.objects.get(name="To Do")
+        todo.allowed_next.set([in_progress])
+
+        r = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"summary": "should not stick", "status_id": done.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400)
+        self.issue.refresh_from_db()
+        self.assertNotEqual(self.issue.summary, "should not stick")
+
+    def test_api_patch_status_respects_the_workflow(self):
+        """A status change over the API must obey Status.allowed_next.
+
+        The API used to assign status_id directly, which skipped the transition
+        check, the row lock, the resolved_at bookkeeping and the HistoryEntry.
+        """
+        todo = Status.objects.get(name="To Do")
+        in_progress = Status.objects.get(name="In Progress")
+        done = Status.objects.get(name="Done")
+
+        allowed = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"status_id": in_progress.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(allowed.status_code, 200)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.status, in_progress)
+        self.assertEqual(HistoryEntry.objects.filter(issue=self.issue).count(), 1)
+
+        # Close the workflow *from the current status*, which is In Progress by
+        # now: allowed_next is read off the status being left, so restricting
+        # To Do here would have no effect on this transition.
+        in_progress.allowed_next.set([todo])
+        denied = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"status_id": done.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(denied.status_code, 400)
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.status, in_progress)
+        # The rejected attempt must not leave a history row behind.
+        self.assertEqual(HistoryEntry.objects.filter(issue=self.issue).count(), 1)
+
+    def test_api_patch_status_to_the_current_one_is_a_noop(self):
+        current = self.issue.status
+        before = HistoryEntry.objects.filter(issue=self.issue).count()
+        r = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"status_id": current.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(HistoryEntry.objects.filter(issue=self.issue).count(), before)
+
+    def test_api_patch_status_maintains_resolved_at(self):
+        done = Status.objects.get(name="Done")
+        r = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"status_id": done.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.issue.refresh_from_db()
+        self.assertIsNotNone(self.issue.resolved_at)
+
+        back = Status.objects.get(name="In Progress")
+        r = self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"status_id": back.pk}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200)
+        self.issue.refresh_from_db()
+        self.assertIsNone(self.issue.resolved_at)
 
 
 class WorkflowEditorTests(TestCase):
