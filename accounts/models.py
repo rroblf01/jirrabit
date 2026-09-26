@@ -98,7 +98,7 @@ class APIKey(models.Model):
     def create_for(cls, *, owner, name: str) -> tuple[APIKey, str]:
         """Create a new key. Returns ``(model, plaintext_token)``.
 
-        The plaintext token is **only** available here.
+        The plaintext is **only** available here.
         """
         import secrets
         plain = secrets.token_urlsafe(36)
@@ -108,6 +108,43 @@ class APIKey(models.Model):
             prefix=plain[:8],
             token_hash=cls.hash_token(plain),
         )
+        return instance, plain
+
+    @classmethod
+    def create_with_token(cls, *, owner, name: str, plain: str) -> tuple[APIKey, str]:
+        """Create or re-grant a key with a *known* plaintext.
+
+        Idempotent, which matters because ``seed_jirrabit`` and ``seed_demo`` run
+        on every boot:
+
+        - ``token_hash`` is unique, so a repeated run finds the existing row
+          instead of failing or creating a second key.
+        - ``revoked_at`` is cleared. ``get_or_create`` would otherwise return a
+          revoked row and leave the caller with a token that does not work,
+          with no indication of why.
+        - ``last_used_at`` is left alone, so re-seeding does not rewrite history.
+
+        Only for tokens an operator has chosen deliberately. Prefer
+        :meth:`create_for` anywhere the token should be unguessable.
+        """
+        digest = cls.hash_token(plain)
+        instance, created = cls.objects.get_or_create(
+            token_hash=digest,
+            defaults={"owner": owner, "name": name, "prefix": plain[:8]},
+        )
+        if not created:
+            changed = []
+            if instance.revoked_at is not None:
+                instance.revoked_at = None
+                changed.append("revoked_at")
+            if instance.owner_id != owner.pk:
+                instance.owner = owner
+                changed.append("owner")
+            if instance.name != name:
+                instance.name = name
+                changed.append("name")
+            if changed:
+                instance.save(update_fields=changed)
         return instance, plain
 
     @classmethod

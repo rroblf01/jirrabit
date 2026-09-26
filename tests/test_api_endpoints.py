@@ -6,6 +6,8 @@ here checks the negative case as well as the positive one.
 """
 
 import json
+import os
+from unittest import mock
 
 from django.test import Client, TestCase
 
@@ -261,3 +263,98 @@ class APISavedFilterTests(TestCase):
         )
         names = {f["name"] for f in self.c.get("/api/v1/filters/").json()}
         self.assertIn(scoped.name, names)
+
+
+class SeedDemoAPIKeyTests(TestCase):
+    """The published demo token, and the guards around it."""
+
+    TOKEN = "jirrabit-demo-token-0123456789"
+
+    def _demo(self, **extras):
+        from tests.test_smoke import _make_user
+
+        defaults = {"is_superuser": True, "is_staff": True}
+        defaults.update(extras)
+        return _make_user("alice_pm", **defaults)
+
+    def _run(self, token=None, **kwargs):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        with mock.patch.dict(os.environ, {} if token is None else {"JIRRABIT_DEMO_API_KEY": token}):
+            return call_command("seed_demo_api_key", stdout=out, stderr=out, **kwargs)
+
+    def test_refuses_without_the_env_var(self):
+        """It must never invent a token: a predictable one is a published one."""
+        from django.core.management.base import CommandError
+
+        self._demo()
+        with self.assertRaises(CommandError):
+            self._run(token=None)
+
+    def test_refuses_a_short_token(self):
+        from django.core.management.base import CommandError
+
+        self._demo()
+        with self.assertRaises(CommandError):
+            self._run(token="tooshort")
+
+    def test_mints_a_working_key(self):
+
+        from accounts.models import APIKey
+
+        user = self._demo()
+        self._run(token=self.TOKEN)
+        key = APIKey.objects.get(token_hash=APIKey.hash_token(self.TOKEN))
+        self.assertEqual(key.owner, user)
+
+        c = Client()
+        r = c.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + self.TOKEN)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["username"], "alice_pm")
+
+    def test_is_idempotent(self):
+        from accounts.models import APIKey
+
+        self._demo()
+        self._run(token=self.TOKEN)
+        self._run(token=self.TOKEN)
+        self.assertEqual(APIKey.objects.filter(token_hash=APIKey.hash_token(self.TOKEN)).count(), 1)
+
+    def test_regrants_a_revoked_key(self):
+        """seed_demo may run on every boot, so a revoked demo token has to come back."""
+        from django.utils import timezone
+
+        from accounts.models import APIKey
+
+        self._demo()
+        self._run(token=self.TOKEN)
+        key = APIKey.objects.get(token_hash=APIKey.hash_token(self.TOKEN))
+        APIKey.objects.filter(pk=key.pk).update(revoked_at=timezone.now())
+
+        self._run(token=self.TOKEN)
+        key.refresh_from_db()
+        self.assertIsNone(key.revoked_at)
+
+        c = Client()
+        r = c.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + self.TOKEN)
+        self.assertEqual(r.status_code, 200)
+
+    def test_refuses_a_non_superuser_without_force(self):
+        from django.core.management.base import CommandError
+
+        self._demo(is_superuser=False)
+        with self.assertRaises(CommandError):
+            self._run(token=self.TOKEN)
+        with mock.patch.dict(os.environ, {"JIRRABIT_DEMO_API_KEY": self.TOKEN}):
+            from django.core.management import call_command
+
+            call_command("seed_demo_api_key", force=True, verbosity=0)
+
+    def test_refuses_an_unknown_user(self):
+        from django.core.management.base import CommandError
+
+        with self.assertRaises(CommandError):
+            self._run(token=self.TOKEN)
