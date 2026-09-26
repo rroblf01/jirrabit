@@ -55,7 +55,13 @@ async def _visible_issue(request, key: str) -> Issue:
 
 
 class APIKeyAuth(HttpBearer):
-    """Bearer token auth backed by ``accounts.APIKey``."""
+    """Bearer token auth backed by ``accounts.APIKey``.
+
+    Deliberately synchronous, and the only sync method left in this file:
+    django-ninja calls ``authenticate`` outside the event loop, so a coroutine
+    here would never be awaited. That is also why the ``last_used_at`` write
+    below uses the sync ORM — it is the one place the rule cannot be applied.
+    """
 
     def authenticate(self, request, token: str):
         if not token:

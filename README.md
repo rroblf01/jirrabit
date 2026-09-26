@@ -130,6 +130,33 @@ To try it: register at <http://localhost:8000>, then create an API key under
 your profile (**API keys**). The plaintext is shown once — only its SHA-256 is
 stored. Then point an MCP client at it.
 
+#### The public demo token
+
+To try the MCP without registering, `seed_demo` can be told to hand out one
+fixed, published API key for `alice_pm`:
+
+```bash
+docker compose exec -T \
+  -e JIRRABIT_DEMO_API_KEY=jirrabit-public-demo-token-2026-do-not-use \
+  web python manage.py seed_demo_api_key
+```
+
+which is then usable as:
+
+```json
+{ "instanceUrl": "http://localhost:8000", "apiKey": "jirrabit-public-demo-token-2026-do-not-use" }
+```
+
+It is opt-in and idempotent: run it as many times as you like, and the same
+token always lands on the same key rather than piling up duplicates. It is a
+separate command rather than part of `seed_demo` so that `JIRRABIT_DEMO_API_KEY`
+is not a switch that quietly publishes credentials on every demo seed.
+
+**This token is public by design, because it is printed in this README. Anyone
+who can reach your instance can act as `alice_pm`.** It is a demo convenience for
+a local `docker compose up`, not a credential. Do not use it on anything that
+matters, and do not copy it to a shared or reachable deployment.
+
 With the MCP in Docker, the instance is reachable by its compose service name.
 A stdio client launches the binary through `docker exec`, and the transport has
 to be forced because the image sets `JIRRABIT_MCP_TRANSPORT=http`:
@@ -194,6 +221,7 @@ The `JIRRABIT_DB_ENGINE=sqlite` prefix is required for any host-side
 |---|---|
 | `seed_jirrabit` | Create the default statuses, priorities and issue types. Idempotent |
 | `seed_demo` | Build a demo project. **Wipes the database** unless `--no-clear` |
+| `seed_demo_api_key` | Give `alice_pm` a fixed API key from `JIRRABIT_DEMO_API_KEY`. Opt-in, idempotent, and the token is public — see [above](#the-public-demo-token) |
 | `auto_archive --days N` | Archive done issues resolved more than N days ago. For a cron job |
 | `purge_old_data --days N` | Delete old audit entries and read notifications. For a cron job |
 | `import_jira data.csv --project KEY --reporter USER` | Import a Jira CSV export |
