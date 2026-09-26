@@ -25,6 +25,19 @@ cd jirrabit
 docker compose up -d
 ```
 
+That does not fetch the MCP submodule, which the compose file only needs when
+you ask for the `mcp` profile. To get everything:
+
+```bash
+git clone --recurse-submodules https://github.com/rroblf01/jirrabit
+```
+
+or, in a clone you already have:
+
+```bash
+git submodule update --init
+```
+
 Edit `.env` first if you need to change anything — the compose file reads
 exactly `.env`, so renaming it will not be picked up.
 
@@ -91,6 +104,77 @@ Two traps worth knowing:
 - **Behind TLS, set your own domain in `JIRRABIT_ALLOWED_HOSTS`** or every
   request answers 400. If a containerised jirrabit-mcp will reach the instance
   as `host.docker.internal`, include that name too.
+
+## The MCP server
+
+[jirrabit-mcp](https://github.com/rroblf01/jirrabit-mcp) exposes this instance
+over MCP using Atlassian's Jira tool names, so an agent that already knows Jira
+needs no new vocabulary. It is a submodule of this repository, pinned to a
+commit.
+
+```bash
+git submodule update --init          # once, after cloning
+docker compose --profile mcp up -d   # both services, one network
+```
+
+The MCP service is behind a profile so that a plain `docker compose up -d` stays
+a fast Python-only loop and does not pay for a Go build.
+
+### Using it
+
+The server holds no credentials. Every tool call carries its own `instanceUrl`
+and `apiKey`, so one deployment serves many jirrabit instances and one person's
+key is never sent to another person's data.
+
+To try it: register at <http://localhost:8000>, then create an API key under
+your profile (**API keys**). The plaintext is shown once — only its SHA-256 is
+stored. Then point an MCP client at it.
+
+With the MCP in Docker, the instance is reachable by its compose service name.
+A stdio client launches the binary through `docker exec`, and the transport has
+to be forced because the image sets `JIRRABIT_MCP_TRANSPORT=http`:
+
+```json
+{
+  "mcp": {
+    "jirrabit": {
+      "type": "local",
+      "command": [
+        "docker", "exec", "-i",
+        "-e", "JIRRABIT_MCP_TRANSPORT=stdio",
+        "jirrabit-jirrabit-mcp-1", "/usr/local/bin/jirrabit-mcp"
+      ],
+      "enabled": true
+    }
+  }
+}
+```
+
+and pass `"instanceUrl": "http://web:8000"` with the key on each call. An HTTP
+client can connect to <http://localhost:8082/mcp> instead, with no
+configuration at all beyond the URL.
+
+`web` is in the default `JIRRABIT_ALLOWED_HOSTS` for exactly this reason: Django
+answers 400 for an unlisted `Host`, and inside the compose network the MCP's
+requests arrive as `Host: web:8000`.
+
+### Updating the submodule
+
+The pointer is pinned to a commit, which is the point: the compose always builds
+the version this repository recorded, so MCP work cannot reach your stack until
+you bump it deliberately.
+
+```bash
+git submodule update --remote jirrabit-mcp
+git add jirrabit-mcp && git commit -m "chore: bump jirrabit-mcp"
+docker compose --profile mcp up -d --build
+```
+
+The last step is not optional. A bumped pointer does not rebuild a running
+container, and the missing `--build` would reuse the previous image.
+
+If you develop the MCP in a separate checkout, set `MCP_CONTEXT` in `.env` to
+that path and the compose builds from it instead.
 
 ## Development
 
