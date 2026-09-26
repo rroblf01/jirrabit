@@ -17,6 +17,21 @@ async def _aget_project(key):
         raise Http404(f"Project '{key}' not found") from exc
 
 
+async def _asave_each(qs, field, value):
+    """Set one field on every issue in ``qs``, one save at a time.
+
+    Deliberately not ``qs.aupdate(**{field: value})``. A bulk update does not
+    send post_save, and core/apps.py wires four receivers to it — notifications,
+    the audit log, webhooks and the realtime board broadcast. Bulk-editing five
+    issues on the board would otherwise leave watchers un-notified, the audit
+    log empty and every other browser showing a stale board. Per-row saves are
+    more queries, and that is the price of the four side effects.
+    """
+    async for issue in qs:
+        setattr(issue, field, value)
+        await issue.asave(update_fields=[field, "updated_at"])
+
+
 async def _filtered_issues_qs(project, request):
     qs = project.issues.select_related("status", "priority", "issue_type", "assignee")
     if not request.GET.get("archived"):
@@ -160,9 +175,27 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
         if action == "delete":
             await qs.adelete()
         elif action == "status":
+            from asgiref.sync import sync_to_async
+
+            from issues.views import _change_status_atomic
+
             if not await Status.objects.filter(pk=value).aexists():
                 return HttpResponseBadRequest("status inválido")
-            await qs.aupdate(status_id=int(value))
+            target_id = int(value)
+            # A status change goes through issues.views._change_status_atomic
+            # rather than qs.aupdate(status_id=...). Two things break if it
+            # does not: the workflow is not consulted, so an illegal transition
+            # goes through; and aupdate is silent about post_save, so
+            # notifications, the audit log, webhooks and the realtime broadcast
+            # are all skipped, and no HistoryEntry is written. The chokepoint
+            # does all of that per issue and holds the row lock, so it is the
+            # only correct way to move an issue between statuses.
+            async for issue in qs.only("pk"):
+                _prev, _new, ok = await sync_to_async(
+                    _change_status_atomic, thread_sensitive=True
+                )(issue.pk, target_id, request.user.pk)
+                if not ok:
+                    return HttpResponseBadRequest("transición de estado no permitida por el workflow")
         elif action == "assignee":
             if value:
                 from django.db.models import Q as _Q
@@ -173,19 +206,19 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
                 ).aexists()
                 if not ok:
                     return HttpResponseBadRequest("usuario no en proyecto")
-            await qs.aupdate(assignee_id=int(value) if value else None)
+            await _asave_each(qs, "assignee_id", int(value) if value else None)
         elif action == "sprint":
             if value and not await Sprint.objects.filter(pk=value, project=project).aexists():
                 return HttpResponseBadRequest("sprint no en proyecto")
-            await qs.aupdate(sprint_id=int(value) if value else None)
+            await _asave_each(qs, "sprint_id", int(value) if value else None)
         elif action == "priority":
             if not await Priority.objects.filter(pk=value).aexists():
-                return HttpResponseBadRequest("priority inválido")
-            await qs.aupdate(priority_id=int(value))
+                return HttpResponseBadRequest("prioridad no válida")
+            await _asave_each(qs, "priority_id", int(value))
         elif action == "epic":
             if value and not await Epic.objects.filter(pk=value, project=project).aexists():
                 return HttpResponseBadRequest("epic no en proyecto")
-            await qs.aupdate(epic_id=int(value) if value else None)
+            await _asave_each(qs, "epic_id", int(value) if value else None)
         elif action == "label_add":
             if not value or not await Label.objects.filter(pk=value).aexists():
                 return HttpResponseBadRequest("label inválido")

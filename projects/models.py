@@ -50,6 +50,13 @@ class Project(models.Model):
         return self.issue_counter
 
     async def anext_issue_number(self):
+        # One of two deliberate aupdate() calls in the project. This one must
+        # stay: it is a counter bump on the hot path of every Issue.save(), and
+        # going through asave() would fire the Project post_save receivers —
+        # an audit row and a "project updated" notification every single time
+        # anybody created an issue. The counter is an implementation detail, not
+        # a user-visible edit, so being signal-free is the correct behaviour.
+        # See board/views.py::_asave_each for the opposite case.
         await Project.objects.filter(pk=self.pk).aupdate(
             issue_counter=models.F("issue_counter") + 1
         )
@@ -250,6 +257,17 @@ class Sprint(models.Model):
         self.status = "closed"
         self.closed_at = timezone.now()
         await self.asave()
-        incomplete = Issue.objects.filter(sprint=self).exclude(status__category="done")
+        incomplete = Issue.objects.filter(sprint=self).exclude(
+            status__category="done"
+        ).select_related("project", "status")
         new_sprint_id = carry_to.pk if carry_to is not None else None
-        await incomplete.aupdate(sprint_id=new_sprint_id)
+        # One asave per row rather than aupdate(sprint_id=...). QuerySet.aupdate
+        # is silent about post_save, and four receivers hang off it —
+        # notifications, audit, webhooks and the realtime board broadcast. A bulk
+        # aupdate would move every issue off the sprint while leaving watchers
+        # un-notified, the audit log empty and the board stale until a manual
+        # refresh. select_related keeps the receivers from issuing a query per
+        # row for instance.project.
+        async for issue in incomplete:
+            issue.sprint_id = new_sprint_id
+            await issue.asave(update_fields=["sprint_id", "updated_at"])

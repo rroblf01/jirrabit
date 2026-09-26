@@ -140,6 +140,20 @@ notifications, audit, webhooks and the realtime broadcast. So:
 Use `asave()`. `accounts.signals` also maintains `User.unread_count` from
 `post_save`, so a bulk update leaves the badge wrong.
 
+This trap is **worse in async code**, which is why it is called out separately:
+`aupdate()` is the obvious async spelling of `update()`, so reaching for it feels
+like progress when it is actually a silent regression. Two paths had exactly
+this bug and both are now covered by `tests/test_bulk_updates.py`:
+
+- `board.BulkUpdateView` set `status_id` with `aupdate()`, which skipped the
+  workflow check, `HistoryEntry` and all four receivers.
+- `Sprint.aclose` moved issues between sprints with `aupdate(sprint_id=...)`,
+  so watchers were never notified and the board went stale.
+
+The general rule: in a request path, prefer a loop of `asave()` over any bulk
+write. If a bulk write is genuinely right, it must be one of the two exceptions
+documented under **Workflow**, and it must say in a comment why.
+
 ### Workflow
 
 `Status.allowed_next` is a self-M2M. **An empty list means an open workflow** —
@@ -150,16 +164,28 @@ validates, takes `select_for_update`, sets or clears `resolved_at` by
 `category == "done"`, and writes a `HistoryEntry`. `ChangeStatusView`,
 `AdvanceStatusView` and `board.MoveCardView` all delegate to it.
 
-Known gaps, verified:
+Both write paths now go through it, including the two that used to bypass it:
 
-- **`jirrabit/api.py`'s `patch_issue` bypasses it.** It `setattr`s `status_id`
-  and calls `save()`, so the REST API allows illegal transitions and writes no
-  `HistoryEntry`. Route status changes through a dedicated endpoint.
-- **`board.BulkUpdateView`** uses a raw `aupdate(status_id=...)` for the same
-  reason. Do not copy that pattern.
+- `jirrabit/api.py`'s `patch_issue` applies `status_id` separately from the rest
+  of the PATCH, through `sync_to_async(_change_status_atomic)`, and re-reads the
+  issue afterwards because the in-memory copy predates the transition.
+- `board.BulkUpdateView` loops the chokepoint over the selected issues, so the
+  board cannot reach a status the workflow forbids.
+
+Remaining gaps, verified:
+
 - `HistoryEntry` is written by only two code paths, so any "changelog" built from
   it is incomplete by construction. `AuditEntry` is the separate, signal-driven
   history and has **no actor**.
+- **`core/webhooks.py`'s `auto_assign_lead`** uses a raw `aupdate()` on purpose.
+  It runs *from* a webhook that fired off `Issue.post_save`, so `asave()` would
+  re-enter the dispatch loop forever. It therefore leaves no audit row.
+- **`Project.anext_issue_number`** also uses `aupdate()`, to bump a counter
+  without firing the `Project` receivers on every issue creation.
+
+`aupdate()` and `adelete()` are otherwise banned in request paths. If a bulk
+write has to reach several issues, use `board/views.py::_asave_each`, which
+saves row by row and says why.
 
 ### Permissions
 

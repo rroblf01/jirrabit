@@ -311,6 +311,12 @@ async def _action_auto_assign_lead(event, payload, state):
     lead = await Project.objects.filter(pk=issue.project_id).values_list("lead_id", flat=True).afirst()
     if not lead:
         return
+    # aupdate, not asave, and that is the point: this action runs *from* a
+    # webhook that fired off Issue.post_save. Saving the issue would fire
+    # post_save again and re-enter the webhook dispatch, forever. The cost is
+    # that this one write leaves no audit row and no notification, which is a
+    # real gap in the audit trail — accepted to avoid unbounded recursion, and
+    # worth revisiting if the dispatcher ever grows a re-entrancy guard.
     await Issue.objects.filter(pk=issue.pk).aupdate(assignee_id=lead)
     logger.info("[webhook] %s auto-asignada al lead del proyecto", key)
 
