@@ -5,3 +5,9 @@ __pycache__/
 db.sqlite3
 staticfiles/
 .pytest_cache/
+
+# The MCP server submodule. It is built by its own Dockerfile using itself as
+# the build context, so it must not be here: this file governs the web image's
+# context, and without this line `COPY . .` would ship the Go sources inside
+# the Django image.
+jirrabit-mcp/
