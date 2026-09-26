@@ -1,0 +1,3 @@
+[submodule "jirrabit-mcp"]
+	path = jirrabit-mcp
+	url = git@github.com:rroblf01/jirrabit-mcp.git
