@@ -32,6 +32,139 @@ async def _asave_each(qs, field, value):
         await issue.asave(update_fields=[field, "updated_at"])
 
 
+async def _apply_board_order(project, status, ordered_keys, user):
+    """Persist a board column's order, moving a card if its status changed.
+
+    ``rank`` is the card's index inside its ``(project, status)`` column. The
+    whole column is renumbered from zero on every call rather than nudging a
+    float midpoint: columns hold tens of cards, and a dense index is an
+    invariant that can be checked by reading one number, whereas gap-filling
+    needs an epsilon and drifts into collisions after enough inserts.
+
+    The status change, when there is one, goes through
+    issues.views._change_status_atomic so the workflow is consulted, the row is
+    locked, resolved_at is maintained and a HistoryEntry is written. The rank
+    writes then use asave(), so the four post_save receivers fire for every
+    card whose position changed — a reorder that nobody is told about is a
+    reorder that only the person who made it can see.
+
+    Returns the issues in their new order. Raises ValueError on keys that are
+    not in this project or not in this column.
+    """
+    from asgiref.sync import sync_to_async
+
+    from issues.views import _change_status_atomic
+
+    wanted = list(dict.fromkeys(ordered_keys))  # de-dupe, keep order
+    if not wanted:
+        return []
+
+    # Every named card has to be in this project, wherever it currently sits.
+    # A card from another column is a card being dragged here; a card from
+    # another project is a bad request.
+    found = {
+        i.key: i
+        async for i in Issue.objects.filter(project=project, key__in=wanted).only(
+            "pk", "key", "status_id", "rank"
+        )
+    }
+    unknown = [k for k in wanted if k not in found]
+    if unknown:
+        raise ValueError(f"no pertenecen al proyecto: {', '.join(unknown)}")
+
+    # Status changes first, so the column is settled before it is renumbered.
+    # Remember each source column, because a card leaving it leaves a hole.
+    sources: dict[int, list] = {}
+    for key in wanted:
+        issue = found[key]
+        if issue.status_id == status.pk:
+            continue
+        sources.setdefault(issue.status_id, []).append(key)
+        moved, _new, ok = await sync_to_async(
+            _change_status_atomic, thread_sensitive=True
+        )(issue.pk, status.pk, user.pk)
+        if not ok:
+            raise ValueError(f"transición de estado no permitida: {key}")
+        found[key] = moved
+
+    # Named cards first, in the order given. Cards the caller did not mention
+    # follow, keeping their own order, so a partial list from a stale browser
+    # tab means "these to the top" rather than an error.
+    rest = [
+        i.key
+        async for i in Issue.objects.filter(project=project, status=status)
+        .order_by("rank", "-updated_at")
+        .only("key")
+        if i.key not in set(wanted)
+    ]
+    await _renumber(project, status.pk, wanted + rest)
+
+    for source_status_id in sources:
+        # Close the gap the departed cards left behind.
+        await _renumber(project, source_status_id)
+
+    return [found[k] for k in wanted]
+
+
+async def _renumber(project, status_id, keys=None):
+    """Make ``rank`` a dense 0..n-1 run over ``keys`` in ``status_id``.
+
+    Without ``keys`` the column's current (rank, -updated_at) order is kept and
+    only the numbering is closed up, which is what a card leaving the column
+    needs — the survivors should not end up holding ranks 0 and 2.
+
+    Only rows whose rank actually moves are saved. That is deliberate: a drop
+    should not rewrite all twenty cards in a column, and each save fires the
+    four post_save receivers — notifications, audit, webhooks and the realtime
+    broadcast. asave(), not aupdate(), so another browser's board updates live
+    instead of going stale until a manual refresh.
+    """
+    if keys is None:
+        keys = [
+            i.key
+            async for i in Issue.objects.filter(project=project, status_id=status_id)
+            .order_by("rank", "-updated_at")
+            .only("key")
+        ]
+    for index, key in enumerate(keys):
+        issue = await Issue.objects.filter(
+            key=key, project=project, status_id=status_id
+        ).only("pk", "rank").afirst()
+        if issue is None or issue.rank == index:
+            continue
+        issue.rank = index
+        await issue.asave(update_fields=["rank", "updated_at"])
+
+
+async def _append_to_column(issues, status):
+    """Place one or more cards at the end of ``status``, in the order given.
+
+    Used by every path that changes a card's status without any position
+    information: the move endpoint, the advance button, a bulk status change.
+    Appending is the only thing they can honestly do.
+
+    One pass, not a renumber per card. The first version called _renumber once
+    per issue, which made a bulk edit of N cards quadratic, and it looked for
+    "the last card" without excluding the card being placed — so it read the
+    card's own rank and set it one higher, then immediately renumbered it back
+    down. Every card was saved twice for no reason.
+
+    The column a card leaves keeps a hole in its ranks. That is harmless: rank
+    is a sort key, the next drag in that column renumbers it densely, and
+    nothing reads the gap.
+    """
+    cards = [i for i in issues if i is not None]
+    if not cards:
+        return
+    last = await Issue.objects.filter(
+        project=cards[0].project, status_id=status.pk
+    ).exclude(pk__in=[i.pk for i in cards]).order_by("-rank").afirst()
+    base = (last.rank + 1) if last is not None else 0
+    for offset, issue in enumerate(cards):
+        issue.rank = base + offset
+        await issue.asave(update_fields=["rank", "updated_at"])
+
+
 async def _filtered_issues_qs(project, request):
     qs = project.issues.select_related("status", "priority", "issue_type", "assignee")
     if not request.GET.get("archived"):
@@ -148,7 +281,45 @@ class MoveCardView(AsyncLoginRequiredMixin, View):
         )(issue.pk, status.pk, request.user.pk)
         if not ok:
             return HttpResponseBadRequest(f"Transición no permitida: {issue.status} → {status}")
+        # Land the card at the end of its new column rather than leaving a rank
+        # that belongs to the old one. This endpoint carries no position, so
+        # appending is the only thing it can honestly do; the drag in board.js
+        # uses ReorderView, which does know the order.
+        # ``issue`` is the instance _change_status_atomic returned, so it
+        # already carries the new status. No re-read.
+        await _append_to_column([issue], status)
         return await arender(request, "board/_card.html", {"issue": issue})
+
+
+class ReorderView(AsyncLoginRequiredMixin, View):
+    """Persist a column's card order after a drag.
+
+    Takes the whole column rather than ``before``/``after`` neighbours. That is
+    more bytes, and in exchange it is idempotent, has no midpoint arithmetic to
+    get wrong, and cannot desynchronise from what the user is looking at when a
+    second browser has moved a card in the meantime.
+    """
+
+    async def post(self, request, key):
+        project = await _aget_project(key)
+        await aassert_can_edit(request.user, project)
+        status_id = request.POST.get("status")
+        keys = request.POST.getlist("keys")
+        if not status_id:
+            return HttpResponseBadRequest("status requerido")
+        if not keys:
+            return HttpResponseBadRequest("keys requeridas")
+        try:
+            status = await Status.objects.aget(pk=status_id)
+        except Status.DoesNotExist:
+            return HttpResponseBadRequest("status inválido")
+        try:
+            await _apply_board_order(project, status, keys, request.user)
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        # The client already has the cards where it put them; re-rendering them
+        # would fight the optimistic DOM move it just did.
+        return HttpResponse(status=204)
 
 
 class BulkUpdateView(AsyncLoginRequiredMixin, View):
@@ -190,12 +361,17 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             # are all skipped, and no HistoryEntry is written. The chokepoint
             # does all of that per issue and holds the row lock, so it is the
             # only correct way to move an issue between statuses.
+            target_status = await Status.objects.aget(pk=target_id)
+            moved_issues = []
             async for issue in qs.only("pk"):
-                _prev, _new, ok = await sync_to_async(
+                moved, _new, ok = await sync_to_async(
                     _change_status_atomic, thread_sensitive=True
                 )(issue.pk, target_id, request.user.pk)
                 if not ok:
                     return HttpResponseBadRequest("transición de estado no permitida por el workflow")
+                moved_issues.append(moved)
+            # rank is per-column, so a bulk status change has to re-rank too.
+            await _append_to_column(moved_issues, target_status)
         elif action == "assignee":
             if value:
                 from django.db.models import Q as _Q
@@ -259,11 +435,15 @@ class BacklogView(AsyncLoginRequiredMixin, AsyncTemplateView):
         sprints = [s async for s in project.sprints.exclude(status="closed")]
         sprint_ids = [s.pk for s in sprints]
         # Single query for all sprint issues; group in memory to avoid N+1.
+        # Ordered by -updated_at only, matching the unassigned group below.
+        # Issue.rank is the index inside a *board column*, so it means nothing
+        # here: sorting by it would order the backlog by whatever column index
+        # each card happens to hold.
         sprint_issues = [
             i async for i in
             project.issues.filter(sprint_id__in=sprint_ids)
             .select_related("status", "priority", "issue_type", "assignee")
-            .order_by("rank", "-updated_at")
+            .order_by("-updated_at")
         ]
         by_sprint: dict[int, list] = {sid: [] for sid in sprint_ids}
         for i in sprint_issues:

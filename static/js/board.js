@@ -41,17 +41,24 @@
         // Optimistic: remember origin column so we can revert on failure.
         const originCol = dragged.parentElement;
         const originNext = dragged.nextElementSibling;
-        col.appendChild(dragged);
+        // Drop where the pointer is, not at the end. Without this the board can
+        // only change a card's column, which is why rank was never written: the
+        // drag had no way to say *where* in the column.
+        insertAtPointer(ev, col, dragged);
         recountColumns();
         const csrf = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        const form = new FormData();
-        form.append('status', statusId);
+        // The whole column goes up, in display order. The server renumbers from
+        // this, so a partial or stale list is still safe: cards it omits keep
+        // their relative order after the ones it names.
+        const payload = new FormData();
+        payload.append('status', statusId);
+        for (const k of columnKeys(col)) payload.append('keys', k);
         let res;
         try {
-          res = await fetch(`/board/card/${key}/move/`, {
+          res = await fetch(`/board/${col.dataset.projectKey}/reorder/`, {
             method: 'POST',
             headers: { 'X-CSRFToken': csrf, 'HX-Request': 'true' },
-            body: form,
+            body: payload,
           });
         } catch (e) {
           if (originCol) originCol.insertBefore(dragged, originNext || null);
@@ -68,18 +75,27 @@
             window.jirrabit.toast(msg.slice(0, 140), 'err');
           return;
         }
-        const html = await res.text();
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html.trim();
-        const replacement = tmp.firstElementChild;
-        if (replacement) {
-          dragged.replaceWith(replacement);
-          attach(replacement.parentElement);
-        }
         recountColumns();
       });
     });
     recountColumns(root);
+  }
+
+  // The ordered issue keys currently in a column, as the user sees it.
+  function columnKeys(col) {
+    return Array.from(col.querySelectorAll('.card-issue')).map(c => c.dataset.key);
+  }
+
+  // Place the dragged card at the drop point: before the first card whose
+  // midpoint the pointer is above, otherwise at the end.
+  function insertAtPointer(ev, col, dragged) {
+    const siblings = Array.from(col.querySelectorAll('.card-issue')).filter(c => c !== dragged);
+    const before = siblings.find(c => {
+      const box = c.getBoundingClientRect();
+      return ev.clientY < box.top + box.height / 2;
+    });
+    if (before) col.insertBefore(dragged, before);
+    else col.appendChild(dragged);
   }
 
   // Mark a .kanban after binding so we don't double-attach listeners on

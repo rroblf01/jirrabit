@@ -633,6 +633,11 @@ class AdvanceStatusView(AsyncLoginRequiredMixin, View):
         issue, target, ok = await sync_to_async(_change_status_atomic)(issue.pk, target.pk, request.user.pk)
         if not ok:
             return HttpResponseBadRequest("transición no permitida")
+        # rank is the index inside a board column, so a card that changes status
+        # has to be re-ranked or it carries a number from the column it left.
+        from board.views import _append_to_column
+
+        await _append_to_column([issue], target)
         if request.htmx and not request.headers.get("HX-Boosted"):
             if request.headers.get("X-Source") == "board":
                 return await arender(

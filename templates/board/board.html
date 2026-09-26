@@ -95,6 +95,7 @@
   {% for col in columns %}
   <div class="column{% if col.status.wip_limit and col.issues|length > col.status.wip_limit %} wip-over{% endif %}"
        id="col-{{ col.status.pk }}" data-status-id="{{ col.status.pk }}"
+       data-project-key="{{ project.key }}"
        {% if col.status.wip_limit %}data-wip-limit="{{ col.status.wip_limit }}"{% endif %}>
     <h3>{{ col.status.name }}
       <span class="count" id="col-count-{{ col.status.pk }}">{{ col.issues|length }}{% if col.status.wip_limit %} / {{ col.status.wip_limit }}{% endif %}</span>

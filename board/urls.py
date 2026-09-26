@@ -15,5 +15,6 @@ urlpatterns = [
     path("<str:key>/views/<int:pk>/delete/", views.BoardViewDeleteView.as_view(),
          name="view_delete"),
     path("card/<str:key>/move/", views.MoveCardView.as_view(), name="move_card"),
+    path("<str:key>/reorder/", views.ReorderView.as_view(), name="reorder"),
     path("card/<str:key>/sprint/", views.BacklogMoveView.as_view(), name="move_sprint"),
 ]

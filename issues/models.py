@@ -132,7 +132,11 @@ class Issue(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    rank = models.FloatField(default=0, help_text="Used for board ordering")
+    # Index inside the card's (project, status) board column. board/views.py
+    # renumbers a whole column on every drag, so this is always a dense 0..n-1
+    # run rather than a spaced float. Read by the board, which sorts by it
+    # before grouping into columns; the backlog deliberately does not.
+    rank = models.FloatField(default=0, help_text="Position within its board column, 0-based")
 
     class Meta:
         ordering = ("-updated_at",)
@@ -148,6 +152,19 @@ class Issue(models.Model):
         if not self.key:
             num = self.project.next_issue_number()
             self.key = f"{self.project.key}-{num}"
+        if self._state.adding and self.status_id is not None and not self.rank:
+            # rank is the card's index inside its (project, status) board column,
+            # so a new card belongs at the end of it. Left at the 0 default it
+            # would sort above every card the user has already placed, which is
+            # the wrong end of a kanban column. Only on insert: recomputing this
+            # on every update would cost a MAX() per save to no effect.
+            last = (
+                Issue.objects.filter(project_id=self.project_id, status_id=self.status_id)
+                .order_by("-rank")
+                .values_list("rank", flat=True)
+                .first()
+            )
+            self.rank = (last + 1) if last is not None else 0
         from core.markdown import render_markdown
         self.description_html_cache = render_markdown(self.description)
         super().save(*args, **kwargs)
