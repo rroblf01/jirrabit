@@ -435,8 +435,12 @@ class ProjectDependencyGraphView(AsyncLoginRequiredMixin, AsyncTemplateView):
         ctx["edges"] = edges
         ctx["node_w"] = NODE_W
         ctx["node_h"] = NODE_H
-        max_x = max((n["x"] + NODE_W for n in nodes), default=400)
-        max_y = max((n["y"] + NODE_H for n in nodes), default=200)
+        # ty: the node dicts also carry ``summary`` and ``status`` (both str), so
+        # it infers one value type per dict and reads ``n["x"] + NODE_W`` as
+        # adding a union. Every node is given an int x/y in the loop above, so
+        # the arithmetic is fine.
+        max_x = max((n["x"] + NODE_W for n in nodes), default=400)  # ty: ignore[unsupported-operator]
+        max_y = max((n["y"] + NODE_H for n in nodes), default=200)  # ty: ignore[unsupported-operator]
         ctx["svg_w"] = max(max_x + 20, 400)
         ctx["svg_h"] = max(max_y + 20, 200)
         return ctx
@@ -596,7 +600,12 @@ class ProjectSlaView(AsyncLoginRequiredMixin, AsyncTemplateView):
                     }
                 )
         ctx["project"] = project
-        ctx["rows"] = sorted(rows, key=lambda r: -r["days_in_status"])
+        # ty: same one-value-type-per-dict problem; ``days_in_status`` is always
+        # an int, and the ``issue`` next to it is an Issue.
+        ctx["rows"] = sorted(
+            rows,
+            key=lambda r: -r["days_in_status"],  # ty: ignore[unsupported-operator]
+        )
         ctx["threshold"] = threshold
         return ctx
 
@@ -711,7 +720,10 @@ class WorkloadHeatmapView(AsyncLoginRequiredMixin, AsyncTemplateView):
                 v = load.get(m.pk, {}).get(d, 0)
                 intensity = int(round(100 * v / max_load))
                 cells.append({"date": d, "sp": v, "intensity": intensity})
-            rows.append({"user": m, "cells": cells, "total": sum(c["sp"] for c in cells)})
+            # ty: ``sp`` is always numeric; ty widens it with the ``date`` and
+            # the neighbour keys that share the dict.
+            total = sum(c["sp"] for c in cells)  # ty: ignore[no-matching-overload]
+            rows.append({"user": m, "cells": cells, "total": total})
         ctx["project"] = project
         ctx["rows"] = rows
         ctx["days"] = days

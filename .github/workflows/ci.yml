@@ -59,8 +59,11 @@ jobs:
         # What is genuinely invisible to it is now three documented rule
         # suppressions in pyproject.toml, each with its reasons, plus one
         # per-line suppression where an async view deliberately awaits a sync
-        # base method. Pinned ty==0.0.38 so a new release cannot change the
-        # verdict on an unrelated commit.
+        # base method, and four per-line suppressions in projects/views.py where
+        # a dict carries a numeric key next to a str or a model instance and ty
+        # widens the arithmetic to a union. Pinned ty==0.0.84 so a new release
+        # cannot change the verdict on an unrelated commit; upgrading it is a
+        # deliberate act, not a side effect of a lock refresh.
 
       - name: Django system check
         run: JIRRABIT_DB_ENGINE=sqlite uv run python manage.py check
