@@ -189,7 +189,7 @@ to be forced because the image sets `JIRRABIT_MCP_TRANSPORT=http`:
       "command": [
         "docker", "exec", "-i",
         "-e", "JIRRABIT_MCP_TRANSPORT=stdio",
-        "jirrabit-jirrabit-mcp-1", "/usr/local/bin/jirrabit-mcp"
+        "jirrabit-jirrabit-mcp-1", "/jirrabit-mcp"
       ],
       "enabled": true
     }
@@ -200,6 +200,11 @@ to be forced because the image sets `JIRRABIT_MCP_TRANSPORT=http`:
 and pass `"instanceUrl": "http://web:8000"` with the key on each call. An HTTP
 client can connect to <http://localhost:8082/mcp> instead, with no
 configuration at all beyond the URL.
+
+The binary is at `/jirrabit-mcp`, not under `/usr/local/bin`: the image is built
+`FROM scratch` to keep it at 17 MB, and scratch has no directory tree beyond
+what the image puts there. It also means no shell inside the container, so
+`docker exec … sh` does not work — exec the binary directly.
 
 `web` is in the default `JIRRABIT_ALLOWED_HOSTS` for exactly this reason: Django
 answers 400 for an unlisted `Host`, and inside the compose network the MCP's
