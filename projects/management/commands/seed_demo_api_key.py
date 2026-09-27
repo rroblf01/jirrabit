@@ -23,6 +23,13 @@ not be valid anywhere else.
 
 Idempotent, because ``seed_demo`` may run on every boot: re-running grants the
 same key, and un-revokes it if somebody revoked it.
+
+``seed_demo`` calls this itself, at the end, when the variable is set. That is
+not redundant: ``seed_demo`` truncates every table, keys included, so a key
+minted by any means stops existing the next time it runs. Minting separately
+meant the published token worked only until the next daily seed, and then
+stopped with nothing logged. The call is still opt-in — unset the variable and
+this never runs.
 """
 
 import os

@@ -132,25 +132,34 @@ stored. Then point an MCP client at it.
 
 #### The public demo token
 
-To try the MCP without registering, `seed_demo` can be told to hand out one
-fixed, published API key for `alice_pm`:
+To try the MCP without registering, set one fixed, published API key for
+`alice_pm` and every `seed_demo` will hand it out again:
 
 ```bash
-docker compose exec -T \
-  -e JIRRABIT_DEMO_API_KEY=jirrabit-public-demo-token-2026-do-not-use \
-  web python manage.py seed_demo_api_key
+# in .env
+JIRRABIT_DEMO_API_KEY=jirrabit-public-demo-token-2026-do-not-use
 ```
 
-which is then usable as:
+That is the whole setup. There is no second command to remember, because
+`seed_demo` truncates every table on each run — API keys included — so a token
+minted by hand stops existing at the next daily seed, and the failure is silent:
+the instance is up and the token simply stops authenticating. So the seed
+re-mints it at the end, when the variable is set, and the demo token keeps
+working across reseeds. `seed_demo_api_key` still exists and can be run on its
+own, but on a daily `seed_demo` you do not need it.
+
+The token is then usable as:
 
 ```json
-{ "instanceUrl": "http://localhost:8000", "apiKey": "jirrabit-public-demo-token-2026-do-not-use" }
+{ "instanceUrl": "https://jirrabit.ricardorobles.es",
+  "apiKey": "jirrabit-public-demo-token-2026-do-not-use" }
 ```
 
-It is opt-in and idempotent: run it as many times as you like, and the same
-token always lands on the same key rather than piling up duplicates. It is a
-separate command rather than part of `seed_demo` so that `JIRRABIT_DEMO_API_KEY`
-is not a switch that quietly publishes credentials on every demo seed.
+Both are opt-in and idempotent: with the variable unset no key is created at all,
+and with it set the same token always lands on the same key rather than piling up
+duplicates. Unset means `seed_demo` still refuses to invent a token of its own —
+a predictable credential is a published credential, and that is the operator's
+decision to make.
 
 #### This repository is public, so read this before using that token
 
@@ -278,7 +287,7 @@ into a scratch database and check the issue count.
 |---|---|
 | `seed_jirrabit` | Create the default statuses, priorities and issue types. Idempotent |
 | `seed_demo` | Build a demo project. **Wipes the database** unless `--no-clear` |
-| `seed_demo_api_key` | Give `alice_pm` a fixed API key from `JIRRABIT_DEMO_API_KEY`. Opt-in, idempotent, and the token is public — see [above](#the-public-demo-token) |
+| `seed_demo_api_key` | Give `alice_pm` a fixed API key from `JIRRABIT_DEMO_API_KEY`. `seed_demo` already does this when the variable is set; run it alone to mint the key without reseeding |
 | `auto_archive --days N` | Archive done issues resolved more than N days ago. For a cron job |
 | `purge_old_data --days N` | Delete old audit entries and read notifications. For a cron job |
 | `import_jira data.csv --project KEY --reporter USER` | Import a Jira CSV export |

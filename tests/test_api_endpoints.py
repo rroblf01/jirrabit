@@ -532,6 +532,54 @@ class SeedDemoAPIKeyTests(TestCase):
         with self.assertRaises(CommandError):
             self._run(token=self.TOKEN)
 
+    def _seed_demo(self, env=None):
+        """Run seed_demo with a controlled environment."""
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        out = StringIO()
+        with mock.patch.dict(os.environ, env or {}, clear=False):
+            call_command("seed_demo", stdout=out, stderr=out, verbosity=0)
+        return out.getvalue()
+
+    def test_seed_demo_re_mints_the_token(self):
+        """A daily seed_demo must leave the published token working.
+
+        seed_demo wipes the database, so a key minted earlier stops existing.
+        That is invisible from the outside — the instance is up and the token
+        just stops authenticating — and it is why the token has to be re-minted
+        as part of the seed rather than as a separate step somebody has to
+        remember to run afterwards.
+        """
+        from accounts.models import APIKey
+
+        # Mint it once, the way an operator would before this behaviour existed.
+        self._demo()
+        self._run(token=self.TOKEN)
+        self.assertEqual(APIKey.objects.filter(owner__username="alice_pm").count(), 1)
+
+        # A daily reseed, then check the token still authenticates for real.
+        self._seed_demo(env={"JIRRABIT_DEMO_API_KEY": self.TOKEN})
+
+        self.assertTrue(
+            APIKey.objects.filter(owner__username="alice_pm").exists(),
+            "seed_demo wiped the key and did not put it back",
+        )
+        response = self.client.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + self.TOKEN)
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_seed_demo_still_invents_nothing(self):
+        """Without the env var there is no key, and no error either.
+
+        The re-mint is opt-in. An instance that never asked for a published
+        token must not acquire one because seed_demo runs.
+        """
+        from accounts.models import APIKey
+
+        self._seed_demo(env={})
+        self.assertFalse(APIKey.objects.filter(owner__username="alice_pm").exists())
+
 
 class APIPaginationTests(TestCase):
     """Every list endpoint, so no row converter can rot unnoticed.
