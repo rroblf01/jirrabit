@@ -196,6 +196,40 @@ def _empty_q(field: str, negate: bool) -> Q:
     return ~q if negate else q
 
 
+#: Operators that real JQL has and this subset does not, longest first so that
+#: "=~" is never mistaken for "=" followed by a value beginning with "~".
+UNSUPPORTED_OPERATORS = ("=~", "!~", "==", ">=", "<=", ">", "<")
+
+#: What a caller gets told when it reaches for one of them. Naming the operator
+#: and saying what to use instead is the whole point: "not supported" on its own
+#: leaves a caller with no next move, and the obvious fallback is to try the same
+#: query again.
+_OPERATOR_HINT = {
+    "~": " Para filtrar por texto usa '~', que ya hace coincidencia parcial.",
+}
+
+
+def _unsupported_operator_message(chunk: str) -> str:
+    """Name the operator this subset lacks, and the ones it has."""
+    found = ""
+    for candidate in UNSUPPORTED_OPERATORS:
+        if candidate in chunk:
+            found = candidate
+            break
+    if found and "~" in found:
+        # "=~" and "!~": the useful advice is the partial match, not the regex
+        # the caller asked for.
+        hint = _OPERATOR_HINT["~"]
+    elif found.startswith(">"):
+        hint = " No hay comparación numérica ni de fechas; usa el campo 'text' para buscar texto."
+    else:
+        hint = ""
+    return (
+        f"Operador no admitido: '{found or '?'}' en la cláusula '{chunk}'. "
+        f"Operadores admitidos: = != ~ in, o 'is EMPTY' / 'is not EMPTY'." + hint
+    )
+
+
 def parse_jql(query: str):
     """Parse ``query`` and return ``(Q object, [order_fields])``.
 
@@ -239,11 +273,13 @@ def parse_jql(query: str):
             # a clause. Treating a malformed clause as prose used to return an
             # empty result instead of an error, which reads to a caller as
             # "no matches" when the truth is "I did not understand you".
-            if re.search(r"[=!~]", chunk):
-                raise JQLError(
-                    f"No se pudo interpretar la cláusula: '{chunk}'. "
-                    f"Operadores admitidos: = != ~ in, o 'is EMPTY' / 'is not EMPTY'."
-                )
+            #
+            # The character class has to include < and >. The clause regex above
+            # does not accept them as operators, so "storyPoints > 3" and
+            # "created < 2026-01-01" arrived here and were searched for as
+            # literal prose -- the same silent wrong answer, one step earlier.
+            if re.search(r"[=!~<>]", chunk):
+                raise JQLError(_unsupported_operator_message(chunk))
             q &= Q(summary__icontains=chunk) | Q(description__icontains=chunk)
             continue
         field, op, value = m.group(1).lower(), m.group(2).lower(), m.group(3).strip()
@@ -251,11 +287,21 @@ def parse_jql(query: str):
         # A value made only of operator characters means the clause was cut
         # short, e.g. "assignee ==". The operator regex still matches those, so
         # the free-text guard below never sees them.
-        if not value.strip("\"'") or not value.strip("\"'").strip("=!~"):
+        if not value.strip("\"'") or not value.strip("\"'").strip("=!~<>"):
             raise JQLError(
                 f"No se pudo interpretar la cláusula: '{chunk}'. Falta un valor. "
                 f"Operadores admitidos: = != ~ in, o 'is EMPTY' / 'is not EMPTY'."
             )
+
+        # A value that *starts* with operator characters is a longer operator the
+        # subset does not have, not a value: "project =~ /x/" matched here as
+        # project = "= /x/". `=~` is a real Jira operator, so an agent trained on
+        # it sends it routinely, and the query then matched nothing at all --
+        # "no results" where the truth is "I do not support that". Silently
+        # absorbing the operator into the value is the one failure mode worth
+        # being loud about.
+        if value[0] in "=!~<>" and not value.startswith(('"', "'")):
+            raise JQLError(_unsupported_operator_message(chunk))
 
         if field == "text":
             v = _parse_value(value)

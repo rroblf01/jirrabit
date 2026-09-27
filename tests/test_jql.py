@@ -203,3 +203,78 @@ class JQLQueryTests(TestCase):
     def test_free_text_finds_by_summary(self):
         found = self._search("logout")
         self.assertIn(self.theirs.key, found)
+
+
+class UnsupportedOperatorTests(TestCase):
+    """An operator this subset does not have must be named, not absorbed.
+
+    The failure this covers is quiet and expensive. `=~` is a real Jira
+    operator, so any agent trained on Jira sends it without hesitation. The
+    clause regex matched the leading `=` and kept the rest as the value, turning
+    the query into a search for the literal text "~ /regex/", which matched
+    nothing. The caller saw an empty result and concluded the project was empty
+    rather than that the server had not understood the question.
+    """
+
+    def _assert_rejected(self, query: str, mentions: str | None = None):
+        with self.assertRaises(JQLError) as ctx:
+            parse_jql(query)
+        message = str(ctx.exception)
+        if mentions:
+            self.assertIn(mentions, message)
+
+    def test_regex_operator_is_rejected_by_name(self):
+        self._assert_rejected("project =~ /DEMO/", "=~")
+
+    def test_double_equals_is_rejected(self):
+        self._assert_rejected("assignee == bob_dev")
+
+    def test_comparison_operators_are_rejected(self):
+        # A real JQL construct, and one an agent may reach for to do numeric or
+        # date comparisons. Silently matching nothing is the worst outcome.
+        for query in ("storyPoints >= 5", "storyPoints <= 5", "created < 2026-01-01"):
+            with self.subTest(query=query), self.assertRaises(JQLError):
+                parse_jql(query)
+
+    def test_a_comparison_operator_does_not_become_free_text(self):
+        # "storyPoints > 3" never matched the clause regex -- it does not accept
+        # ">" -- so it fell through to the free-text branch and was searched for
+        # as literal prose. The empty result then read as "no issue has more than
+        # 3 points" rather than "that comparison is not supported".
+        for query in ("storyPoints > 3", "storyPoints < 3", "created <= 2026-01-01"):
+            with self.subTest(query=query), self.assertRaises(JQLError):
+                parse_jql(query)
+
+    def test_the_message_mentions_the_comparison_is_unavailable(self):
+        with self.assertRaises(JQLError) as ctx:
+            parse_jql("storyPoints > 3")
+        self.assertIn(">", str(ctx.exception))
+
+    def test_a_quoted_value_containing_operators_is_still_allowed(self):
+        # The check must not fire on a value that merely *contains* them: a
+        # ticket about a comparison is a normal thing to search for. "text" is
+        # the field for full-text search; "summary" is not in the subset.
+        q, _ = parse_jql('text = "a = b"')
+        self.assertIsNotNone(q)
+        q, _ = parse_jql('text = "x ~ y"')
+        self.assertIsNotNone(q)
+
+    def test_the_message_says_what_to_use_instead(self):
+        # "not supported" alone leaves the caller with no next move. `~` already
+        # does a partial match, so that is the useful hint.
+        with self.assertRaises(JQLError) as ctx:
+            parse_jql("project =~ /DEMO/")
+        self.assertIn("~", str(ctx.exception))
+        self.assertIn("coincidencia parcial", str(ctx.exception))
+
+    def test_supported_operators_still_work(self):
+        # The guard sits directly after the operator regex, so it is worth
+        # pinning that it did not narrow anything that was already valid.
+        for query in ("key = WEB-1", "key != WEB-1", "text ~ logout", "key in (WEB-1, WEB-2)"):
+            with self.subTest(query=query):
+                q, _ = parse_jql(query)
+                self.assertIsNotNone(q)
+
+    def test_a_single_tilde_is_still_the_contains_operator(self):
+        q, _ = parse_jql("text ~ logout")
+        self.assertIn("icontains", str(q))
