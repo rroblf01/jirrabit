@@ -132,62 +132,50 @@ stored. Then point an MCP client at it.
 
 #### The public demo token
 
-To try the MCP without registering, set one fixed, published API key for
-`alice_pm` and every `seed_demo` will hand it out again:
+`seed_demo` hands `alice_pm` a fixed, published API key at the end of every run:
 
-```bash
-# in .env
-JIRRABIT_DEMO_API_KEY=jirrabit-public-demo-token-2026-do-not-use
+```
+jirrabit-public-demo-token-2026-do-not-use
 ```
 
-That is the whole setup. There is no second command to remember, because
-`seed_demo` truncates every table on each run — API keys included — so a token
-minted by hand stops existing at the next daily seed, and the failure is silent:
-the instance is up and the token simply stops authenticating. So the seed
-re-mints it at the end, when the variable is set, and the demo token keeps
-working across reseeds. `seed_demo_api_key` still exists and can be run on its
-own, but on a daily `seed_demo` you do not need it.
+Nothing to configure and no second command to remember. It has to be part of the
+seed, because `seed_demo` truncates every table on each run — API keys included
+— so a key minted by hand stops existing at the next daily seed, and the failure
+is silent: the instance is up and the token simply stops authenticating.
 
-The token is then usable as:
+Against the public instance, that is:
 
 ```json
 { "instanceUrl": "https://jirrabit.ricardorobles.es",
   "apiKey": "jirrabit-public-demo-token-2026-do-not-use" }
 ```
 
-Both are opt-in and idempotent: with the variable unset no key is created at all,
-and with it set the same token always lands on the same key rather than piling up
-duplicates. Unset means `seed_demo` still refuses to invent a token of its own —
-a predictable credential is a published credential, and that is the operator's
-decision to make.
-
-#### This repository is public, so read this before using that token
-
-**The token above is printed in a public README. Anyone on the internet can read
-it.** The only thing standing between that token and your data is whether your
-instance is reachable and whether you seeded it. Specifically:
-
-- On a laptop, or any instance behind a firewall or a VPN, the token is
-  unreachable and harmless. That is the case it is meant for.
-- On an instance with a public hostname — and this repository ships
-  `jirrabit.ricardorobles.es` in its own `.env` — anyone who reads this README can
-  authenticate as `alice_pm` and do everything that user can do, including
-  reading every issue, every comment and every attachment.
-
-So: never run `seed_demo_api_key` against an instance you care about, and never
-reuse the token. If you want the convenience on a shared instance, generate a
-different token and keep it out of version control:
+It is idempotent: the same token always lands on the same key rather than piling
+up duplicates, and a key somebody revoked comes back on the next seed. To mint a
+different one, set `JIRRABIT_DEMO_API_KEY` and it replaces the default:
 
 ```bash
 docker compose exec -T -e JIRRABIT_DEMO_API_KEY="$(openssl rand -hex 24)" \
   web python manage.py seed_demo_api_key
 ```
 
-The same applies to `.env`, which is committed to this public repository. Its
-`JIRRABIT_SECRET_KEY` and `POSTGRES_PASSWORD` are development placeholders
-(`django-insecure-…`, `jirrabit-local-dev`) and are in the git history
-permanently. Treat both files as public, and set fresh values in the
-environment of anything you deploy.
+#### The demo is meant to be public
+
+The token is printed here, and so are the demo logins — `alice_pm` /
+`demopass`, `bob_dev` / `demopass`, and four more, all with the same password,
+`alice_pm` being a superuser. That is the point of a public demo: someone should
+be able to read this page, register nothing, and have an agent working against
+real data in under a minute.
+
+It also means the demo is not a place to keep anything. A fresh `seed_demo`
+every day is what makes it a sandbox rather than a system of record. Anyone
+self-hosting this and wanting a private instance should not run `seed_demo` at
+all: it wipes the database, and the credentials it leaves behind are printed
+here. Register real users and hand out real keys from the profile page instead.
+
+`.env` is committed too, so its `JIRRABIT_SECRET_KEY` and `POSTGRES_PASSWORD`
+are in the git history permanently. They are development placeholders; set fresh
+values in the environment of anything you deploy.
 
 With the MCP in Docker, the instance is reachable by its compose service name.
 A stdio client launches the binary through `docker exec`, and the transport has
@@ -287,7 +275,7 @@ into a scratch database and check the issue count.
 |---|---|
 | `seed_jirrabit` | Create the default statuses, priorities and issue types. Idempotent |
 | `seed_demo` | Build a demo project. **Wipes the database** unless `--no-clear` |
-| `seed_demo_api_key` | Give `alice_pm` a fixed API key from `JIRRABIT_DEMO_API_KEY`. `seed_demo` already does this when the variable is set; run it alone to mint the key without reseeding |
+| `seed_demo_api_key` | Give `alice_pm` a fixed API key. `seed_demo` already does this; run it alone to mint or replace the key without reseeding |
 | `auto_archive --days N` | Archive done issues resolved more than N days ago. For a cron job |
 | `purge_old_data --days N` | Delete old audit entries and read notifications. For a cron job |
 | `import_jira data.csv --project KEY --reporter USER` | Import a Jira CSV export |

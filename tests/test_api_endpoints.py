@@ -459,13 +459,43 @@ class SeedDemoAPIKeyTests(TestCase):
         with mock.patch.dict(os.environ, {} if token is None else {"JIRRABIT_DEMO_API_KEY": token}):
             return call_command("seed_demo_api_key", stdout=out, stderr=out, **kwargs)
 
-    def test_refuses_without_the_env_var(self):
-        """It must never invent a token: a predictable one is a published one."""
-        from django.core.management.base import CommandError
+    def test_uses_the_published_token_without_the_env_var(self):
+        """No env var still mints the published demo token.
+
+        It used to raise instead. The guard was dropped because ``seed_demo``
+        already publishes a stronger credential — ``alice_pm`` / ``demopass``,
+        a superuser account reachable through the web login — so requiring an
+        environment variable for the API key alone protected nothing, and in
+        practice meant the published token did not work until somebody found
+        the variable.
+        """
+        from accounts.models import APIKey
+        from projects.management.commands.seed_demo_api_key import DEFAULT_DEMO_TOKEN
 
         self._demo()
-        with self.assertRaises(CommandError):
-            self._run(token=None)
+        self._run(token=None)
+
+        self.assertTrue(
+            APIKey.objects.filter(token_hash=APIKey.hash_token(DEFAULT_DEMO_TOKEN)).exists(),
+            "the published token should be minted by default",
+        )
+        c = Client()
+        r = c.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + DEFAULT_DEMO_TOKEN)
+        self.assertEqual(r.status_code, 200, r.content)
+
+    def test_the_env_var_overrides_the_published_token(self):
+        """An operator who wants a different token gets one, and only one."""
+        from accounts.models import APIKey
+        from projects.management.commands.seed_demo_api_key import DEFAULT_DEMO_TOKEN
+
+        self._demo()
+        self._run(token=self.TOKEN)
+
+        self.assertTrue(APIKey.objects.filter(token_hash=APIKey.hash_token(self.TOKEN)).exists())
+        self.assertFalse(
+            APIKey.objects.filter(token_hash=APIKey.hash_token(DEFAULT_DEMO_TOKEN)).exists(),
+            "the override must replace the default, not add to it",
+        )
 
     def test_refuses_a_short_token(self):
         from django.core.management.base import CommandError
@@ -569,16 +599,25 @@ class SeedDemoAPIKeyTests(TestCase):
         response = self.client.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + self.TOKEN)
         self.assertEqual(response.status_code, 200, response.content)
 
-    def test_seed_demo_still_invents_nothing(self):
-        """Without the env var there is no key, and no error either.
+    def test_seed_demo_always_ends_with_a_usable_token(self):
+        """The whole point: a bare seed_demo leaves the demo reachable.
 
-        The re-mint is opt-in. An instance that never asked for a published
-        token must not acquire one because seed_demo runs.
+        No environment variable, no second command, nothing to remember. This is
+        what a daily cron actually runs, so it is the case worth pinning.
         """
         from accounts.models import APIKey
+        from projects.management.commands.seed_demo_api_key import DEFAULT_DEMO_TOKEN
 
         self._seed_demo(env={})
-        self.assertFalse(APIKey.objects.filter(owner__username="alice_pm").exists())
+
+        self.assertTrue(
+            APIKey.objects.filter(token_hash=APIKey.hash_token(DEFAULT_DEMO_TOKEN)).exists(),
+            "a bare seed_demo must leave the published token working",
+        )
+        c = Client()
+        r = c.get("/api/v1/me/", HTTP_AUTHORIZATION="Bearer " + DEFAULT_DEMO_TOKEN)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.json()["username"], "alice_pm")
 
 
 class APIPaginationTests(TestCase):

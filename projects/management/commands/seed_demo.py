@@ -9,10 +9,16 @@ Usage::
     python manage.py seed_demo               # wipe + reseed (default)
     python manage.py seed_demo --no-clear    # additive only, keep existing data
 
-With ``JIRRABIT_DEMO_API_KEY`` set, the seed finishes by re-minting that token
-for ``alice_pm``. It has to: the wipe removes every API key, so a token minted
-out of band would stop working at the next run — the instance would be up and
-the published token would simply stop authenticating. Unset, no key is made.
+The seed finishes by re-minting a fixed API key for ``alice_pm``, so an agent
+can use the instance without registering. It has to be part of the seed: the
+wipe removes every API key, so a key minted out of band would stop working at
+the next run — the instance would be up and the published token would simply
+stop authenticating.
+
+That token is the published demo one, and it belongs to a superuser. This is
+only appropriate for a demo, which is what this command builds: see
+``seed_demo_api_key`` for the reasoning, and set ``JIRRABIT_DEMO_API_KEY`` to
+mint a different one.
 
 What it creates:
 - Issue types, statuses, priorities.
@@ -31,7 +37,6 @@ Signals that send notification emails are temporarily disconnected so the
 console backend doesn't flood stdout while the demo is loading.
 """
 
-import os
 import random
 from datetime import timedelta
 
@@ -57,10 +62,6 @@ from projects.models import Epic, Project, Sprint, Webhook
 
 PROJECT_KEY = "DEMO"
 
-#: Same variable ``seed_demo_api_key`` reads. Kept as a literal here rather
-#: than imported from that module so the two commands do not have to agree on
-#: an import order, and so this one still reads correctly on its own.
-DEMO_API_KEY_ENV = "JIRRABIT_DEMO_API_KEY"
 
 # (username, display_name, email, job_title, password, avatar_color)
 DEMO_USERS = [
@@ -399,23 +400,19 @@ class Command(BaseCommand):
         )
 
     def _demo_api_key(self):
-        """Re-mint the demo API key when one was asked for.
+        """Re-mint the fixed demo API key for ``alice_pm``.
 
         The wipe above truncates every table, API keys included, so a key minted
-        by ``seed_demo_api_key`` stops existing the next time this command runs.
-        That made a daily ``seed_demo`` silently break the published demo token:
-        the instance came back and the token no longer authenticated, with
-        nothing in the logs to say why.
+        by any other means stops existing the next time this command runs. That
+        made a daily ``seed_demo`` silently break the published demo token: the
+        instance came back and the token no longer authenticated, with nothing
+        in the logs to say why.
 
-        So the key is re-minted here, at the end, where it cannot be forgotten
-        relative to the wipe. Opt-in all the same: with ``JIRRABIT_DEMO_API_KEY``
-        unset this does nothing, and the command still refuses to invent a token
-        of its own. A predictable credential is a published credential, and that
-        decision belongs to the operator, not to a seed.
+        So the key is re-minted here, at the end, which is the only place it
+        cannot be forgotten relative to the wipe. The token itself comes from
+        ``seed_demo_api_key``, which uses the published value unless
+        ``JIRRABIT_DEMO_API_KEY`` overrides it.
         """
-        if not (os.environ.get(DEMO_API_KEY_ENV) or "").strip():
-            return
-
         call_command(
             "seed_demo_api_key",
             stdout=self.stdout,

@@ -400,3 +400,9 @@ JIRRABIT_URL=… JIRRABIT_API_KEY=… go run ./cmd/smoke -server ./bin/jirrabit-
 `auto_archive` and `purge_old_data` are designed for a scheduler, not manual
 runs. Both take `--dry-run`; `seed_demo` **wipes the database** unless passed
 `--no-clear`.
+
+`seed_demo` is the public demo seeder and it ends by minting a fixed, published
+API key for `alice_pm` (`seed_demo_api_key`). That step is not optional and not
+separate: the wipe removes every API key, so a key minted any other way stops
+existing at the next run, silently. Everything it leaves behind — the logins
+`alice_pm` / `demopass` and the token — is printed in the README on purpose.
