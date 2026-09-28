@@ -138,6 +138,32 @@ async def _renumber(project, status_id, keys=None):
         await issue.asave(update_fields=["rank", "updated_at"])
 
 
+async def _densify_after_delete(project, status_ids):
+    """Close the rank gaps a delete left in ``project``'s columns.
+
+    Deleting a card is the one way a card leaves its column without anybody
+    saying where it went, and nothing else in the codebase renumbers afterwards:
+    there is no ``Issue`` ``post_delete`` receiver, and ``adelete()`` is a
+    queryset call, so the save-based path that keeps the other columns dense
+    never runs. Left alone, a column that is only read and never dragged
+    accumulates holes indefinitely.
+
+    Cheap by construction. :func:`_renumber` saves only the rows whose rank
+    actually moves, so a delete that emptied no gaps writes nothing at all, and
+    the ones it does write go through ``asave()`` so the four ``post_save``
+    receivers fire and another browser's board stays live.
+
+    Takes status ids rather than issues because a bulk delete can span several
+    columns, and the ids have to be read *before* the rows are gone.
+    """
+    seen = []
+    for status_id in status_ids:
+        if status_id is not None and status_id not in seen:
+            seen.append(status_id)
+    for status_id in seen:
+        await _renumber(project, status_id)
+
+
 async def _append_to_column(issues, status):
     """Place one or more cards at the end of ``status``, in the order given.
 
@@ -369,7 +395,14 @@ class BulkUpdateView(AsyncLoginRequiredMixin, View):
             return HttpResponseBadRequest("keys + action requeridos")
         qs = Issue.objects.filter(project=project, key__in=keys)
         if action == "delete":
+            # The status ids have to be read before the rows go: afterwards there
+            # is nothing left to renumber, and the surviving cards would keep
+            # whatever ranks they held. See _densify_after_delete.
+            columns = []
+            async for issue in qs.only("pk", "status_id"):
+                columns.append(issue.status_id)
             await qs.adelete()
+            await _densify_after_delete(project, columns)
         elif action == "status":
             from asgiref.sync import sync_to_async
 

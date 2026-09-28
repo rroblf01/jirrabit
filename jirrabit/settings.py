@@ -46,6 +46,15 @@ ALLOWED_HOSTS = [
     if host.strip()
 ]
 
+# Django refuses a request body over 2.5 MB by default, before any handler runs.
+# Attachments are stored base64 in a TextField and capped at 5 MB of raw bytes,
+# which is about 6.7 MB once encoded — so the declared cap was unreachable, in
+# the web UI as much as in the API, and a file over 2.5 MB was rejected with a
+# bare 400 that named neither the limit nor the reason. 8 MB leaves room for the
+# 5 MB cap and its encoding overhead, and leaves the check to the code that can
+# explain it.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 8 * 1024 * 1024
+
 
 INSTALLED_APPS = [
     "channels",

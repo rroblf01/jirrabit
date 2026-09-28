@@ -1,3 +1,5 @@
+import re
+
 from django.http import HttpResponse
 from django.shortcuts import redirect
 from django.views import View
@@ -134,10 +136,15 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
                 from projects.models import Project
 
                 visible = Project.objects.filter_visible(self.request.user)
+                qs = Issue.objects.filter(q).filter(project__in=visible)
+                # Same default as the list view and the REST search: archived
+                # issues stay out unless the query names `archived`. Without it
+                # a search box is the one place an archived issue is still
+                # visible, which is how it found one.
+                if not re.search(r"\barchived\b", query or "", re.IGNORECASE):
+                    qs = qs.filter(archived=False)
                 qs = (
-                    Issue.objects.filter(q)
-                    .filter(project__in=visible)
-                    .select_related("project", "status", "priority", "issue_type", "assignee")
+                    qs.select_related("project", "status", "priority", "issue_type", "assignee")
                     .distinct()
                     .order_by(*(order or ["-updated_at"]))
                 )

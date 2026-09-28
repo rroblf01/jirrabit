@@ -717,3 +717,107 @@ class BoardRankTests(TestCase):
             self._order(self.progress),
             [occupant.key, made[0].key, from_todo[0].key],
         )
+
+
+class DeleteDensifiesColumnTests(TestCase):
+    """Deleting a card must close the gap it left.
+
+    A card leaving its column normally goes through a status change, and
+    ``_append_to_column`` leaves a hole on purpose: ``rank`` is a sort key, so
+    gaps do not affect the order and the next drag in that column renumbers it.
+    A delete has no next drag. Nothing re-densified afterwards — ``adelete()``
+    is a queryset call, so it fires ``post_delete`` and nothing else, and there
+    is no ``Issue`` ``post_delete`` receiver that could do it — so a column that
+    was only read and never dragged accumulated holes indefinitely, which is the
+    opposite of what the docstring in ``board/views.py`` claims.
+    """
+
+    def setUp(self):
+        _seed_lookups()
+        self.user = User.objects.create_user(username="alice", password="pw", email="a@x.com")
+        self.project = Project.objects.create(key="WEB", name="Web", lead=self.user)
+        ProjectMembership.objects.create(project=self.project, user=self.user, role="admin")
+        self.todo = Status.objects.get(name="To Do")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def _column(self):
+        """Ranks in board order, so a hole shows up as a gap in the numbers."""
+        return list(
+            Issue.objects.filter(project=self.project, status=self.todo)
+            .order_by("rank", "-updated_at")
+            .values_list("key", "rank")
+        )
+
+    def _make(self, n):
+        made = []
+        for i in range(n):
+            made.append(
+                Issue.objects.create(
+                    project=self.project,
+                    reporter=self.user,
+                    summary=f"i{i}",
+                    status=self.todo,
+                    priority=Priority.objects.first(),
+                    issue_type=IssueType.objects.first(),
+                )
+            )
+        return made
+
+    def test_a_dense_column_starts_dense(self):
+        self._make(4)
+        self.assertEqual([rank for _key, rank in self._column()], [0, 1, 2, 3])
+
+    def test_deleting_the_first_card_closes_the_gap(self):
+        issues = self._make(4)
+        self.c.delete(f"/api/v1/issues/{issues[0].key}/")
+        self.assertEqual([rank for _key, rank in self._column()], [0, 1, 2])
+
+    def test_deleting_from_the_middle_closes_the_gap(self):
+        issues = self._make(4)
+        self.c.delete(f"/api/v1/issues/{issues[2].key}/")
+        self.assertEqual([rank for _key, rank in self._column()], [0, 1, 2])
+
+    def test_a_bulk_delete_closes_every_column_it_touched(self):
+        self._make(4)
+        progress = Status.objects.get(name="In Progress")
+        other = [
+            Issue.objects.create(
+                project=self.project,
+                reporter=self.user,
+                summary=f"p{i}",
+                status=progress,
+                priority=Priority.objects.first(),
+                issue_type=IssueType.objects.first(),
+            )
+            for i in range(3)
+        ]
+        keys = list(
+            Issue.objects.filter(project=self.project)
+            .order_by("rank", "-updated_at")
+            .values_list("key", flat=True)
+        )
+        r = self.c.post(
+            reverse("board:bulk_update", args=[self.project.key]),
+            {"keys": keys[:2] + [other[0].key], "action": "delete"},
+        )
+        self.assertEqual(r.status_code, 204, r.content[:200])
+        remaining_todo = list(
+            Issue.objects.filter(project=self.project, status=self.todo)
+            .order_by("rank", "-updated_at")
+            .values_list("rank", flat=True)
+        )
+        remaining_progress = list(
+            Issue.objects.filter(project=self.project, status=progress)
+            .order_by("rank", "-updated_at")
+            .values_list("rank", flat=True)
+        )
+        self.assertEqual(remaining_todo, list(range(len(remaining_todo))))
+        self.assertEqual(remaining_progress, list(range(len(remaining_progress))))
+
+    def test_the_new_card_still_lands_at_the_end(self):
+        """MAX(rank) + 1 is gap-tolerant, so this only holds because of the above."""
+        issues = self._make(3)
+        self.c.delete(f"/api/v1/issues/{issues[0].key}/")
+        self._make(1)
+        self.assertEqual([rank for _key, rank in self._column()], [0, 1, 2])

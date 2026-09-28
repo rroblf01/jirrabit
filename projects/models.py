@@ -280,3 +280,68 @@ class Sprint(models.Model):
         async for issue in incomplete:
             issue.sprint_id = new_sprint_id
             await issue.asave(update_fields=["sprint_id", "updated_at"])
+
+
+def aclose_sprint_atomic(sprint_pk, carry_to_pk):
+    """Close a sprint and carry its unfinished issues, in one transaction.
+
+    The async :meth:`Sprint.aclose` cannot be this: it is ``async def``, and
+    entering ``transaction.atomic()`` from a coroutine raises
+    ``SynchronousOnlyOperation``, so it saves the sprint and then walks the
+    issues with an ``await`` between each. A failure partway leaves a closed
+    sprint with only *some* of its issues carried over and no record of which —
+    an inconsistent state that no caller can tell apart from success.
+
+    Doing it synchronously puts the whole unit in one unbroken block, which is
+    also the only way the row lock is worth taking. It reaches the loop through
+    ``sync_to_async(..., thread_sensitive=True)``, the same chokepoint
+    ``issues.views._change_status_atomic`` uses.
+
+    ``carry_to_pk`` is validated here rather than by the caller, which is the
+    point: the web view checks it and the model did not, so calling ``aclose``
+    directly could move a sprint's issues into another project's sprint or into
+    an already-closed one. One place decides, and it is the place every caller
+    goes through.
+
+    Returns ``(sprint, moved_count)``.
+    """
+    from django.db import transaction
+
+    from issues.models import Issue
+
+    with transaction.atomic():
+        sprint = Sprint.objects.select_for_update().get(pk=sprint_pk)
+        carry_to = None
+        if carry_to_pk is not None:
+            # Scoped to the same project on purpose: the destination is a place
+            # to put this sprint's unfinished work, and a sprint in another
+            # project is not one. The web view checked this and the model did
+            # not, so calling aclose directly could cross projects.
+            carry_to = Sprint.objects.filter(pk=carry_to_pk, project_id=sprint.project_id).first()
+            if carry_to is None:
+                raise ValueError("el sprint destino no existe o es de otro proyecto")
+            if carry_to.pk == sprint.pk:
+                raise ValueError("un sprint no puede trasladarse a sí mismo")
+            if carry_to.status == "closed":
+                raise ValueError("el sprint destino está cerrado")
+
+        sprint.status = "closed"
+        sprint.closed_at = timezone.now()
+        sprint.save()
+
+        incomplete = list(
+            Issue.objects.filter(sprint_id=sprint.pk)
+            .exclude(status__category="done")
+            .select_related("project", "status")
+        )
+        new_sprint_id = carry_to.pk if carry_to is not None else None
+        # One save per row rather than update(sprint_id=...): the four
+        # post_save receivers — notifications, audit, webhooks and the realtime
+        # broadcast — hang off the row save and are silent for a queryset
+        # update, so a bulk write would move every issue while leaving watchers
+        # un-notified and the audit log empty. select_related keeps the
+        # receivers from firing a query per row for instance.project.
+        for issue in incomplete:
+            issue.sprint_id = new_sprint_id
+            issue.save(update_fields=["sprint_id", "updated_at"])
+    return sprint, len(incomplete)

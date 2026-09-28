@@ -1,3 +1,14 @@
 [submodule "jirrabit-mcp"]
 	path = jirrabit-mcp
 	url = git@github.com:rroblf01/jirrabit-mcp.git
+	# Follow main rather than a pinned commit. This is what makes
+	# `git submodule update --remote` fetch the tip of main instead of the SHA
+	# recorded in the index.
+	#
+	# It does not make the gitlink float. A submodule is recorded in the parent
+	# index as a commit SHA, and there is no form of this that pins a branch
+	# permanently: the pointer is still a SHA, it is just refreshed from main
+	# instead of from a tag. So "always the last commit" means running
+	# `git submodule update --remote` and committing the bump, which is what
+	# AGENTS.md documents and what a pre-push hook or CI can do for you.
+	branch = main

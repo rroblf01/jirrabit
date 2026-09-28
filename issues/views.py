@@ -79,6 +79,47 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
     return issue, worklog
 
 
+def _unlog_work_atomic(worklog_pk, user_pk):
+    """Remove a worklog and roll its minutes back off the issue's totals.
+
+    The mirror of :func:`_log_work_atomic`, and for the same two reasons:
+    ``transaction.atomic()`` cannot be entered from the event loop, and the two
+    writes have to be one block — deleting the row without adjusting the issue
+    leaves ``time_spent_minutes`` claiming time nobody logged, which is a
+    silently wrong number rather than a missing one.
+
+    The row lock is on the issue rather than the worklog because that is the row
+    both this and the logging path contend for, so the two cannot interleave and
+    lose an update.
+
+    Returns the issue, or ``None`` when the worklog does not exist. Callers
+    resolve visibility separately: a 404 is about *visibility*, and this
+    function must not decide it, or the two 404s would mean different things.
+    """
+    with transaction.atomic():
+        worklog = WorkLog.objects.select_for_update().filter(pk=worklog_pk).first()
+        if worklog is None:
+            return None
+        issue = Issue.objects.select_for_update().get(pk=worklog.issue_id)
+        minutes = worklog.minutes
+        worklog.delete()
+        issue.time_spent_minutes = max(0, (issue.time_spent_minutes or 0) - minutes)
+        # A worklog only ever subtracts from the remaining estimate, so undoing
+        # one adds it back — bounded below by the estimate that existed before
+        # any time was logged, which is not something we can recover, hence the
+        # clamp rather than an increment.
+        if issue.time_remaining_minutes is not None:
+            issue.time_remaining_minutes = issue.time_remaining_minutes + minutes
+        issue.save(
+            update_fields=[
+                "time_spent_minutes",
+                "time_remaining_minutes",
+                "updated_at",
+            ]
+        )
+    return issue
+
+
 async def _aget_project(key):
     try:
         return await Project.objects.aget(key=key)
@@ -328,11 +369,15 @@ class IssueListView(AsyncLoginRequiredMixin, AsyncListView):
     async def aget_queryset(self):
         self.project = await _aget_project(self.kwargs["key"])
         await aassert_can_view(self.request.user, self.project)
-        return (
-            self.project.issues.select_related("status", "priority", "assignee", "issue_type")
-            .prefetch_related("labels")
-            .all()
-        )
+        qs = self.project.issues.select_related(
+            "status", "priority", "assignee", "issue_type"
+        ).prefetch_related("labels")
+        # Archived issues are hidden, which is what the field's help text claims
+        # and what makes archiving a usable alternative to deleting. ?archived=1
+        # reveals them, the override the board has always had.
+        if not self.request.GET.get("archived"):
+            qs = qs.filter(archived=False)
+        return qs.all()
 
     async def aget_context_data(self, **kwargs):
         ctx = await super().aget_context_data(**kwargs)

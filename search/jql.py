@@ -35,6 +35,10 @@ FIELD_MAP = {
     "sprint": "sprint__name",
     "epic": "epic__name",
     "key": "key",
+    # Added so `archived = true` is answerable. It was missing while the field
+    # existed and was already filterable in the board, which meant an archived
+    # issue could be found in one place and not the other.
+    "archived": "archived",
 }
 
 #: Fields whose stored values differ from what callers write. Jira reports a
@@ -64,6 +68,32 @@ CATEGORY_ALIASES = {
 M2M_FIELDS = {"label"}
 
 USER_FIELDS = {"assignee", "reporter"}
+
+#: Fields whose value is a boolean, so the string a query carries has to be
+#: translated rather than handed to the ORM. Without this, `archived = false`
+#: would return the *archived* issues: Django coerces a BooleanField value with
+#: bool(), and bool("false") is True. A query that says the opposite of what it
+#: means is the worst failure this parser can have.
+BOOLEAN_FIELDS = {"archived"}
+
+_TRUE = {"true", "yes", "1"}
+_FALSE = {"false", "no", "0"}
+
+
+def _parse_bool(value: str, chunk: str) -> bool:
+    """Translate a JQL boolean literal, refusing anything ambiguous."""
+    text = str(value).strip().strip("\"'").lower()
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    raise JQLError(f"'{column_named_in(chunk)}' es un campo booleano: usa true o false, no '{value}'.")
+
+
+def column_named_in(chunk: str) -> str:
+    """Best-effort field name for an error message, from the front of a clause."""
+    return chunk.split("=")[0].split("!")[0].split("~")[0].strip() or chunk.strip()
+
 
 #: JQL field names are case-insensitive, and the parser lowercases what it
 #: captures, so lookups go through this map. FIELD_MAP keeps the canonical
@@ -332,6 +362,10 @@ def parse_jql(query: str):
         is_category = field == "statuscategory"
         if is_category and not isinstance(v, list):
             v = _translate_category(v)
+        if field in BOOLEAN_FIELDS and not isinstance(v, list):
+            # `is EMPTY` was already handled above, and `in` is left to the ORM
+            # below: both carry a real boolean already.
+            v = _parse_bool(v, chunk)
         if op == "=":
             q &= Q(**{column: v})
         elif op == "!=":
