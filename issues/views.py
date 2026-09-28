@@ -49,7 +49,7 @@ def _change_status_atomic(issue_pk, new_status_pk, user_pk):
     return issue, new_status, True
 
 
-def _log_work_atomic(issue_pk, user_pk, minutes, comment):
+def _log_work_atomic(issue_pk, user_pk, minutes, comment, started=None):
     """Log work under a row lock. Returns ``(issue, worklog)``.
 
     Synchronous and atomic on purpose: ``transaction.atomic()`` is not async-safe,
@@ -57,6 +57,13 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
     reach this through ``sync_to_async``. Both the returned issue and the
     worklog are returned because callers need different halves — the web view
     re-renders the issue, the API responds with the worklog.
+
+    ``started`` backdates the entry. It cannot ride along in the create because
+    ``logged_at`` is ``auto_now_add``, which overwrites any value handed to it,
+    so it is applied with a queryset ``update()`` after the create, inside the
+    same block. That update skips ``post_save`` by design: the create already
+    fired the receivers once, and the timestamp is not something any of them
+    reads.
     """
     with transaction.atomic():
         issue = Issue.objects.select_for_update().get(pk=issue_pk)
@@ -66,6 +73,12 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
             minutes=minutes,
             comment=comment,
         )
+        if started is not None:
+            WorkLog.objects.filter(pk=worklog.pk).update(logged_at=started)
+            # refresh_from_db() would also do, but it drops the cached
+            # relations — and the caller serialises issue and author straight
+            # from this object, on the event loop, where a lazy query is a 500.
+            worklog = WorkLog.objects.select_related("issue", "author").get(pk=worklog.pk)
         issue.time_spent_minutes = (issue.time_spent_minutes or 0) + minutes
         if issue.time_remaining_minutes:
             issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - minutes)
@@ -77,6 +90,47 @@ def _log_work_atomic(issue_pk, user_pk, minutes, comment):
             ]
         )
     return issue, worklog
+
+
+def _edit_work_atomic(worklog_pk, minutes=None, comment=None, started=None):
+    """Edit a worklog entry and move the issue's totals by the delta.
+
+    The third half of the log/unlog pair, and shaped like both: same row lock
+    on the issue (the row all three contend for), same clamps, same return of
+    the worklog for the API to serialise. Editing minutes by the delta rather
+    than recomputing from all rows keeps the three paths agreeing about what
+    the totals mean — and recomputing would also be wrong, because the totals
+    are allowed to have been adjusted by hand in between.
+
+    ``None`` means "leave it": an empty comment clears, a null one does not
+    touch. Returns the worklog, or ``None`` when it does not exist.
+    """
+    with transaction.atomic():
+        worklog = WorkLog.objects.select_for_update().filter(pk=worklog_pk).first()
+        if worklog is None:
+            return None
+        issue = Issue.objects.select_for_update().get(pk=worklog.issue_id)
+        if minutes is not None:
+            delta = minutes - worklog.minutes
+            worklog.minutes = minutes
+            issue.time_spent_minutes = max(0, (issue.time_spent_minutes or 0) + delta)
+            if issue.time_remaining_minutes is not None:
+                issue.time_remaining_minutes = max(0, issue.time_remaining_minutes - delta)
+        if comment is not None:
+            worklog.comment = comment[:255]
+        if started is not None:
+            worklog.logged_at = started
+        # Plain save, not update(): the audit receiver tracks WorkLog, and a
+        # bulk write here would leave an edit with no audit row.
+        worklog.save()
+        issue.save(
+            update_fields=[
+                "time_spent_minutes",
+                "time_remaining_minutes",
+                "updated_at",
+            ]
+        )
+    return WorkLog.objects.select_related("issue", "author").get(pk=worklog.pk)
 
 
 def _unlog_work_atomic(worklog_pk, user_pk):

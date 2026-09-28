@@ -263,6 +263,31 @@ class WorkLogOut(Schema):
 class WorkLogIn(Schema):
     minutes: int
     comment: str = ""
+    # ISO 8601 timestamp for when the work happened. Omitted means now, which
+    # is what the field has always meant: logged_at is auto_now_add, and the
+    # only thing the create form ever recorded was the moment of the click.
+    started: str | None = None
+
+
+def _parse_started(value: str) -> datetime:
+    """Parse a worklog timestamp into an aware datetime.
+
+    Naive input is read in the server's default timezone rather than rejected:
+    a caller that sends "2026-09-20T14:00:00" means their wall clock, and there
+    is no wall clock on the wire to recover. Future timestamps are refused — a
+    worklog is a record of time spent, not time planned.
+    """
+    from ninja.errors import HttpError
+
+    try:
+        parsed = datetime.fromisoformat(value.strip())
+    except ValueError, TypeError:
+        raise HttpError(400, f"fecha inválida: {value!r}; usa ISO 8601") from None
+    if parsed.tzinfo is None:
+        parsed = timezone.make_aware(parsed)
+    if parsed > timezone.now():
+        raise HttpError(400, "no se puede registrar trabajo en el futuro")
+    return parsed
 
 
 class IssueOut(Schema):
@@ -1371,6 +1396,78 @@ async def create_issue_template(request, key: str, payload: IssueTemplateIn):
     if payload.labels:
         await template.labels.aset(await _validate_labels(payload.labels))
     # Re-read: acreate returns a row with no relations cached, and _template_out
+    # reads three of them.
+    template = (
+        await IssueTemplate.objects.filter(pk=template.pk)
+        .select_related("issue_type", "priority", "created_by")
+        .afirst()
+    )
+    return await _template_out(template)
+
+
+class IssueTemplatePatch(Schema):
+    name: str | None = Field(default=None, max_length=80)
+    issue_type_id: int | None = None
+    summary: str | None = Field(default=None, max_length=255)
+    description: str | None = None
+    # Explicit null clears the priority: it is nullable, and there is no other
+    # spelling for "no default priority".
+    priority_id: int | None = None
+    # The whole label set, replaced rather than merged: read the template first
+    # or the labels it had are gone. Empty list clears them.
+    labels: list[str] | None = None
+
+
+@api.patch("/projects/{key}/issue-templates/{template_id}/", response=IssueTemplateOut)
+async def patch_issue_template(request, key: str, template_id: int, payload: IssueTemplatePatch):
+    """Edit a template. Needs admin: it is project configuration.
+
+    The late arrival: create, list and delete existed while a typo in a
+    template's default summary could only be fixed by deleting the template and
+    recreating it. Same fields as the create, all optional, same validation.
+    """
+    from ninja.errors import HttpError
+
+    from issues.models import IssueTemplate
+
+    project = await _visible_project(request, key)
+    await _assert_project_admin(request, project)
+    template = await IssueTemplate.objects.filter(pk=template_id, project=project).afirst()
+    if template is None:
+        raise Http404
+    data = payload.dict(exclude_unset=True)
+
+    if "name" in data and data["name"] is not None:
+        name = data["name"].strip()
+        if not name:
+            raise HttpError(400, "name requerido")
+        if name != template.name and await IssueTemplate.objects.filter(project=project, name=name).aexists():
+            raise HttpError(409, f"ya existe una plantilla llamada {name!r} en este proyecto")
+        template.name = name
+
+    if "issue_type_id" in data and data["issue_type_id"] is not None:
+        if not await IssueType.objects.filter(pk=data["issue_type_id"]).aexists():
+            raise HttpError(400, "tipo de tarea inválido")
+        template.issue_type_id = data["issue_type_id"]
+
+    if "summary" in data and data["summary"] is not None:
+        template.summary = data["summary"]
+
+    if "description" in data and data["description"] is not None:
+        template.description = data["description"]
+
+    if "priority_id" in data:
+        if (
+            data["priority_id"] is not None
+            and not await Priority.objects.filter(pk=data["priority_id"]).aexists()
+        ):
+            raise HttpError(400, "prioridad inválida")
+        template.priority_id = data["priority_id"]
+
+    await template.asave()
+    if "labels" in data and data["labels"] is not None:
+        await template.labels.aset(await _validate_labels(data["labels"]))
+    # Re-read: asave leaves the row's relations as they were, and _template_out
     # reads three of them.
     template = (
         await IssueTemplate.objects.filter(pk=template.pk)
@@ -2792,6 +2889,317 @@ async def project_activity(
     return await paginate(qs, AuditOut.from_entry, page, size)
 
 
+# --- project analytics ----------------------------------------------------
+#
+# SLA, burndown and reports exist as server-rendered pages and answer the
+# questions a standup actually asks — what is stuck, how the sprint is going,
+# how fast the team ships. They are computed views over the same rows the API
+# already exposes, and recomputing them client-side from changelog pages is
+# the kind of work that drifts: every caller would bucket weeks or clamp
+# percentiles slightly differently. So the aggregation lives here, mirroring
+# the web views query for query, and the response carries data rather than
+# markup — no SVG coordinates, no template context.
+
+
+class SlaItemOut(Schema):
+    issue: str
+    summary: str
+    status: str
+    priority: str = ""
+    assignee: str = ""
+    entered_at: str
+    days_in_status: int
+
+
+class SlaOut(Schema):
+    project: str
+    threshold_days: int
+    count: int
+    items: list[SlaItemOut]
+
+
+@api.get("/projects/{key}/sla/", response=SlaOut)
+async def project_sla(request, key: str, days: int = 7):
+    """Open issues stuck in one status longer than a threshold.
+
+    Same definition as the web view, which this mirrors: an issue's "time at
+    current status" is the newest ``HistoryEntry`` with ``field="status"``, or
+    the issue's own creation when it has never moved. Done-category issues are
+    never stuck, archived ones are off the board, and the list is oldest first
+    so the worst offender is at the top.
+    """
+    from issues.models import HistoryEntry, Issue
+
+    project = await _visible_project(request, key)
+    threshold = max(1, days)
+    now = timezone.now()
+    cutoff = now - timezone.timedelta(days=threshold)
+    candidates = [
+        i
+        async for i in Issue.objects.filter(project=project, archived=False)
+        .exclude(status__category="done")
+        .select_related("status", "priority", "assignee")
+        .order_by("updated_at")
+    ]
+    items = []
+    for i in candidates:
+        last_change = (
+            await HistoryEntry.objects.filter(issue=i, field="status").order_by("-created_at").afirst()
+        )
+        entered_at = last_change.created_at if last_change else i.created_at
+        if entered_at <= cutoff:
+            items.append(
+                SlaItemOut(
+                    issue=i.key,
+                    summary=i.summary,
+                    status=str(i.status),
+                    priority=str(i.priority),
+                    assignee=i.assignee.username if i.assignee_id else "",
+                    entered_at=entered_at.isoformat(),
+                    days_in_status=int((now - entered_at).total_seconds() / 86400),
+                )
+            )
+    items.sort(key=lambda r: -r.days_in_status)
+    return SlaOut(project=project.key, threshold_days=threshold, count=len(items), items=items)
+
+
+class BurndownPointOut(Schema):
+    date: str
+    # Story points the ideal line says should remain. Linear from the total on
+    # day zero to zero on the last day — the same straight line the chart draws.
+    ideal: float
+    # Story points actually remaining. Null for future days, which have no
+    # actual yet; a client that plots null as zero draws a cliff that is not
+    # there.
+    actual: float | None = None
+
+
+class VelocityRowOut(Schema):
+    name: str
+    committed: int
+    completed: int
+
+
+class SprintRefOut(Schema):
+    id: int
+    name: str
+    status: str
+    start_date: str = ""
+    end_date: str = ""
+
+
+class BurndownOut(Schema):
+    project: str
+    sprint: SprintRefOut | None = None
+    total_sp: int = 0
+    done_sp: int = 0
+    percent_done: float = 0
+    points: list[BurndownPointOut] = []
+    # Last twelve closed sprints, oldest first: committed (story points in the
+    # sprint) vs completed (resolved inside its dates).
+    velocity: list[VelocityRowOut] = []
+
+
+@api.get("/projects/{key}/burndown/", response=BurndownOut)
+async def project_burndown(request, key: str, sprint: int | None = None):
+    """Sprint burndown plus recent velocity.
+
+    Same sprint selection as the web view: the named sprint when given, else
+    the active one, else the latest by start date. A project with no sprints
+    answers with an empty chart rather than a 404 — "no sprints yet" is a
+    state, not an error. Velocity covers the last twelve closed sprints; the
+    SVG coordinates the template needs are deliberately absent, because a JSON
+    client plots its own chart.
+    """
+    from datetime import timedelta
+
+    from issues.models import Issue
+
+    project = await _visible_project(request, key)
+    current = None
+    if sprint is not None:
+        current = await project.sprints.filter(pk=sprint).afirst()
+        if current is None:
+            raise Http404
+    if current is None:
+        current = (
+            await project.sprints.filter(status="active").afirst()
+            or await project.sprints.order_by("-start_date").afirst()
+        )
+
+    closed = [s async for s in project.sprints.filter(status="closed").order_by("end_date")[:12]]
+    closed_ids = [s.pk for s in closed]
+    by_sprint: dict[int, list] = {sid: [] for sid in closed_ids}
+    if closed_ids:
+        async for i in Issue.objects.filter(sprint_id__in=closed_ids).only(
+            "sprint_id", "story_points", "resolved_at"
+        ):
+            by_sprint[i.sprint_id].append(i)
+    velocity = []
+    for s in closed:
+        rows = by_sprint.get(s.pk, [])
+        committed = sum(i.story_points or 0 for i in rows)
+        completed = sum(
+            (i.story_points or 0)
+            for i in rows
+            if i.resolved_at
+            and s.start_date
+            and s.end_date
+            and s.start_date <= i.resolved_at.date() <= s.end_date
+        )
+        velocity.append(VelocityRowOut(name=s.name, committed=committed, completed=completed))
+
+    out = BurndownOut(project=project.key, velocity=velocity)
+    if current is None:
+        return out
+    out.sprint = SprintRefOut(
+        id=current.pk,
+        name=current.name,
+        status=current.status,
+        start_date=current.start_date.isoformat() if current.start_date else "",
+        end_date=current.end_date.isoformat() if current.end_date else "",
+    )
+    if current.start_date and current.end_date:
+        rows = [i async for i in Issue.objects.filter(sprint=current).only("story_points", "resolved_at")]
+        total = sum(i.story_points or 0 for i in rows)
+        days = (current.end_date - current.start_date).days or 1
+        today = timezone.localdate()
+        points = []
+        for n in range(days + 1):
+            day = current.start_date + timedelta(days=n)
+            remaining = sum(
+                (i.story_points or 0) for i in rows if not (i.resolved_at and i.resolved_at.date() <= day)
+            )
+            points.append(
+                BurndownPointOut(
+                    date=day.isoformat(),
+                    ideal=round(total - (total / days) * n, 1),
+                    actual=remaining if day <= today else None,
+                )
+            )
+        done = sum(i.story_points or 0 for i in rows if i.resolved_at)
+        out.total_sp = total
+        out.done_sp = done
+        out.percent_done = round(done * 100.0 / total, 1) if total else 0
+        out.points = points
+    return out
+
+
+class ThroughputWeekOut(Schema):
+    week: str
+    count: int
+
+
+class CycleTimeOut(Schema):
+    count: int
+    median_h: float
+    avg_h: float
+    p90_h: float
+
+
+class WipRowOut(Schema):
+    name: str
+    category: str
+    count: int
+
+
+class ReportsOut(Schema):
+    project: str
+    throughput: list[ThroughputWeekOut]
+    throughput_max: int
+    cycle: CycleTimeOut
+    wip: list[WipRowOut]
+    wip_max: int
+
+
+@api.get("/projects/{key}/reports/", response=ReportsOut)
+async def project_reports(request, key: str):
+    """Throughput, cycle time and a WIP-by-status snapshot.
+
+    Same three blocks as the web view, same windows: resolved-per-ISO-week for
+    the last eight weeks, cycle time over issues resolved in the last ninety
+    days, WIP as a per-status snapshot. Two caveats travel with the numbers
+    because they are load-bearing. The cycle-time start is the first recorded
+    status change, falling back to the issue's creation — and like every
+    changelog built on ``HistoryEntry``, that history is incomplete by
+    construction, so cycle time is a lower bound as much as a measurement. And
+    WIP counts every issue in each status, archived included, exactly as the
+    page does: filtering one and not the other would make the two disagree.
+    """
+    from datetime import timedelta
+
+    from issues.models import HistoryEntry, Issue, Status
+
+    project = await _visible_project(request, key)
+    now = timezone.now()
+
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    weeks_back = 8
+    first_week = week_start - timedelta(weeks=weeks_back - 1)
+    buckets = {first_week + timedelta(weeks=w): 0 for w in range(weeks_back)}
+    async for i in Issue.objects.filter(project=project, resolved_at__gte=first_week).only("resolved_at"):
+        bucket = (i.resolved_at - timedelta(days=i.resolved_at.weekday())).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        if bucket in buckets:
+            buckets[bucket] += 1
+    throughput = [
+        ThroughputWeekOut(week=week.strftime("%Y-W%V"), count=count)
+        for week, count in sorted(buckets.items())
+    ]
+
+    recent = [
+        i
+        async for i in Issue.objects.filter(project=project, resolved_at__gte=now - timedelta(days=90)).only(
+            "id", "resolved_at", "created_at"
+        )
+    ]
+    recent_ids = [i.pk for i in recent]
+    starts: dict[int, Any] = {}
+    if recent_ids:
+        async for h in (
+            HistoryEntry.objects.filter(issue_id__in=recent_ids, field="status")
+            .order_by("issue_id", "created_at")
+            .only("issue_id", "created_at")
+        ):
+            if h.issue_id not in starts:
+                starts[h.issue_id] = h.created_at
+    durations = []
+    for i in recent:
+        start = starts.get(i.pk, i.created_at)
+        if i.resolved_at and start and i.resolved_at > start:
+            durations.append((i.resolved_at - start).total_seconds() / 3600.0)
+    if durations:
+        durations.sort()
+        mid = len(durations) // 2
+        median = durations[mid] if len(durations) % 2 else (durations[mid - 1] + durations[mid]) / 2
+        avg = sum(durations) / len(durations)
+        p90 = durations[int(0.9 * (len(durations) - 1))]
+    else:
+        median = avg = p90 = 0
+    cycle = CycleTimeOut(
+        count=len(durations), median_h=round(median, 1), avg_h=round(avg, 1), p90_h=round(p90, 1)
+    )
+
+    wip = []
+    async for s in Status.objects.order_by("order").all():
+        wip.append(
+            WipRowOut(
+                name=s.name,
+                category=s.category,
+                count=await Issue.objects.filter(project=project, status=s).acount(),
+            )
+        )
+    return ReportsOut(
+        project=project.key,
+        throughput=throughput,
+        throughput_max=max((t.count for t in throughput), default=0) or 1,
+        cycle=cycle,
+        wip=wip,
+        wip_max=max((w.count for w in wip), default=0) or 1,
+    )
+
+
 # --- attachments ---
 #
 # Stored fully in the database as base64 in a TextField, capped at 5 MB, which is
@@ -3553,6 +3961,98 @@ async def create_issue(request, key: str, payload: IssueIn):
     return await IssueOut.afrom_issue(await _visible_issue(request, issue.key))
 
 
+class CloneIn(Schema):
+    # Default summary when omitted: the UI prefixes "[clon] ", and the API keeps
+    # the same spelling so a clone is recognisable wherever it was made.
+    summary: str | None = Field(default=None, max_length=255)
+    # Place the clone straight into a sprint: "clone this for next sprint" is
+    # the workflow this endpoint exists for.
+    sprint_id: int | None = None
+    # Copy direct subtasks as children of the clone, one level only. Off by
+    # default: cloning a parent with twenty children is a bulk create wearing a
+    # single-issue costume, and the caller should ask for it out loud.
+    include_subtasks: bool = False
+
+
+class CloneOut(Schema):
+    issue: IssueOut
+    # Keys of the cloned subtasks, in the same order as the originals. Empty
+    # unless include_subtasks was set.
+    subtasks: list[str] = []
+
+
+@api.post("/issues/{key}/clone/", response=CloneOut)
+async def clone_issue(request, key: str, payload: CloneIn):
+    """Duplicate an issue: summary, description, type, priority, assignee,
+    labels, epic, story points, estimate and due date.
+
+    Same field set as the web UI's clone, which this mirrors on purpose so the
+    two cannot disagree about what "a copy" means. Subtasks, comments, history,
+    attachments, links and logged time are never copied — the clone starts
+    fresh — and neither is the archived flag: a copy of an archived issue is an
+    active issue. The reporter is the caller, not the original reporter, because
+    the person who asked for the copy owns it.
+    """
+    src = await _visible_issue(request, key)
+    await _assert_can_edit(request, src.project)
+    # Blank, whitespace-only and omitted all mean "the default prefix": summary
+    # is required on the model, so the fallback can never be empty and there is
+    # no dead 400 branch to maintain.
+    summary = (payload.summary or "").strip() or f"[clon] {src.summary}"
+    sprint_id = await _validate_sprint(src.project, payload.sprint_id)
+
+    async def _copy(source: Issue, parent_id: int | None, summary: str, sprint_id: int | None) -> Issue:
+        num = await source.project.anext_issue_number()
+        clone = await Issue.objects.acreate(
+            project=source.project,
+            reporter=request.user,
+            summary=summary[:255],
+            description=source.description,
+            status=source.status,
+            priority=source.priority,
+            issue_type=source.issue_type,
+            assignee=source.assignee,
+            epic=source.epic,
+            parent_id=parent_id,
+            sprint_id=sprint_id,
+            story_points=source.story_points,
+            estimate_minutes=source.estimate_minutes,
+            due_date=source.due_date,
+            key=f"{source.project.key}-{num}",
+        )
+        labels = [lab async for lab in source.labels.all()]
+        if labels:
+            # aset, not aupdate: same call the board makes, and the M2M
+            # through-table has no receivers to skip.
+            await clone.labels.aset(labels)
+        return clone
+
+    clone = await _copy(src, None, summary, sprint_id)
+    subtasks: list[str] = []
+    if payload.include_subtasks:
+        # No sprint on the children: a subtask rides with its parent, and a
+        # sprint id on both would double-book it wherever sprints are counted.
+        # Same joins as _visible_issue, for the same reason: _copy reads every
+        # relation on the row, and an uncached one is a synchronous query on
+        # the event loop.
+        children = [
+            child
+            async for child in Issue.objects.filter(parent=src)
+            .select_related("project", "status", "priority", "issue_type", "assignee", "epic")
+            .prefetch_related("labels")
+            .order_by("rank", "-updated_at")
+        ]
+        for child in children:
+            sub = await _copy(child, clone.pk, f"[clon] {child.summary}", None)
+            subtasks.append(sub.key)
+    # Re-read: acreate leaves relations uncached and afrom_issue reads parent,
+    # epic and labels, which on the event loop would be synchronous queries.
+    return CloneOut(
+        issue=await IssueOut.afrom_issue(await _visible_issue(request, clone.key)),
+        subtasks=subtasks,
+    )
+
+
 @api.get("/issues/{key}/", response=IssueOut)
 async def get_issue(request, key: str):
     issue = await _visible_issue(request, key)
@@ -3959,6 +4459,175 @@ async def _assert_can_edit(request, project: Project) -> None:
 @api.get("/me/", response=UserOut)
 async def me(request):
     return request.user
+
+
+class MePatch(Schema):
+    display_name: str | None = Field(default=None, max_length=120)
+    first_name: str | None = Field(default=None, max_length=150)
+    last_name: str | None = Field(default=None, max_length=150)
+    email: str | None = None
+    job_title: str | None = Field(default=None, max_length=120)
+    timezone: str | None = Field(default=None, max_length=64)
+    language: str | None = Field(default=None, max_length=8)
+    palette: str | None = Field(default=None, max_length=20)
+    notify_email: bool | None = None
+    muted_kinds: list[str] | None = None
+    # A data URL (``data:image/png;base64,...``), like the profile form
+    # produces. Empty string clears the avatar; omitted leaves it alone.
+    avatar: str | None = None
+
+
+class MeOut(Schema):
+    id: int
+    username: str
+    display_name: str = ""
+    first_name: str = ""
+    last_name: str = ""
+    email: str = ""
+    job_title: str = ""
+    timezone: str = ""
+    language: str = ""
+    palette: str = ""
+    notify_email: bool = True
+    muted_kinds: list[str] = []
+    # The avatar itself is not echoed: it is a multi-megabyte base64 blob and
+    # the caller just sent or cleared it, so a flag answers the only question
+    # left, which is whether one is stored.
+    has_avatar: bool = False
+
+    @staticmethod
+    def from_user(user) -> MeOut:
+        return MeOut(
+            id=user.pk,
+            username=user.username,
+            display_name=user.display_name or "",
+            first_name=user.first_name or "",
+            last_name=user.last_name or "",
+            email=user.email or "",
+            job_title=user.job_title or "",
+            timezone=user.timezone or "",
+            language=user.language or "",
+            palette=user.palette or "",
+            notify_email=user.notify_email,
+            muted_kinds=[k for k in (user.muted_kinds or "").split(",") if k.strip()],
+            has_avatar=bool(user.avatar),
+        )
+
+
+@api.patch("/me/", response=MeOut)
+async def patch_me(request, payload: MePatch):
+    """Edit the caller's own profile: the fields on the profile form.
+
+    This is the self-service counterpart to ``PATCH /admin/users/{id}/``.
+    Anything about identity or privilege is deliberately out of reach here:
+    ``username`` cannot change (it is the login), there is no ``password``
+    field (rotation stays in the web flow, where it belongs), and
+    ``is_staff``/``is_superuser``/``is_active`` are admin-only. A caller that
+    needs those is asking the wrong endpoint, not hitting a missing feature.
+    """
+    from ninja.errors import HttpError
+
+    user = request.user
+    data = payload.dict(exclude_unset=True)
+
+    for field in ("display_name", "first_name", "last_name", "job_title"):
+        if field in data and data[field] is not None:
+            setattr(user, field, data[field].strip())
+
+    if "email" in data and data["email"] is not None:
+        from django.core.exceptions import ValidationError
+        from django.core.validators import validate_email
+
+        email = data["email"].strip()
+        if email:
+            try:
+                validate_email(email)
+            except ValidationError:
+                raise HttpError(400, f"correo inválido: {email!r}") from None
+        user.email = email
+
+    if "timezone" in data and data["timezone"] is not None:
+        from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+        tz = data["timezone"].strip()
+        try:
+            ZoneInfo(tz)
+        except ZoneInfoNotFoundError:
+            raise HttpError(400, f"zona horaria desconocida: {tz!r}") from None
+        user.timezone = tz
+
+    if "language" in data and data["language"] is not None:
+        from django.conf import settings
+
+        codes = [code for code, _name in settings.LANGUAGES]
+        lang = data["language"].strip()
+        if lang not in codes:
+            raise HttpError(400, f"idioma inválido: {lang!r}; usa uno de {', '.join(codes)}")
+        user.language = lang
+
+    if "palette" in data and data["palette"] is not None:
+        from core.palettes import palette_choices_simple
+
+        slugs = [slug for slug, _label in palette_choices_simple()]
+        palette = data["palette"].strip()
+        if palette not in slugs:
+            raise HttpError(400, f"paleta inválida: {palette!r}; usa una de {', '.join(slugs)}")
+        user.palette = palette
+
+    if "notify_email" in data and data["notify_email"] is not None:
+        user.notify_email = data["notify_email"]
+
+    if "muted_kinds" in data and data["muted_kinds"] is not None:
+        valid = {key for key, _label in User.NOTIFY_KINDS}
+        cleaned = []
+        for kind in data["muted_kinds"]:
+            kind = (kind or "").strip().lower()
+            if kind not in valid:
+                raise HttpError(
+                    400, f"tipo de notificación inválido: {kind!r}; usa de {', '.join(sorted(valid))}"
+                )
+            if kind not in cleaned:
+                cleaned.append(kind)
+        user.muted_kinds = ",".join(cleaned)
+
+    if "avatar" in data and data["avatar"] is not None:
+        user.avatar = _check_avatar_data_url(data["avatar"])
+
+    await user.asave()
+    return MeOut.from_user(user)
+
+
+def _check_avatar_data_url(value: str) -> str:
+    """Validate an avatar data URL, returning the stored value.
+
+    Mirrors the profile form's rules so the two cannot disagree: same MIME
+    allowlist, same byte cap, same ``data:<mime>;base64,`` shape. Empty string
+    clears the avatar, which is the API spelling of the form's "quitar avatar"
+    checkbox.
+    """
+    import base64
+    import binascii
+
+    from ninja.errors import HttpError
+
+    from accounts.forms import ALLOWED_AVATAR_MIME, MAX_AVATAR_BYTES
+
+    if not value:
+        return ""
+    try:
+        header, encoded = value.split(",", 1)
+        mime = header.split(";")[0].split(":")[1]
+    except ValueError, IndexError:
+        raise HttpError(400, "avatar inválido: se espera data:image/...;base64,...") from None
+    if mime not in ALLOWED_AVATAR_MIME:
+        raise HttpError(400, f"tipo de imagen no soportado: {mime or 'desconocido'}")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except binascii.Error, ValueError:
+        raise HttpError(400, "avatar inválido: el base64 no se puede decodificar") from None
+    if len(raw) > MAX_AVATAR_BYTES:
+        raise HttpError(400, "la imagen supera el tamaño máximo permitido")
+    return value
 
 
 # --- project mgmt ---
@@ -4479,11 +5148,55 @@ async def add_worklog(request, key: str, payload: WorkLogIn):
     # entering it from an async view raises SynchronousOnlyOperation. A
     # transaction also has to be one unbroken block, so the unit cannot be split
     # across awaits.
+    started = _parse_started(payload.started) if payload.started is not None else None
     _issue, log = await sync_to_async(_log_work_atomic, thread_sensitive=True)(
         issue.pk,
         request.user.pk,
         payload.minutes,
         payload.comment[:255],
+        started,
+    )
+    return WorkLogOut.from_log(log)
+
+
+class WorkLogPatch(Schema):
+    minutes: int | None = None
+    comment: str | None = None
+    started: str | None = None
+
+
+@api.patch("/issues/{key}/worklogs/{worklog_id}/", response=WorkLogOut)
+async def patch_worklog(request, key: str, worklog_id: int, payload: WorkLogPatch):
+    """Correct a logged-time entry: its minutes, comment, or when it happened.
+
+    The late arrival next to add and delete: correcting "3h" to "2h" used to
+    mean deleting the entry and recreating it, which lost the original date and
+    broke the continuity of the log. The issue's totals move by the delta, under
+    the same row lock as the log and unlog paths, so the three agree.
+    """
+    from asgiref.sync import sync_to_async
+    from ninja.errors import HttpError
+
+    from issues.views import _edit_work_atomic
+
+    issue = await _visible_issue(request, key)
+    await _assert_can_edit(request, issue.project)
+    log = await WorkLog.objects.filter(pk=worklog_id, issue=issue).afirst()
+    if log is None:
+        raise Http404
+    data = payload.dict(exclude_unset=True)
+    if "minutes" in data and data["minutes"] is not None and data["minutes"] <= 0:
+        raise HttpError(400, "minutes debe ser > 0")
+    # None leaves the date alone — a timestamp column has no "cleared" state —
+    # while an explicit empty string is malformed input, not absence.
+    started = _parse_started(data["started"]) if data.get("started") is not None else None
+    # Resolved here rather than inside the helper so the "not on this issue"
+    # 404 above stays a 404 about visibility, matching the delete endpoint.
+    log = await sync_to_async(_edit_work_atomic, thread_sensitive=True)(
+        worklog_id,
+        minutes=data.get("minutes"),
+        comment=data.get("comment"),
+        started=started,
     )
     return WorkLogOut.from_log(log)
 

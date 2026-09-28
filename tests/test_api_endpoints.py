@@ -8,6 +8,7 @@ here checks the negative case as well as the positive one.
 import base64
 import json
 import os
+from datetime import date as _date
 from unittest import mock
 
 from django.test import Client, TestCase
@@ -19,6 +20,7 @@ from issues.models import (
     Issue,
     IssueLink,
     IssueType,
+    Label,
     Priority,
     Status,
     WorkLog,
@@ -3886,3 +3888,688 @@ class APIUniqueConstraintTests(TestCase):
             content_type="application/json",
         )
         self.assertEqual(r.status_code, 409, r.content[:200])
+
+
+class APIMePatchTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_patch_display_name_and_job_title(self):
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps({"display_name": "Alicia", "job_title": "PM"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        self.assertEqual(body["display_name"], "Alicia")
+        self.assertEqual(body["job_title"], "PM")
+        self.assertEqual(body["username"], "alice")
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.display_name, "Alicia")
+
+    def test_invalid_palette_is_400_and_changes_nothing(self):
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps({"palette": "chartreuse", "display_name": "Nope"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400, r.content[:200])
+        self.assertIn("blue", r.json()["detail"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.palette, "blue")
+        self.assertEqual(self.user.display_name, "")
+
+    def test_timezone_and_language_are_validated(self):
+        for field, bad in (("timezone", "Mordor/Barad-dur"), ("language", "xx")):
+            r = self.c.patch(
+                "/api/v1/me/",
+                data=json.dumps({field: bad}),
+                content_type="application/json",
+            )
+            self.assertEqual(r.status_code, 400, r.content[:200])
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps({"timezone": "Europe/Madrid", "language": "en"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["language"], "en")
+
+    def test_invalid_email_is_400(self):
+        r = self.c.patch(
+            "/api/v1/me/", data=json.dumps({"email": "not-an-email"}), content_type="application/json"
+        )
+        self.assertEqual(r.status_code, 400, r.content[:200])
+
+    def test_muted_kinds_are_normalized_and_guarded(self):
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps({"muted_kinds": ["Mention", "mention", " comment "]}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["muted_kinds"], ["mention", "comment"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.muted_kinds, "mention,comment")
+
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps({"muted_kinds": ["smoke-signals"]}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400, r.content[:200])
+        self.assertIn("mention", r.json()["detail"])
+
+    def test_avatar_accepted_rejected_and_cleared(self):
+        import base64
+
+        good = "data:image/png;base64," + base64.b64encode(b"x" * 100).decode("ascii")
+        r = self.c.patch("/api/v1/me/", data=json.dumps({"avatar": good}), content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertTrue(r.json()["has_avatar"])
+
+        bad_mime = "data:image/bmp;base64," + base64.b64encode(b"x" * 100).decode("ascii")
+        r = self.c.patch(
+            "/api/v1/me/", data=json.dumps({"avatar": bad_mime}), content_type="application/json"
+        )
+        self.assertEqual(r.status_code, 400, r.content[:200])
+
+        huge = "data:image/png;base64," + base64.b64encode(b"x" * 1_500_001).decode("ascii")
+        r = self.c.patch("/api/v1/me/", data=json.dumps({"avatar": huge}), content_type="application/json")
+        self.assertEqual(r.status_code, 400, r.content[:200])
+
+        r = self.c.patch("/api/v1/me/", data=json.dumps({"avatar": ""}), content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertFalse(r.json()["has_avatar"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.avatar, "")
+
+    def test_identity_and_privilege_are_untouchable(self):
+        """username, password and flags ride along in the body and change nothing.
+
+        A caller that needs those is asking the wrong endpoint: username is the
+        login, the password rotates through the web flow, and privilege is
+        admin-only. Silently accepting them would be worse than refusing, but a
+        422 on every extra key would break forward compatibility, so they are
+        ignored and the untouched values prove it.
+        """
+        r = self.c.patch(
+            "/api/v1/me/",
+            data=json.dumps(
+                {
+                    "username": "mallory",
+                    "password": "hunter2",
+                    "is_superuser": True,
+                    "is_active": False,
+                    "display_name": "Alicia",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.username, "alice")
+        self.assertFalse(self.user.is_superuser)
+        self.assertTrue(self.user.is_active)
+        self.assertTrue(self.user.check_password("pw"))
+        self.assertEqual(self.user.display_name, "Alicia")
+
+    def test_empty_body_is_a_noop(self):
+        r = self.c.patch("/api/v1/me/", data=json.dumps({}), content_type="application/json")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["username"], "alice")
+
+    def test_anonymous_is_401(self):
+        anon = Client()
+        r = anon.patch(
+            "/api/v1/me/",
+            data=json.dumps({"display_name": "Nadie"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 401, r.content[:200])
+
+    def test_headless_bearer_token_can_patch(self):
+        """The MCP authenticates with Bearer, not the session cookie, so the
+        write path it will actually use is exercised here, not just login."""
+        _key, plaintext = APIKey.create_for(owner=self.user, name="headless")
+        bearer = Client()
+        r = bearer.patch(
+            "/api/v1/me/",
+            data=json.dumps({"display_name": "Headless Alicia", "notify_email": False}),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer " + plaintext,
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertFalse(r.json()["notify_email"])
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.display_name, "Headless Alicia")
+
+
+class APIIssueTemplatePatchTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.type = IssueType.objects.first()
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+        r = self.c.post(
+            "/api/v1/projects/WEB/issue-templates/",
+            data=json.dumps(
+                {
+                    "name": "Bug",
+                    "issue_type_id": self.type.pk,
+                    "summary": "Algo falla",
+                    "labels": ["plantilla"],
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.template_id = r.json()["id"]
+
+    def _patch(self, body):
+        return self.c.patch(
+            f"/api/v1/projects/WEB/issue-templates/{self.template_id}/",
+            data=json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_rename_and_edit_the_defaults(self):
+        priority = Priority.objects.first()
+        r = self._patch(
+            {
+                "name": "Fallo",
+                "summary": "Algo falla siempre",
+                "description": "Pasos para reproducir",
+                "priority_id": priority.pk,
+                "labels": ["nueva"],
+            }
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        self.assertEqual(body["name"], "Fallo")
+        self.assertEqual(body["summary"], "Algo falla siempre")
+        self.assertEqual(body["description"], "Pasos para reproducir")
+        self.assertEqual(body["priority"], str(priority))
+        self.assertEqual(body["labels"], ["nueva"])
+
+    def test_priority_clears_with_explicit_null(self):
+        priority = Priority.objects.first()
+        self._patch({"priority_id": priority.pk})
+        r = self._patch({"priority_id": None})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["priority"], "")
+
+    def test_labels_replace_whole_and_empty_clears(self):
+        r = self._patch({"labels": ["una", "otra"]})
+        self.assertEqual(sorted(r.json()["labels"]), ["otra", "una"])
+        r = self._patch({"labels": []})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["labels"], [])
+
+    def test_rename_collision_is_409_and_changes_nothing(self):
+        self.c.post(
+            "/api/v1/projects/WEB/issue-templates/",
+            data=json.dumps({"name": "Otro", "issue_type_id": self.type.pk}),
+            content_type="application/json",
+        )
+        r = self._patch({"name": "Otro", "summary": "No debe aplicarse"})
+        self.assertEqual(r.status_code, 409, r.content[:200])
+        listed = self.c.get("/api/v1/projects/WEB/issue-templates/").json()
+        bug = [t for t in listed["items"] if t["id"] == self.template_id][0]
+        self.assertEqual(bug["name"], "Bug")
+        self.assertEqual(bug["summary"], "Algo falla")
+
+    def test_unknown_type_or_priority_is_400(self):
+        for body in ({"issue_type_id": 9999}, {"priority_id": 9999}):
+            r = self._patch(body)
+            self.assertEqual(r.status_code, 400, r.content[:200])
+
+    def test_a_template_from_another_project_is_404(self):
+        from issues.models import IssueTemplate
+
+        other = _make_project(_make_user("mallory"), key="HID")
+        foreign = IssueTemplate.objects.create(
+            project=other, name="Bug", issue_type=self.type, created_by=other.lead
+        )
+        r = self.c.patch(
+            f"/api/v1/projects/WEB/issue-templates/{foreign.pk}/",
+            data=json.dumps({"summary": "x"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 404, r.content[:200])
+
+    def test_a_member_cannot_edit_templates(self):
+        member = _make_user("bob")
+        ProjectMembership.objects.create(project=self.project, user=member, role="member")
+        c2 = Client()
+        c2.login(username="bob", password="pw")
+        r = c2.patch(
+            f"/api/v1/projects/WEB/issue-templates/{self.template_id}/",
+            data=json.dumps({"summary": "x"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403, r.content[:200])
+
+    def test_empty_body_is_a_noop(self):
+        r = self._patch({})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["name"], "Bug")
+
+
+class APIWorkLogPatchTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.issue = _make_issue(self.project, self.user, summary="Con horas")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+        r = self.c.post(
+            f"/api/v1/issues/{self.issue.key}/worklogs/",
+            data=json.dumps({"minutes": 120, "comment": "mañana"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.log_id = r.json()["id"]
+
+    def _patch(self, body, log_id=None):
+        return self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/worklogs/{log_id or self.log_id}/",
+            data=json.dumps(body),
+            content_type="application/json",
+        )
+
+    def test_edit_minutes_moves_the_totals_by_the_delta(self):
+        # Estimate first, then log against it, then correct: the three paths
+        # have to agree with each other, not just with themselves.
+        self.c.patch(
+            f"/api/v1/issues/{self.issue.key}/",
+            data=json.dumps({"time_remaining_minutes": 400}),
+            content_type="application/json",
+        )
+        logged = self.c.post(
+            f"/api/v1/issues/{self.issue.key}/worklogs/",
+            data=json.dumps({"minutes": 120}),
+            content_type="application/json",
+        ).json()
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.time_remaining_minutes, 280)
+        r = self._patch({"minutes": 60}, log_id=logged["id"])
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["minutes"], 60)
+        self.issue.refresh_from_db()
+        # 120 logged, then corrected to 60: spent drops by the delta, and the
+        # remaining estimate gives back exactly what the correction freed.
+        self.assertEqual(self.issue.time_spent_minutes, 180)
+        self.assertEqual(self.issue.time_remaining_minutes, 340)
+
+    def test_edit_comment_and_clear_it(self):
+        r = self._patch({"comment": "tarde"})
+        self.assertEqual(r.json()["comment"], "tarde")
+        r = self._patch({"comment": ""})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["comment"], "")
+
+    def test_post_accepts_started_and_patch_moves_it(self):
+        r = self.c.post(
+            f"/api/v1/issues/{self.issue.key}/worklogs/",
+            data=json.dumps({"minutes": 30, "started": "2026-09-20T14:00:00+02:00"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertTrue(r.json()["logged_at"].startswith("2026-09-20"), r.json()["logged_at"])
+        r = self._patch({"started": "2026-09-21T09:30:00"}, log_id=r.json()["id"])
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertTrue(r.json()["logged_at"].startswith("2026-09-21"), r.json()["logged_at"])
+
+    def test_started_rejects_garbage_and_the_future(self):
+        for bad in ("not-a-date", "", "2099-01-01T00:00:00+00:00"):
+            r = self._patch({"started": bad})
+            self.assertEqual(r.status_code, 400, f"{bad!r} -> {r.content[:200]}")
+        r = self.c.post(
+            f"/api/v1/issues/{self.issue.key}/worklogs/",
+            data=json.dumps({"minutes": 10, "started": "mañana-ish"}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 400, r.content[:200])
+
+    def test_minutes_must_stay_positive(self):
+        for bad in (0, -30):
+            r = self._patch({"minutes": bad})
+            self.assertEqual(r.status_code, 400, r.content[:200])
+        self.issue.refresh_from_db()
+        self.assertEqual(self.issue.time_spent_minutes, 120)
+
+    def test_a_worklog_from_another_issue_is_404(self):
+        other = _make_issue(self.project, self.user, summary="Otra")
+        foreign = WorkLog.objects.create(issue=other, author=self.user, minutes=15)
+        r = self._patch({"minutes": 20}, log_id=foreign.pk)
+        self.assertEqual(r.status_code, 404, r.content[:200])
+        foreign.refresh_from_db()
+        self.assertEqual(foreign.minutes, 15)
+
+    def test_a_viewer_cannot_edit_time(self):
+        ProjectMembership.objects.create(project=self.project, user=_make_user("vic"), role="viewer")
+        c2 = Client()
+        c2.login(username="vic", password="pw")
+        r = c2.patch(
+            f"/api/v1/issues/{self.issue.key}/worklogs/{self.log_id}/",
+            data=json.dumps({"minutes": 60}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403, r.content[:200])
+
+    def test_empty_body_is_a_noop(self):
+        r = self._patch({})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["minutes"], 120)
+
+    def test_an_edit_leaves_an_audit_row(self):
+        """The edit goes through save(), not a bulk write, so the audit
+        receiver sees it. A queryset update() here would leave the correction
+        with no trace of who made it."""
+        self._patch({"minutes": 90})
+        self.assertTrue(
+            AuditEntry.objects.filter(
+                project=self.project, target_type="worklog", target_id=self.log_id, verb="updated"
+            ).exists()
+        )
+
+
+class APIIssueCloneTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.src = _make_issue(self.project, self.user, summary="Original")
+        self.src.description = "Cuerpo"
+        self.src.story_points = 3
+        self.src.due_date = _date(2026, 12, 31)
+        self.src.estimate_minutes = 240
+        self.src.save()
+        # set(), not aset(): this is sync test code, and an unawaited
+        # coroutine attaches nothing while failing silently.
+        self.src.labels.set([Label.objects.create(name=name) for name in ("uno", "dos")])
+        Comment.objects.create(issue=self.src, author=self.user, body="no copiar")
+        WorkLog.objects.create(issue=self.src, author=self.user, minutes=60)
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def _clone(self, body=None, key=None):
+        return self.c.post(
+            f"/api/v1/issues/{key or self.src.key}/clone/",
+            data=json.dumps(body or {}),
+            content_type="application/json",
+        )
+
+    def test_clone_copies_the_work_not_the_history(self):
+        r = self._clone()
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        clone = Issue.objects.get(key=body["issue"]["key"])
+        self.assertNotEqual(clone.pk, self.src.pk)
+        self.assertEqual(clone.summary, "[clon] Original")
+        self.assertEqual(clone.description, "Cuerpo")
+        self.assertEqual(clone.status, self.src.status)
+        self.assertEqual(clone.priority, self.src.priority)
+        self.assertEqual(clone.issue_type, self.src.issue_type)
+        self.assertEqual(clone.assignee, self.src.assignee)
+        self.assertEqual(clone.story_points, 3)
+        self.assertEqual(clone.estimate_minutes, 240)
+        self.assertEqual(str(clone.due_date), "2026-12-31")
+        self.assertEqual({label.name for label in clone.labels.all()}, {"uno", "dos"})
+        self.assertEqual(clone.reporter, self.user)
+        self.assertEqual(body["subtasks"], [])
+        # History stays behind: no comments, no time, no links on the copy.
+        self.assertEqual(clone.comments.count(), 0)
+        self.assertEqual(clone.worklogs.count(), 0)
+        self.assertEqual(clone.time_spent_minutes, 0)
+
+    def test_clone_of_an_archived_issue_is_active(self):
+        Issue.objects.filter(pk=self.src.pk).update(archived=True)
+        clone = Issue.objects.get(key=self._clone().json()["issue"]["key"])
+        self.assertFalse(clone.archived)
+
+    def test_custom_summary_and_sprint(self):
+        from projects.models import Sprint
+
+        sprint = Sprint.objects.create(project=self.project, name="S1")
+        r = self._clone({"summary": "Para el sprint", "sprint_id": sprint.pk})
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        self.assertEqual(r.json()["issue"]["summary"], "Para el sprint")
+        self.assertEqual(Issue.objects.get(key=r.json()["issue"]["key"]).sprint, sprint)
+
+    def test_blank_summary_falls_back_to_the_prefix(self):
+        for blank in ("", "   "):
+            r = self._clone({"summary": blank})
+            self.assertEqual(r.status_code, 200, r.content[:200])
+            self.assertTrue(r.json()["issue"]["summary"].startswith("[clon]"))
+
+    def test_a_foreign_sprint_is_400(self):
+        from projects.models import Sprint
+
+        elsewhere = _make_project(_make_user("mallory"), key="HID")
+        foreign = Sprint.objects.create(project=elsewhere, name="Otro")
+        r = self._clone({"sprint_id": foreign.pk})
+        self.assertEqual(r.status_code, 400, r.content[:200])
+        r = self._clone({"sprint_id": 9999})
+        self.assertEqual(r.status_code, 400, r.content[:200])
+
+    def test_subtasks_copy_only_with_the_flag_and_one_level(self):
+        from projects.models import Sprint
+
+        sprint = Sprint.objects.create(project=self.project, name="S1")
+        kids = [
+            Issue.objects.create(
+                project=self.project,
+                reporter=self.user,
+                summary=f"Hijo {i}",
+                status=self.src.status,
+                priority=Priority.objects.first(),
+                issue_type=IssueType.objects.first(),
+                parent=self.src,
+            )
+            for i in (1, 2)
+        ]
+        grandchild = Issue.objects.create(
+            project=self.project,
+            reporter=self.user,
+            summary="Nieto",
+            status=self.src.status,
+            priority=Priority.objects.first(),
+            issue_type=IssueType.objects.first(),
+            parent=kids[0],
+        )
+        # Default: no children copied, and none created either.
+        before = Issue.objects.filter(project=self.project).count()
+        body = self._clone({"sprint_id": sprint.pk}).json()
+        self.assertEqual(body["subtasks"], [])
+        self.assertEqual(Issue.objects.filter(project=self.project).count(), before + 1)
+
+        body = self._clone({"include_subtasks": True}).json()
+        self.assertEqual(len(body["subtasks"]), 2)
+        clone = Issue.objects.get(key=body["issue"]["key"])
+        copies = list(Issue.objects.filter(parent=clone).order_by("key"))
+        self.assertEqual([c.summary for c in copies], ["[clon] Hijo 1", "[clon] Hijo 2"])
+        # One level: the grandchild stays an only child of the original.
+        self.assertEqual(Issue.objects.filter(parent__in=[c.pk for c in copies]).count(), 0)
+        self.assertEqual(grandchild.parent, kids[0])
+        # Children ride with the parent: no sprint of their own.
+        self.assertTrue(all(c.sprint is None for c in copies))
+
+    def test_viewer_cannot_clone_and_hidden_is_404(self):
+        ProjectMembership.objects.create(project=self.project, user=_make_user("vic"), role="viewer")
+        c2 = Client()
+        c2.login(username="vic", password="pw")
+        r = c2.post(
+            f"/api/v1/issues/{self.src.key}/clone/",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(r.status_code, 403, r.content[:200])
+        hidden = _make_issue(_make_project(_make_user("mallory"), key="HID"), self.user, summary="X")
+        self.assertEqual(self._clone(key=hidden.key).status_code, 404)
+
+
+class APIAnalyticsTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.todo = Status.objects.get(name="To Do")
+        self.done = Status.objects.get(name="Done")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def _backdate(self, model, pk, field, dt):
+        model.objects.filter(pk=pk).update(**{field: dt})
+
+    def test_sla_flags_only_stuck_open_issues(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from issues.models import HistoryEntry
+
+        now = timezone.now()
+        stuck = _make_issue_in(self.project, self.user, self.todo, summary="Atascada")
+        entry = HistoryEntry.objects.create(issue=stuck, field="status", old_value="", new_value="To Do")
+        self._backdate(HistoryEntry, entry.pk, "created_at", now - timedelta(days=10))
+        fresh = _make_issue_in(self.project, self.user, self.todo, summary="Nueva")
+        finished = _make_issue_in(self.project, self.user, self.done, summary="Hecha")
+        self._backdate(
+            HistoryEntry,
+            HistoryEntry.objects.create(
+                issue=finished, field="status", old_value="To Do", new_value="Done"
+            ).pk,
+            "created_at",
+            now - timedelta(days=30),
+        )
+        Issue.objects.filter(pk=finished.pk).update(resolved_at=now - timedelta(days=29))
+
+        r = self.c.get("/api/v1/projects/WEB/sla/?days=7")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        self.assertEqual(body["threshold_days"], 7)
+        keys = [item["issue"] for item in body["items"]]
+        self.assertIn(stuck.key, keys)
+        self.assertNotIn(fresh.key, keys)
+        self.assertNotIn(finished.key, keys)
+        row = [item for item in body["items"] if item["issue"] == stuck.key][0]
+        self.assertGreaterEqual(row["days_in_status"], 10)
+        self.assertEqual(body["count"], len(body["items"]))
+
+    def test_sla_threshold_clamps_and_archived_are_out(self):
+        archived = _make_issue_in(self.project, self.user, self.todo, summary="Vieja")
+        Issue.objects.filter(pk=archived.pk).update(archived=True)
+        r = self.c.get("/api/v1/projects/WEB/sla/?days=0")
+        body = r.json()
+        self.assertEqual(body["threshold_days"], 1)
+        self.assertNotIn(archived.key, [item["issue"] for item in body["items"]])
+
+    def test_sla_hidden_project_is_404(self):
+        self.assertEqual(self.c.get("/api/v1/projects/HID/sla/").status_code, 404)
+
+    def test_burndown_empty_project_answers_no_chart(self):
+        r = self.c.get("/api/v1/projects/WEB/burndown/")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        self.assertIsNone(body["sprint"])
+        self.assertEqual(body["points"], [])
+        self.assertEqual(body["velocity"], [])
+
+    def test_burndown_ideal_line_and_velocity(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        today = timezone.localdate()
+        sprint = Sprint.objects.create(
+            project=self.project,
+            name="S1",
+            status="active",
+            start_date=today - timedelta(days=4),
+            end_date=today + timedelta(days=6),
+        )
+        a = _make_issue_in(self.project, self.user, self.todo, summary="A")
+        a.story_points = 5
+        a.sprint = sprint
+        a.save()
+        b = _make_issue_in(self.project, self.user, self.todo, summary="B")
+        b.story_points = 3
+        b.sprint = sprint
+        b.save()
+        Issue.objects.filter(pk=b.pk).update(resolved_at=timezone.now())
+
+        r = self.c.get("/api/v1/projects/WEB/burndown/")
+        body = r.json()
+        self.assertEqual(body["sprint"]["name"], "S1")
+        self.assertEqual(body["total_sp"], 8)
+        self.assertEqual(body["done_sp"], 3)
+        # Day zero ideal is the total, the last day is zero, and past days
+        # carry an actual while future days carry null rather than zero.
+        self.assertEqual(body["points"][0]["ideal"], 8)
+        self.assertEqual(body["points"][-1]["ideal"], 0)
+        past = [p for p in body["points"] if p["date"] <= today.isoformat()]
+        future = [p for p in body["points"] if p["date"] > today.isoformat()]
+        self.assertTrue(all(p["actual"] is not None for p in past))
+        self.assertTrue(all(p["actual"] is None for p in future))
+
+        closed = Sprint.objects.create(
+            project=self.project,
+            name="S0",
+            status="closed",
+            start_date=today - timedelta(days=20),
+            end_date=today - timedelta(days=10),
+        )
+        old = _make_issue_in(self.project, self.user, self.done, summary="Vieja")
+        old.story_points = 8
+        old.sprint = closed
+        old.save()
+        Issue.objects.filter(pk=old.pk).update(
+            resolved_at=timezone.make_aware(
+                timezone.datetime.combine(today - timedelta(days=15), timezone.datetime.min.time())
+            )
+        )
+        r = self.c.get("/api/v1/projects/WEB/burndown/")
+        velocity = {v["name"]: v for v in r.json()["velocity"]}
+        self.assertEqual(velocity["S0"]["committed"], 8)
+        self.assertEqual(velocity["S0"]["completed"], 8)
+
+    def test_burndown_unknown_sprint_is_404(self):
+        self.assertEqual(self.c.get("/api/v1/projects/WEB/burndown/?sprint=9999").status_code, 404)
+
+    def test_reports_throughput_cycle_and_wip(self):
+
+        from django.utils import timezone
+
+        done = _make_issue_in(self.project, self.user, self.done, summary="Hecha")
+        # now is captured after the create, not before: resolved_at must be
+        # later than created_at, or the cycle computation (resolved > start,
+        # falling back to creation) rightly discards it. And "now" rather than
+        # days ago, because bucketing is by ISO week and a fixed offset is in
+        # last week every Monday.
+        now = timezone.now()
+        Issue.objects.filter(pk=done.pk).update(resolved_at=now)
+        open_issue = _make_issue_in(self.project, self.user, self.todo, summary="Abierta")
+
+        r = self.c.get("/api/v1/projects/WEB/reports/")
+        self.assertEqual(r.status_code, 200, r.content[:200])
+        body = r.json()
+        current_week = now.strftime("%Y-W%V")
+        weeks = {w["week"]: w["count"] for w in body["throughput"]}
+        self.assertEqual(len(body["throughput"]), 8)
+        self.assertGreaterEqual(weeks.get(current_week, 0), 1)
+        self.assertEqual(body["throughput_max"], max(weeks.values()) or 1)
+        self.assertGreaterEqual(body["cycle"]["count"], 1)
+        wip = {w["name"]: w["count"] for w in body["wip"]}
+        self.assertEqual(wip.get("To Do", 0), 1)
+        self.assertEqual(wip.get("Done", 0), 1)
+        self.assertEqual(body["wip_max"], max(wip.values()) or 1)
+        self.assertNotIn(open_issue.key, r.content.decode())
