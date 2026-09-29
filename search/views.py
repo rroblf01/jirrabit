@@ -125,7 +125,7 @@ class SearchView(AsyncLoginRequiredMixin, AsyncTemplateView):
         has_more = False
         if query:
             try:
-                q, order = parse_jql(query)
+                q, order = parse_jql(query, getattr(self.request.user, "username", None) or None)
                 # Scoped to the projects this user can see. Every other query in
                 # the app goes through Project.objects.filter_visible, and so
                 # does the REST API's own search — this view was the one place

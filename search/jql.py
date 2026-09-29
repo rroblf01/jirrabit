@@ -11,7 +11,9 @@ Grammar (subset):
 
 User fields (``assignee``, ``reporter``) match against ``username``,
 ``display_name`` and ``first_name + last_name`` so callers can type either
-``erin_ux``, ``"Erin Soto"`` or just ``erin``.
+``erin_ux``, ``"Erin Soto"`` or just ``erin``. They also accept Jira's
+``currentUser()`` for the caller, so "my open issues" is one query instead of
+an identity lookup followed by a search.
 """
 
 import re
@@ -155,6 +157,22 @@ def _user_match(prefix: str, value: str, op: str) -> Q:
     return q
 
 
+def _resolve_current_user(value: str, username: str | None) -> str:
+    """Replace Jira's ``currentUser()`` with the caller's username.
+
+    Case-insensitive and quote-agnostic, because ``_parse_value`` has already
+    stripped the quoting by the time this runs, so both ``currentUser()`` and
+    ``"currentUser()"`` match. Anything else passes through untouched — in
+    particular a bare ``currentuser`` without parens still matches a user
+    literally named that, instead of being swallowed by the magic value.
+    """
+    if str(value).strip().lower() != "currentuser()":
+        return value
+    if not username:
+        raise JQLError("currentUser() necesita un usuario autenticado.")
+    return username
+
+
 def _translate_category(value):
     """Map a Jira status-category display name onto jirrabit's stored slug.
 
@@ -260,8 +278,13 @@ def _unsupported_operator_message(chunk: str) -> str:
     )
 
 
-def parse_jql(query: str):
+def parse_jql(query: str, username: str | None = None):
     """Parse ``query`` and return ``(Q object, [order_fields])``.
+
+    ``username`` is the caller, used only to resolve ``currentUser()`` in
+    ``assignee``/``reporter`` clauses. ``None`` keeps every other query working
+    exactly as before; only ``currentUser()`` itself then fails, loudly rather
+    than matching nobody.
 
     Raises :class:`JQLError` if the query references an unknown field or cannot
     be parsed. Empty queries return an empty ``Q`` and ``[]``.
@@ -343,10 +366,10 @@ def parse_jql(query: str):
             if op == "in" and isinstance(v, list):
                 sub = Q()
                 for item in v:
-                    sub |= _user_match(field, item, "=")
+                    sub |= _user_match(field, _resolve_current_user(item, username), "=")
                 q &= sub
             else:
-                q &= _user_match(field, v, op)
+                q &= _user_match(field, _resolve_current_user(v, username), op)
             continue
 
         if field not in FIELD_COLUMNS:

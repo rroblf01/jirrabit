@@ -116,6 +116,41 @@ class JQLParserTests(TestCase):
         q, order = parse_jql("project = WEB ORDER BY priority DESC, created")
         self.assertEqual(order, ["-priority__weight", "created_at"])
 
+    def test_current_user_resolves_to_the_username(self):
+        q, _ = parse_jql("assignee = currentUser()", "alice")
+        self.assertIn("'alice'", str(q))
+
+    def test_current_user_is_case_insensitive_and_quote_agnostic(self):
+        for query in ("reporter = CURRENTUSER()", 'assignee = "currentUser()"'):
+            q, _ = parse_jql(query, "alice")
+            self.assertIn("'alice'", str(q))
+
+    def test_current_user_inside_an_in_list(self):
+        q, _ = parse_jql("assignee in (currentUser(), bob)", "alice")
+        self.assertIn("'alice'", str(q))
+        self.assertIn("'bob'", str(q))
+
+    def test_current_user_negation(self):
+        q, _ = parse_jql("assignee != currentUser()", "alice")
+        self.assertIn("'alice'", str(q))
+
+    def test_bare_currentuser_without_parens_is_not_magic(self):
+        """A user literally named "currentuser" must still be reachable."""
+        q, _ = parse_jql("assignee = currentuser", "alice")
+        self.assertIn("'currentuser'", str(q))
+        self.assertNotIn("'alice'", str(q))
+
+    def test_current_user_without_a_user_raises_loudly(self):
+        """Matching nobody would read as "no matches"; refusing reads as what
+        it is — a query that names a caller it does not have."""
+        with self.assertRaises(JQLError):
+            parse_jql("assignee = currentUser()")
+
+    def test_queries_without_current_user_ignore_the_username(self):
+        q, _ = parse_jql("assignee = bob", "alice")
+        self.assertIn("'bob'", str(q))
+        self.assertNotIn("'alice'", str(q))
+
     def test_empty_query_is_a_noop(self):
         q, order = parse_jql("")
         self.assertEqual(str(q), str(parse_jql("")[0]))
@@ -198,7 +233,12 @@ class JQLQueryTests(TestCase):
     def test_combined_clauses(self):
         found = self._search("statusCategory != Done AND assignee is EMPTY")
         self.assertIn(self.unassigned.key, found)
-        self.assertNotIn(self.mine.key, found)
+
+    def test_current_user_finds_the_callers_issues(self):
+        """The whole point: "my open issues" without a prior identity lookup."""
+        q, _ = parse_jql("assignee = currentUser() AND statusCategory != Done", "alice")
+        found = set(Issue.objects.filter(q).values_list("key", flat=True))
+        self.assertEqual(found, {self.mine.key})
 
     def test_free_text_finds_by_summary(self):
         found = self._search("logout")

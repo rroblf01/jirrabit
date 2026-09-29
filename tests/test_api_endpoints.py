@@ -4573,3 +4573,34 @@ class APIAnalyticsTests(TestCase):
         self.assertEqual(wip.get("Done", 0), 1)
         self.assertEqual(body["wip_max"], max(wip.values()) or 1)
         self.assertNotIn(open_issue.key, r.content.decode())
+
+
+class APIIssueCountsTests(TestCase):
+    def setUp(self):
+        _seed_lookups()
+        self.user = _make_user("alice")
+        self.project = _make_project(self.user, key="WEB")
+        self.issue = _make_issue(self.project, self.user, summary="Con cosas")
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_counts_start_at_zero(self):
+        body = self.c.get(f"/api/v1/issues/{self.issue.key}/").json()
+        self.assertEqual(body["comment_count"], 0)
+        self.assertEqual(body["worklog_count"], 0)
+
+    def test_counts_reflect_rows(self):
+        Comment.objects.create(issue=self.issue, author=self.user, body="uno")
+        Comment.objects.create(issue=self.issue, author=self.user, body="dos")
+        WorkLog.objects.create(issue=self.issue, author=self.user, minutes=30)
+        body = self.c.get(f"/api/v1/issues/{self.issue.key}/").json()
+        self.assertEqual(body["comment_count"], 2)
+        self.assertEqual(body["worklog_count"], 1)
+
+    def test_counts_ride_the_list_and_search(self):
+        Comment.objects.create(issue=self.issue, author=self.user, body="uno")
+        listed = self.c.get("/api/v1/projects/WEB/issues/").json()
+        row = [i for i in listed["items"] if i["key"] == self.issue.key][0]
+        self.assertEqual(row["comment_count"], 1)
+        found = self.c.get("/api/v1/search", {"jql": f"key = {self.issue.key}"}).json()
+        self.assertEqual(found["items"][0]["comment_count"], 1)

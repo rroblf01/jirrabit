@@ -65,6 +65,10 @@ async def _visible_issue(request, key: str) -> Issue:
             "project", "status", "priority", "issue_type", "assignee", "reporter", "parent", "epic"
         )
         .prefetch_related("labels", "status__allowed_next")
+        .annotate(
+            comment_count=models.Count("comments", distinct=True),
+            worklog_count=models.Count("worklogs", distinct=True),
+        )
     )
     try:
         return await qs.aget(key=key)
@@ -338,6 +342,12 @@ class IssueOut(Schema):
     #: default listings, which is what makes archiving a real alternative to
     #: deleting one — so a client has to be able to see the flag to trust it.
     archived: bool = False
+    comment_count: int = 0
+    worklog_count: int = 0
+    #: Read hints, not data: a zero here means "nothing worth a second call",
+    #: so a client deciding whether to list comments or worklogs does not spend
+    #: a call to learn the list is empty. Annotated on the read querysets;
+    #: counted live only where an annotation is absent.
 
     @staticmethod
     async def afrom_issue(i: Issue) -> IssueOut:
@@ -355,6 +365,16 @@ class IssueOut(Schema):
         synchronous database call in the middle of an async request.
         """
         labels = [label.name async for label in i.labels.all()]
+        # Annotated on every read path; counted live only where a caller forgot
+        # the annotation. A missing annotation must degrade to slower-but-right,
+        # never to a silent zero — zero is the value that tells a client to skip
+        # reading, so it is the one value that must not be guessed.
+        comment_count = getattr(i, "comment_count", None)
+        if comment_count is None:
+            comment_count = await i.comments.acount()
+        worklog_count = getattr(i, "worklog_count", None)
+        if worklog_count is None:
+            worklog_count = await i.worklogs.acount()
         return IssueOut(
             id=i.pk,
             key=i.key,
@@ -383,6 +403,8 @@ class IssueOut(Schema):
             epic_id=i.epic_id or 0,
             sprint_id=i.sprint_id,
             archived=i.archived,
+            comment_count=comment_count,
+            worklog_count=worklog_count,
         )
 
 
@@ -592,6 +614,10 @@ async def list_issues(
             "status", "priority", "issue_type", "assignee", "reporter", "project", "parent", "epic"
         )
         .prefetch_related("labels", "status__allowed_next")
+        .annotate(
+            comment_count=models.Count("comments", distinct=True),
+            worklog_count=models.Count("worklogs", distinct=True),
+        )
         .order_by("-updated_at")
     )
     # Archived issues are hidden unless asked for, which is what makes archiving
@@ -5279,7 +5305,7 @@ async def search_issues(
     from search.jql import JQLError, parse_jql
 
     try:
-        condition, order = parse_jql(jql)
+        condition, order = parse_jql(jql, getattr(request.user, "username", None) or None)
     except JQLError as exc:
         from ninja.errors import HttpError
 
@@ -5298,6 +5324,10 @@ async def search_issues(
             "project", "status", "priority", "issue_type", "assignee", "reporter", "parent", "epic"
         )
         .prefetch_related("labels", "status__allowed_next")
+        .annotate(
+            comment_count=models.Count("comments", distinct=True),
+            worklog_count=models.Count("worklogs", distinct=True),
+        )
         .order_by(*(order or ["-updated_at"]))
         .distinct()
     )
