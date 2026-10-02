@@ -1,9 +1,9 @@
 services:
   jirrabit-db:
-    # On a self-hosted box a container that stays down after a daemon restart is
-    # worse than one that crashes: nothing says why. Every long-lived service
-    # here is unless-stopped, matching the MCP service.
-    restart: unless-stopped
+    # Every long-lived service here is restart "no": containers start only on
+    # an explicit `docker compose up` and never on daemon restart or after a
+    # crash. Stopped stays stopped until asked otherwise.
+    restart: "no"
     image: postgres:18.3-alpine3.23
     env_file:
       - .env
@@ -23,7 +23,7 @@ services:
       retries: 10
 
   redis:
-    restart: unless-stopped
+    restart: "no"
     image: redis:8.6.3-alpine3.23
     env_file:
       - .env
@@ -35,7 +35,7 @@ services:
       retries: 10
 
   web:
-    restart: unless-stopped
+    restart: "no"
     build: .
     env_file:
       - .env
@@ -68,7 +68,7 @@ services:
       # The submodule path is the default. Override MCP_CONTEXT in .env to
       # build from a checkout elsewhere, e.g. a sibling clone while developing.
       context: ${MCP_CONTEXT:-./jirrabit-mcp}
-    restart: unless-stopped
+    restart: "no"
     command: ["-transport", "http"]
     environment:
       JIRRABIT_MCP_TRANSPORT: http
