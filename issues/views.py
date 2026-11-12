@@ -256,7 +256,7 @@ class IssueCreateView(AsyncLoginRequiredMixin, AsyncCreateView):
         else:
             itype = None
         if itype is None:
-            itype = await IssueType.objects.afirst()
+            itype = await IssueType.adefault()
         initial["issue_type"] = itype
         initial["description"] = itype.description_template if itype else ""
         return IssueForm(project=self.project, initial=initial)
@@ -1244,7 +1244,7 @@ class IssueCsvImportView(AsyncLoginRequiredMixin, View):
         default_status = await Status.objects.order_by("order").afirst()
         types_by_name = {t.name.lower(): t async for t in IssueType.objects.all()}
         priorities_by_name = {p.name.lower(): p async for p in Priority.objects.all()}
-        default_type = next(iter(types_by_name.values())) if types_by_name else None
+        default_type = IssueType.pick_default(types_by_name.values())
         default_priority = next(iter(priorities_by_name.values())) if priorities_by_name else None
         from accounts.models import User
 

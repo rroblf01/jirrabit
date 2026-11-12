@@ -1757,7 +1757,7 @@ async def import_issues_csv(request, key: str, payload: CsvImportIn):
         if usernames
         else {}
     )
-    default_type = next(iter(types_by_name.values()), None)
+    default_type = IssueType.pick_default(types_by_name.values())
     default_priority = next(iter(priorities_by_name.values()), None)
     default_status = await Status.objects.order_by("order").afirst()
 
@@ -3948,7 +3948,7 @@ async def create_issue(request, key: str, payload: IssueIn):
         itype = (
             await IssueType.objects.aget(pk=payload.issue_type_id)
             if payload.issue_type_id
-            else await IssueType.objects.afirst()
+            else await IssueType.adefault()
         )
     except (Status.DoesNotExist, Priority.DoesNotExist, IssueType.DoesNotExist) as exc:
         raise HttpError(400, "status/priority/type inválido") from exc
