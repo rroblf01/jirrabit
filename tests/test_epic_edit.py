@@ -81,3 +81,42 @@ class EpicSummaryTests(TestCase):
     def test_epic_of_another_project_is_not_found(self):
         _make_project(self.lead, key="OPS")
         self.assertEqual(self.c.get(f"/projects/OPS/epics/{self.epic.pk}/edit/").status_code, 404)
+
+
+class EpicListSummaryTests(TestCase):
+    """The project page lists epics with a one-line summary. It truncated the
+    raw source, so a Markdown summary showed its ``##`` and ``**``."""
+
+    def setUp(self):
+        _seed_lookups()
+        self.lead = _make_user("alice")
+        self.project = _make_project(self.lead, key="WEB")
+        Epic.objects.create(
+            project=self.project,
+            name="Oven",
+            summary="## Contexto\n\nPartimos de un proyecto Django **en blanco** llamado `oven` & <b>x</b>",
+            created_by=self.lead,
+        )
+        self.c = Client()
+        self.c.login(username="alice", password="pw")
+
+    def test_row_shows_markdown_as_plain_text(self):
+        html = self.c.get("/projects/WEB/").content.decode()
+        self.assertIn("Contexto Partimos de un proyecto Django en blanco llamado oven", html)
+        self.assertNotIn("## Contexto", html)
+        self.assertNotIn("**en blanco**", html)
+
+    def test_row_text_is_still_escaped(self):
+        html = self.c.get("/projects/WEB/").content.decode()
+        self.assertNotIn("<b>x</b>", html)
+
+    def test_row_from_the_htmx_create_is_plain_text_too(self):
+        r = self.c.post(
+            "/projects/WEB/epics/new/",
+            {"name": "Nueva", "summary": "**hola** _mundo_", "color": "#1e6fff"},
+            HTTP_HX_REQUEST="true",
+        )
+        self.assertEqual(r.status_code, 200)
+        html = r.content.decode()
+        self.assertIn("hola mundo", html)
+        self.assertNotIn("**", html)

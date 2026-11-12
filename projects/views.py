@@ -206,7 +206,11 @@ class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreate
         await epic.asave()
         self.object = epic
         if self.request.htmx:
-            return await arender(self.request, "projects/_epic_row.html", {"epic": epic})
+            # The row links to the epic, which needs the project key: without it
+            # the reverse failed and the create answered 500 after saving.
+            return await arender(
+                self.request, "projects/_epic_row.html", {"epic": epic, "project": self.project}
+            )
         return redirect(self.project.get_absolute_url())
 
 
