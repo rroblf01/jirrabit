@@ -354,6 +354,8 @@ saves row by row and says why.
   it shows up in no epic list. `tests/test_default_issue_type.py` pins it.
 - `Issue.description_html` and `Comment.body_html` are render-on-save caches with
   a lazy fallback.
+- `Epic.summary` is Markdown too, rendered per request with `render_markdown` on
+  the epic page (no cache column). The list row shows it as truncated plain text.
 - `Comment.is_internal` is force-cleared for non-staff on every submit.
 - `Issue.rank` is the card's index inside its `(project, status)` board column,
   and it is written. It used to be declared, read by the board and never written,

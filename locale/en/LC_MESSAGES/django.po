@@ -2513,6 +2513,14 @@ msgstr "New project"
 
 #, fuzzy
 #~| msgid "Cambio de estado"
+#: templates/projects/epic_edit.html
+msgid "Editar épica"
+msgstr "Edit epic"
+
+#: templates/projects/epic_edit.html
+msgid "El resumen admite Markdown."
+msgstr "The summary supports Markdown."
+
 #~ msgid "Atajos de teclado (?)"
 #~ msgstr "Status change"
 
