@@ -25,6 +25,31 @@ class IssueType(models.Model):
     def __str__(self):
         return self.name
 
+    #: Categories tried, in order, when a caller creates an issue without naming
+    #: a type. Epic and subtask are last on purpose: an epic issue is not an
+    #: epic (``projects.Epic`` is) and shows up in no epic list, and a subtask
+    #: with no parent is a contradiction.
+    DEFAULT_CATEGORY_ORDER = ("task", "story", "bug", "subtask", "epic")
+
+    @classmethod
+    def pick_default(cls, types):
+        """The type an issue gets when the caller named none, out of ``types``.
+
+        Used to be "the first row", which on a seeded instance is Epic because
+        the seed creates it first, so every untyped issue from the API, the
+        new-issue form, the board's quick add and CSV import became an epic
+        that was not one.
+        """
+        rank = {cat: i for i, cat in enumerate(cls.DEFAULT_CATEGORY_ORDER)}
+        types = list(types)
+        if not types:
+            return None
+        return min(types, key=lambda t: (rank.get(t.category, len(rank)), t.pk))
+
+    @classmethod
+    async def adefault(cls):
+        return cls.pick_default([t async for t in cls.objects.all()])
+
 
 class Status(models.Model):
     CATEGORY = (

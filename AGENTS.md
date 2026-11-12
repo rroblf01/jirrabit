@@ -348,6 +348,10 @@ saves row by row and says why.
   5 MB. That is why CSP needs `frame-src data:`.
 - `Issue.key` is generated in `Issue.save()` from `project.next_issue_number()`,
   not by a form or the API.
+- An issue created with no type gets `IssueType.adefault()` / `pick_default()`:
+  Task first, Epic last. Never `IssueType.objects.first()` — the seed creates
+  Epic first, and an issue of type Epic is not an epic (`projects.Epic` is), so
+  it shows up in no epic list. `tests/test_default_issue_type.py` pins it.
 - `Issue.description_html` and `Comment.body_html` are render-on-save caches with
   a lazy fallback.
 - `Comment.is_internal` is force-cleared for non-staff on every submit.

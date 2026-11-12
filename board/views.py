@@ -547,7 +547,7 @@ class BoardColumnQuickCreateView(AsyncLoginRequiredMixin, View):
         if status is None:
             return HttpResponseBadRequest("status inválido")
         priority = await Priority.objects.afirst()
-        itype = await IssueType.objects.afirst()
+        itype = await IssueType.adefault()
         num = await project.anext_issue_number()
         issue = Issue(
             project=project,
