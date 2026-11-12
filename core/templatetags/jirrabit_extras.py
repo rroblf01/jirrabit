@@ -20,3 +20,24 @@ def rel_time(value, fmt="d M H:i"):
         return value
     pretty = date_format(value, fmt)
     return mark_safe(f'<time datetime="{iso}" data-rel="1" title="{pretty}">{pretty}</time>')
+
+
+@register.filter
+def markdown_text(value):
+    """Markdown → plain text, for places too small for formatting.
+
+    A table cell that truncates the raw source shows ``## Contexto`` and
+    ``**en blanco**``; rendering it there would put a heading inside a row.
+    This renders it, drops the tags and collapses whitespace, so the cell reads
+    as prose. The result is a plain ``str``, so the template still escapes it.
+    """
+    if not value:
+        return ""
+    import html
+    import re
+
+    from django.utils.html import strip_tags
+
+    from core.markdown import render_markdown
+
+    return re.sub(r"\s+", " ", html.unescape(strip_tags(render_markdown(value)))).strip()
