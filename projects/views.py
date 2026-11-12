@@ -127,7 +127,8 @@ class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
     async def aget_context_data(self, **kwargs):
         from collections import Counter
 
-        from core.permissions import aassert_can_view
+        from core.markdown import render_markdown
+        from core.permissions import aassert_can_view, aget_role, can_edit
         from issues.models import Issue
         from projects.models import Epic
 
@@ -159,6 +160,11 @@ class EpicDetailView(AsyncLoginRequiredMixin, AsyncTemplateView):
             {
                 "project": project,
                 "epic": epic,
+                # Markdown, like an issue description: an agent filing epics
+                # through the MCP writes it that way, and linebreaksbr showed
+                # the raw asterisks and hashes.
+                "summary_html": render_markdown(epic.summary),
+                "can_edit": can_edit(await aget_role(self.request.user, project)),
                 "issues": issues,
                 "total": total,
                 "done_count": done,
@@ -202,6 +208,50 @@ class EpicCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreate
         if self.request.htmx:
             return await arender(self.request, "projects/_epic_row.html", {"epic": epic})
         return redirect(self.project.get_absolute_url())
+
+
+class EpicUpdateView(AsyncLoginRequiredMixin, View):
+    """Edit an epic's name, summary and colour.
+
+    The same permission as creating one from the web (``aassert_can_edit``),
+    so whoever could make an epic can also fix its text. The summary gets the
+    Markdown editor with preview, because the detail page renders it.
+    """
+
+    template_name = "projects/epic_edit.html"
+
+    async def _aget(self, key, pk):
+        from core.permissions import aassert_can_edit
+        from projects.models import Epic
+
+        project = await _aget_project(key)
+        await aassert_can_edit(self.request.user, project)
+        try:
+            epic = await Epic.objects.aget(pk=pk, project=project)
+        except Epic.DoesNotExist as exc:
+            raise Http404("Epic") from exc
+        return project, epic
+
+    async def _arender(self, project, epic, form):
+        form.fields["summary"].widget.attrs.update({"rows": 12, "data-md-preview": "1", "data-slash": "1"})
+        return await arender(
+            self.request, self.template_name, {"project": project, "epic": epic, "form": form}
+        )
+
+    async def get(self, request, key, pk):
+        project, epic = await self._aget(key, pk)
+        return await self._arender(project, epic, await aform(EpicForm, instance=epic))
+
+    async def post(self, request, key, pk):
+        from core.aio import avalid
+
+        project, epic = await self._aget(key, pk)
+        form = await aform(EpicForm, request.POST, instance=epic)
+        if not await avalid(form):
+            return await self._arender(project, epic, form)
+        epic = form.save(commit=False)
+        await epic.asave()
+        return redirect("projects:epic_detail", key=project.key, pk=epic.pk)
 
 
 class SprintCreateView(AsyncLoginRequiredMixin, _ScopedToProjectMixin, AsyncCreateView):

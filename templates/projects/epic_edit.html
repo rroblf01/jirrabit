@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Editar" %} · {{ epic.name }} · {{ project.key }}{% endblock %}
+{% block content %}
+<div class="card">
+  <h1 style="margin:0;">{% trans "Editar épica" %}</h1>
+  <form method="post" style="margin-top:14px;">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="form-row">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}
+        {% if field.errors %}<div class="errors">{{ field.errors|join:", " }}</div>{% endif %}
+      </div>
+    {% endfor %}
+    <p style="color:var(--ink-500); font-size:12px;">
+      {% trans "El resumen admite Markdown." %}
+      <a href="{% url 'core:help' %}#markdown" target="_blank" rel="noopener">{% trans "Ayuda" %}</a>
+    </p>
+    <div class="row" style="margin-top:8px;">
+      <button class="btn" type="submit">{% trans "Guardar" %}</button>
+      <a class="btn ghost" href="{% url 'projects:epic_detail' project.key epic.pk %}">{% trans "Cancelar" %}</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
